@@ -9,42 +9,46 @@ import json
 version_string = '1.0.0'
 
 
-DEFAULT_USERNAME = '<put a username here>'
-DEFAULT_PASSWORD = '<put a password here>'
-DEFAULT_CLIENT_ID = 'das_web_client'
-DEFAULT_PROVIDER_KEY = 'demoloader'
-DEFAULT_SERVICE_ROOT = 'https://demo.pamdas.org/api/v1.0'
-DEFAULT_TOKEN_URL = 'https://demo.pamdas.org/oauth2/token'
-
-class DasClientException(Exception):
-    pass
-
-
-class DasClientPermissionDenied(DasClientException):
-    pass
-
-
-class DasClientNotFound(DasClientException):
-    pass
-
-
 class DasClient(object):
+    """
+    DasClient provides basic access to a DAS API. It requires the coordinates of a DAS API service as well 
+    as valid credentials for a user.
+    
+    The boiler-plate code handles authentication, so you don't have to think about Oauth2 or refresh tokens.
+    
+    As of May 12, 2017 it includes just a basic set of functions to access Subject data and to post observations.
+    
+    """
+    def __init__(self, username=None, password=None,
+                   service_root=None,
+                   token_url=None,
+                   provider_key=None,
+                   client_id=None):
 
-    def __init__(self, *args, **kwargs):
-        self.service_root = kwargs.get('service_root', DEFAULT_SERVICE_ROOT)
-        self.token_url = kwargs.get('token_url', DEFAULT_TOKEN_URL)
+        """
+        Initialize a DasClient instance.
+        
+        :param username: DAS username 
+        :param password: DAS password
+        :param service_root: The root of the DAS API (Ex. https://demo.pamdas.org/api/v1.0)
+        :param token_url: The auth token url for DAS (Ex. https://demo.pamdas.org/oauth2/token)
+        :param provider_key: provider-key for posting observation data (Ex. xyz_provider)
+        :param client_id: Auth client ID (Ex. das_web_client)
+        """
+        self.service_root = service_root
+        self.token_url = token_url
+        self.username = username
+        self.password = password
+        self.client_id = client_id
+        self.provider_key = provider_key
 
-        self.username = kwargs.get('username', DEFAULT_USERNAME)
-        self.password = kwargs.get('password', DEFAULT_PASSWORD)
-        self.client_id = kwargs.get('client_id', DEFAULT_CLIENT_ID)
-        self.provider_key = kwargs.get('provider_key', DEFAULT_PROVIDER_KEY)
         self.auth = None
         self.auth_expires = pytz.utc.localize(datetime.min)
 
         self.user_agent = 'das-client/{}'.format(version_string)
 
     def _auth_is_valid(self):
-        return self.auth_expires > datetime.now(tz=pytz.utc)
+        return self.auth_expires > pytz.utc.localize(datetime.utcnow())
 
     def auth_headers(self):
 
@@ -83,7 +87,7 @@ class DasClient(object):
         if response.ok:
             self.auth = json.loads(response.text)
             expires_in = int(self.auth['expires_in']) - 5 * 60
-            self.auth_expires = datetime.now(tz=pytz.utc) + timedelta(seconds=expires_in)
+            self.auth_expires = pytz.utc.localize(datetime.utcnow()) + timedelta(seconds=expires_in)
             return True
 
         self.auth = None
@@ -146,9 +150,18 @@ class DasClient(object):
                   (self.provider_key, path, (response.text if response else '<no response text>')))
 
     def get_me(self):
+        """
+        Get details for the 'me', the current DAS user.
+        :return: 
+        """
         return self._get('user/me')
 
     def post_source(self, source):
+        '''
+        Post a source payload to create a new source.
+        :param source: 
+        :return: 
+        '''
         print('Posting source for manufacturer_id: %s' % source.get('manufacturer_id'))
         return self._post('sources', payload=source)
 
@@ -158,7 +171,9 @@ class DasClient(object):
         return observation
 
     def post_observation(self, observation):
-
+        """
+        Post a new observation, or a list of observations.
+        """
         if isinstance(observation, (list, set)):
             payload = [self._clean_observation(o) for o in observation]
         else:
@@ -168,11 +183,70 @@ class DasClient(object):
         return self._post('observations', payload=payload)
 
     def pulse(self, message=None):
+        """
+        Convenience method for getting status of the DAS api.
+        :param message: 
+        :return: 
+        """
         return self._get('status')
 
     def get_subject_tracks(self, subject_id):
+        """
+        Get the latest tracks for the Subject having the given subject_id.
+        """
         return self._get('subject/{0}/tracks'.format(subject_id))
 
     def get_subjects(self):
+        """
+        Get the list of subjects to whom the user has access.
+        :return: 
+        """
         return self._get('subjects')
+
+class DasClientException(Exception):
+    pass
+
+
+class DasClientPermissionDenied(DasClientException):
+    pass
+
+
+class DasClientNotFound(DasClientException):
+    pass
+
+
+
+if __name__ == '__main__':
+    """
+    Here's an example for using the client. You'll need to provide the valid arguments to the 
+    DasClient constructor.
+    """
+
+    MY_USERNAME = '<your username>'
+    MY_PASSWORD = '<your password>'
+    MY_SERVICE_ROOT = 'https://demo.pamdas.org/api/v1.0'
+    MY_TOKEN_URL = 'https://demo.pamdas.org/oauth2/token'
+    MY_PROVIDER_KEY = 'demo-provider'
+    MY_CLIENT_ID = 'das_web_client'
+
+    dc = DasClient(username=MY_USERNAME, password=MY_PASSWORD,
+                   service_root=MY_SERVICE_ROOT,
+                   token_url=MY_TOKEN_URL,
+                   provider_key=MY_PROVIDER_KEY,
+                   client_id=MY_CLIENT_ID
+                )
+
+    # Example 1: use the pulse() function be sure you can reach the API.
+    print (dc.pulse())
+
+    # Example 2: Use the get_subjects() function to fetch a list of Subjects that the user may see.
+    subjects = dc.get_subjects()
+
+    # Example 3: Take a Subject ID from the results of the last call, and fetch tracks.
+    for sub in subjects:
+        print(sub)
+        if sub.get('tracks_available', False):
+            print('Getting tracks for %s' % (sub['name']))
+            tracks = dc.get_subject_tracks(sub['id'])
+            print(tracks)
 
