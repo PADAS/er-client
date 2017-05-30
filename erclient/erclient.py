@@ -170,6 +170,9 @@ class DasClient(object):
             observation['recorded_at'] = observation['recorded_at'].isoformat()
         return observation
 
+    def _clean_event(self, event):
+        return event
+
     def post_observation(self, observation):
         """
         Post a new observation, or a list of observations.
@@ -181,6 +184,15 @@ class DasClient(object):
 
         print('Posting observation: %s' % payload)
         return self._post('observations', payload=payload)
+
+    def post_event(self, event):
+        """
+        Post a new Event.
+        """
+        payload = self._clean_event(event)
+
+        print('Posting event: %s' % payload)
+        return self._post('activity/events', payload=payload)
 
     def pulse(self, message=None):
         """
