@@ -4,6 +4,13 @@ import re
 version_file = open("dasclient/version.py").read()
 version_data = dict(re.findall("__([a-z]+)__\s*=\s*'([^']+)'", version_file))
 
+try:
+    from build_data import build_number
+    version_data['version'] = version_data['version'] + '.' + str(build_number)
+except ImportError:
+    print('warning: Build number is not provided, so not including it in version identifier.')
+
+
 setup(
       name='dasclient',
       version=version_data['version'],
