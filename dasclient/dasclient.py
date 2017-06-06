@@ -8,7 +8,8 @@ import io
 import dateutil.parser as dp
 import json
 
-version_string = '1.0.1'
+import dasclient.version
+version_string = dasclient.version.__version__
 
 
 class DasClient(object):
