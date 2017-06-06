@@ -1,12 +1,14 @@
 from datetime import datetime, timedelta
 import dateutil, pytz
+import logging
+
 import requests
 
 import io
 import dateutil.parser as dp
 import json
 
-version_string = '1.0.0'
+version_string = '1.0.1'
 
 
 class DasClient(object):
@@ -17,7 +19,9 @@ class DasClient(object):
     The boiler-plate code handles authentication, so you don't have to think about Oauth2 or refresh tokens.
     
     As of May 12, 2017 it includes just a basic set of functions to access Subject data and to post observations.
-    
+
+    June 6, 2017: Added methods to add a photo or document to an Event.
+        
     """
     def __init__(self, username=None, password=None,
                    service_root=None,
@@ -46,6 +50,8 @@ class DasClient(object):
         self.auth_expires = pytz.utc.localize(datetime.min)
 
         self.user_agent = 'das-client/{}'.format(version_string)
+
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     def _auth_is_valid(self):
         return self.auth_expires > pytz.utc.localize(datetime.utcnow())
@@ -120,34 +126,72 @@ class DasClient(object):
         raise DasClientException('Failed to call DAS web service.')
 
     def _post(self, path, payload):
+
         headers = {'Content-Type': 'application/json',
                    'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
         body = json.dumps(payload)
 
-        try:
-            response = requests.post(self._das_url(path), data=body, headers=headers)
-            if response and response.ok:
-                return json.loads(response.text)['data']
+        response = requests.post(self._das_url(path), data=body, headers=headers)
+        if response and response.ok:
+            return json.loads(response.text)['data']
 
-            if response.status_code == 404:  # not found
-                raise DasClientNotFound()
+        if response.status_code == 404:  # not found
+            raise DasClientNotFound()
 
-            if response.status_code == 403:  # forbidden
-                try:
-                    _ = json.loads(response.text)
-                    reason = _['status']['detail']
-                except:
-                    reason = 'unknown reason'
-                raise DasClientPermissionDenied(reason)
+        if response.status_code == 403:  # forbidden
+            try:
+                _ = json.loads(response.text)
+                reason = _['status']['detail']
+            except:
+                reason = 'unknown reason'
+            raise DasClientPermissionDenied(reason)
 
-            print('provider_key: %s, path: %s\n\tBad result from das service. Message: %s' % (
-                self.provider_key, path, response.text))
-            raise DasClientException('Failed to post to DAS web service.')
+        self.logger.error('provider_key: %s, path: %s\n\tBad result from das service. Message: %s',
+            self.provider_key, path, response.text if response else '<no response')
+        raise DasClientException('Failed to post to DAS web service.')
 
-        except Exception as e:
-            print('Posting observation. provider_key: %s, path: %s, message: %s' %
-                  (self.provider_key, path, (response.text if response else '<no response text>')))
+
+    def _post_form(self, path, files=None):
+
+        headers = {'User-Agent': self.user_agent}
+        headers.update(self.auth_headers())
+
+        body = None
+        response = requests.post(self._das_url(path), data=body, headers=headers, files=files)
+        if response and response.ok:
+            return json.loads(response.text)['data']
+
+        if response.status_code == 404:  # not found
+            raise DasClientNotFound()
+
+        if response.status_code == 403:  # forbidden
+            try:
+                _ = json.loads(response.text)
+                reason = _['status']['detail']
+            except:
+                reason = 'unknown reason'
+            raise DasClientPermissionDenied(reason)
+
+        self.logger.error('provider_key: %s, path: %s\n\tBad result from das service. Message: %s',
+            self.provider_key, path, response.text)
+        raise DasClientException('Failed to post to DAS web service.')
+
+    def post_event_photo(self, event_id, image):
+
+        photos_path = 'activity/event/' + str(event_id) + '/photos/'
+
+        with open(image, "rb") as image_file:
+            files = {'image': image_file}
+            return self._post_form(photos_path, files=files)
+
+    def post_event_document(self, event_id, document):
+
+        documents_path = 'activity/event/' + str(event_id) + '/documents/'
+
+        with open(document, "rb") as f:
+            files = {'filecontent.file': f}
+            return self._post_form(documents_path, files=files)
 
     def get_me(self):
         """
@@ -162,7 +206,7 @@ class DasClient(object):
         :param source: 
         :return: 
         '''
-        print('Posting source for manufacturer_id: %s' % source.get('manufacturer_id'))
+        self.logger.debug('Posting source for manufacturer_id: %s', source.get('manufacturer_id'))
         return self._post('sources', payload=source)
 
     def _clean_observation(self, observation):
@@ -182,7 +226,7 @@ class DasClient(object):
         else:
             payload = self._clean_observation(observation)
 
-        print('Posting observation: %s' % payload)
+        self.logger.debug('Posting observation: %s', payload)
         return self._post('observations', payload=payload)
 
     def post_event(self, event):
@@ -191,7 +235,7 @@ class DasClient(object):
         """
         payload = self._clean_event(event)
 
-        print('Posting event: %s' % payload)
+        self.logger.debug('Posting event: %s', payload)
         return self._post('activity/events', payload=payload)
 
     def pulse(self, message=None):
@@ -214,6 +258,7 @@ class DasClient(object):
         :return: 
         """
         return self._get('subjects')
+
 
 class DasClientException(Exception):
     pass
@@ -262,3 +307,11 @@ if __name__ == '__main__':
             tracks = dc.get_subject_tracks(sub['id'])
             print(tracks)
 
+
+    # Example 4: Create an Event and attach a photo to it.
+    event_data = {'priority': 0,
+             'event_type': 'other',
+             'message': 'A new event, with a photo.'}
+
+    new_event = dc.post_event(event_data)
+    response = dc.post_event_photo(new_event['id'], 'somefilename.jpg')
