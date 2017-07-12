@@ -1,16 +1,31 @@
 from datetime import datetime, timedelta
-import dateutil, pytz
+import pytz
 import logging
+
+# Remove these once the socketio stuff is working properly
+logging.getLogger('requests').setLevel(logging.WARNING)
+logging.basicConfig(level=logging.DEBUG)
 
 import requests
 
 import io
 import dateutil.parser as dp
 import json
+# import dasclient.version
+#
+# version_string = dasclient.version.__version__
 
-import dasclient.version
-version_string = dasclient.version.__version__
+version_string = '1.0.2'
 
+def linkify(url, params):
+    p = ['='.join((str(x),str(y))) for x,y in params.items()]
+    p = '&'.join(p)
+    return '?'.join((url, p))
+
+def split_link(url):
+    url, qs = url.split('?')
+    params = dict([p.split('=') for p in qs.split('&')])
+    return (url, params)
 
 class DasClient(object):
     """
@@ -28,7 +43,8 @@ class DasClient(object):
                    service_root=None,
                    token_url=None,
                    provider_key=None,
-                   client_id=None):
+                   client_id=None,
+                   realtime_url=None):
 
         """
         Initialize a DasClient instance.
@@ -46,6 +62,7 @@ class DasClient(object):
         self.password = password
         self.client_id = client_id
         self.provider_key = provider_key
+        self.realtime_url = realtime_url
 
         self.auth = None
         self.auth_expires = pytz.utc.localize(datetime.min)
@@ -109,7 +126,7 @@ class DasClient(object):
 
         headers.update(self.auth_headers())
 
-        response = requests.get(self._das_url(path), headers=headers)
+        response = requests.get(self._das_url(path), headers=headers, params=kwargs.get('params'))
         if response.ok:
             return json.loads(response.text)['data']
 
@@ -153,12 +170,12 @@ class DasClient(object):
         raise DasClientException('Failed to post to DAS web service.')
 
 
-    def _post_form(self, path, files=None):
+    def _post_form(self, path, body=None, files=None):
 
         headers = {'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
 
-        body = None
+        body = body or {}
         response = requests.post(self._das_url(path), data=body, headers=headers, files=files)
         if response and response.ok:
             return json.loads(response.text)['data']
@@ -180,19 +197,20 @@ class DasClient(object):
 
     def post_event_photo(self, event_id, image):
 
+        raise ValueError('post_event_photo is no longer valid.')
         photos_path = 'activity/event/' + str(event_id) + '/photos/'
 
         with open(image, "rb") as image_file:
             files = {'image': image_file}
             return self._post_form(photos_path, files=files)
 
-    def post_event_document(self, event_id, document):
+    def post_event_file(self, event_id, filepath=None, comment=''):
 
-        documents_path = 'activity/event/' + str(event_id) + '/documents/'
+        documents_path = 'activity/event/' + str(event_id) + '/files/'
 
-        with open(document, "rb") as f:
+        with open(filepath, "rb") as f:
             files = {'filecontent.file': f}
-            return self._post_form(documents_path, files=files)
+            return self._post_form(documents_path, body={'comment': comment}, files=files)
 
     def get_me(self):
         """
@@ -239,6 +257,20 @@ class DasClient(object):
         self.logger.debug('Posting event: %s', payload)
         return self._post('activity/events', payload=payload)
 
+    def get_events(self, **kwargs):
+
+        params = dict((k, v) for k,v in kwargs.items() if k in ('state', 'page_size', 'page'))
+        events = self._get('activity/events',params=dict())
+
+        while True:
+            if events and events.get('results'):
+                yield from events['results']
+            if events['next']:
+                url, params = split_link(events['next'])
+                events = self._get('activity/events', params=params )
+            else:
+                break
+
     def pulse(self, message=None):
         """
         Convenience method for getting status of the DAS api.
@@ -259,6 +291,9 @@ class DasClient(object):
         :return: 
         """
         return self._get('subjects')
+
+    def get_subjectgroups(self):
+        return self._get('subjectgroups')
 
 
 class DasClientException(Exception):
@@ -286,12 +321,14 @@ if __name__ == '__main__':
     MY_TOKEN_URL = 'https://demo.pamdas.org/oauth2/token'
     MY_PROVIDER_KEY = 'demo-provider'
     MY_CLIENT_ID = 'das_web_client'
+    MY_REALTIME_URL = 'https://demo.pamdas.org/socket.io'
 
     dc = DasClient(username=MY_USERNAME, password=MY_PASSWORD,
                    service_root=MY_SERVICE_ROOT,
                    token_url=MY_TOKEN_URL,
                    provider_key=MY_PROVIDER_KEY,
-                   client_id=MY_CLIENT_ID
+                   client_id=MY_CLIENT_ID,
+                   realtime_url=MY_REALTIME_URL,
                 )
 
     # Example 1: use the pulse() function be sure you can reach the API.
@@ -315,4 +352,4 @@ if __name__ == '__main__':
              'message': 'A new event, with a photo.'}
 
     new_event = dc.post_event(event_data)
-    response = dc.post_event_photo(new_event['id'], 'somefilename.jpg')
+    response = dc.post_event_file(new_event['id'], 'somefilename.jpg', comment='This is my photo.')
