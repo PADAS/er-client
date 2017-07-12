@@ -11,11 +11,9 @@ import requests
 import io
 import dateutil.parser as dp
 import json
-# import dasclient.version
-#
-# version_string = dasclient.version.__version__
+from .version import __version__
 
-version_string = '1.0.2'
+version_string = __version__
 
 def linkify(url, params):
     p = ['='.join((str(x),str(y))) for x,y in params.items()]
