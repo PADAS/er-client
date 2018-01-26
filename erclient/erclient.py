@@ -262,7 +262,8 @@ class DasClient(object):
 
         while True:
             if events and events.get('results'):
-                yield from events['results']
+                for result in events['results']:
+                    yield result
             if events['next']:
                 url, params = split_link(events['next'])
                 events = self._get('activity/events', params=params )
