@@ -257,8 +257,8 @@ class DasClient(object):
 
     def get_events(self, **kwargs):
 
-        params = dict((k, v) for k,v in kwargs.items() if k in ('state', 'page_size', 'page'))
-        events = self._get('activity/events',params=dict())
+        params = dict((k, v) for k, v in kwargs.items() if k in ('state', 'page_size', 'page', 'event_type'))
+        events = self._get('activity/events', params=params)
 
         while True:
             if events and events.get('results'):
@@ -266,7 +266,7 @@ class DasClient(object):
                     yield result
             if events['next']:
                 url, params = split_link(events['next'])
-                events = self._get('activity/events', params=params )
+                events = self._get('activity/events', params=params)
             else:
                 break
 
