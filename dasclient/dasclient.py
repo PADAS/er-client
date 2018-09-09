@@ -37,12 +37,7 @@ class DasClient(object):
     June 6, 2017: Added methods to add a photo or document to an Event.
         
     """
-    def __init__(self, username=None, password=None,
-                   service_root=None,
-                   token_url=None,
-                   provider_key=None,
-                   client_id=None,
-                   realtime_url=None):
+    def __init__(self, **kwargs):
 
         """
         Initialize a DasClient instance.
@@ -54,16 +49,24 @@ class DasClient(object):
         :param provider_key: provider-key for posting observation data (Ex. xyz_provider)
         :param client_id: Auth client ID (Ex. das_web_client)
         """
-        self.service_root = service_root
-        self.token_url = token_url
-        self.username = username
-        self.password = password
-        self.client_id = client_id
-        self.provider_key = provider_key
-        self.realtime_url = realtime_url
 
         self.auth = None
         self.auth_expires = pytz.utc.localize(datetime.min)
+
+        self.service_root = kwargs.get('service_root')
+        self.client_id = kwargs.get('client_id')
+        self.provider_key = kwargs.get('provider_key')
+
+        self.token_url = kwargs.get('token_url')
+        self.username = kwargs.get('username')
+        self.password = kwargs.get('password')
+        self.realtime_url = kwargs.get('realtime_url')
+
+        if kwargs.get('token'):
+            self.token = kwargs.get('token')
+            self.auth = dict(token_type='Bearer',
+                             access_token=kwargs.get('token'))
+            self.auth_expires = datetime(2099, 1, 1, tzinfo=pytz.utc)
 
         self.user_agent = 'das-client/{}'.format(version_string)
 
@@ -126,7 +129,10 @@ class DasClient(object):
 
         response = requests.get(self._das_url(path), headers=headers, params=kwargs.get('params'))
         if response.ok:
+            if kwargs.get('return_response', False):
+                return response
             return json.loads(response.text)['data']
+
 
         if response.status_code == 404:  # not found
             raise DasClientNotFound()
@@ -234,6 +240,19 @@ class DasClient(object):
     def _clean_event(self, event):
         return event
 
+    def post_radio_observation(self, observation):
+        # Clean-up data before posting
+        observation['recorded_at'] = observation['recorded_at'].isoformat()
+        self.logger.debug('Posting observation: %s', observation)
+        result = self._post('sensors/dasradioagent/{}/status'.format(self.provider_key), payload=observation)
+        self.logger.debug('Result of post is: %s', result)
+        return result
+
+    def post_radio_heartbeat(self, data):
+        self.logger.debug('Posting heartbeat: %s', data)
+        result = self._post('sensors/dasradioagent/{}/status'.format(self.provider_key), payload=data)
+        self.logger.debug('Result of heartbeat post is: %s', result)
+
     def post_observation(self, observation):
         """
         Post a new observation, or a list of observations.
@@ -246,18 +265,23 @@ class DasClient(object):
         self.logger.debug('Posting observation: %s', payload)
         return self._post('observations', payload=payload)
 
+    def post_report(self, data):
+        payload = self._clean_event(data)
+        self.logger.debug('Posting report: %s', payload)
+        result = self._post('activity/events', payload=payload)
+        self.logger.debug('Result of report post is: %s', result)
+        return result
+
     def post_event(self, event):
         """
         Post a new Event.
         """
-        payload = self._clean_event(event)
-
-        self.logger.debug('Posting event: %s', payload)
-        return self._post('activity/events', payload=payload)
+        return self.post_report(event)
 
     def get_events(self, **kwargs):
 
-        params = dict((k, v) for k, v in kwargs.items() if k in ('state', 'page_size', 'page', 'event_type'))
+        params = dict((k, v) for k, v in kwargs.items() if k in ('state', 'page_size', 'page', 'event_type', 'filter'))
+
         events = self._get('activity/events', params=params)
 
         while True:
@@ -269,6 +293,16 @@ class DasClient(object):
                 events = self._get('activity/events', params=params)
             else:
                 break
+
+    def get_events_export(self, filter=None):
+        params = None
+        if filter:
+            params = {
+                'filter': filter}
+
+        response = self._get('activity/events/export/', params=params, return_response=True)
+        return response
+
 
     def pulse(self, message=None):
         """
@@ -305,7 +339,6 @@ class DasClientPermissionDenied(DasClientException):
 
 class DasClientNotFound(DasClientException):
     pass
-
 
 
 if __name__ == '__main__':
