@@ -173,7 +173,6 @@ class DasClient(object):
             self.provider_key, path, response.text if response else '<no response')
         raise DasClientException('Failed to post to DAS web service.')
 
-
     def _post_form(self, path, body=None, files=None):
 
         headers = {'User-Agent': self.user_agent}
@@ -312,11 +311,17 @@ class DasClient(object):
         """
         return self._get('status')
 
-    def get_subject_tracks(self, subject_id):
+    def get_subject_tracks(self, subject_id='', start=None, end=None):
         """
         Get the latest tracks for the Subject having the given subject_id.
         """
-        return self._get('subject/{0}/tracks'.format(subject_id))
+        p = {}
+        if start is not None and isinstance(start, datetime):
+            p['since'] = start.isoformat()
+        if end is not None and isinstance(end, datetime):
+            p['until'] = end.isoformat()
+
+        return self._get(path='subject/{0}/tracks'.format(subject_id), params=p)
 
     def get_subjects(self):
         """
@@ -327,6 +332,9 @@ class DasClient(object):
 
     def get_subjectgroups(self):
         return self._get('subjectgroups')
+
+    def get_sources(self):
+        return self._get('sources')
 
 
 class DasClientException(Exception):
