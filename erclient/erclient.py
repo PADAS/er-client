@@ -264,6 +264,14 @@ class DasClient(object):
         self.logger.debug('Posting observation: %s', payload)
         return self._post('observations', payload=payload)
 
+    def post_sensor_observation(self, observation, sensor_type='generic'):
+        # Clean-up data before posting
+        observation['recorded_at'] = observation['recorded_at'].isoformat()
+        self.logger.debug('Posting observation: %s', observation)
+        result = self._post('sensors/{}/{}/status'.format(sensor_type, self.provider_key), payload=observation)
+        self.logger.debug('Result of post is: %s', result)
+        return result
+
     def post_report(self, data):
         payload = self._clean_event(data)
         self.logger.debug('Posting report: %s', payload)
