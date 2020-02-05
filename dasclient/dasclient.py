@@ -152,7 +152,12 @@ class DasClient(object):
         headers = {'Content-Type': 'application/json',
                    'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
-        body = json.dumps(payload)
+
+        def time_converter(t):
+            if isinstance(t, datetime.datetime):
+                return t.__str__()
+
+        body = json.dumps(payload, default=time_converter)
 
         response = requests.post(self._das_url(path), data=body, headers=headers)
         if response and response.ok:
