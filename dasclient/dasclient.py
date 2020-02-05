@@ -310,7 +310,6 @@ class DasClient(object):
         response = self._get('activity/events/export/', params=params, return_response=True)
         return response
 
-
     def pulse(self, message=None):
         """
         Convenience method for getting status of the DAS api.
@@ -331,15 +330,29 @@ class DasClient(object):
 
         return self._get(path='subject/{0}/tracks'.format(subject_id), params=p)
 
-    def get_subjects(self):
+    def get_subjects(self, subject_group_id='', include_inactive=False):
         """
         Get the list of subjects to whom the user has access.
         :return: 
         """
-        return self._get('subjects')
+        p = dict()
+        p['subject_group'] = subject_group_id
+        p['include_inactive'] = include_inactive
 
-    def get_subjectgroups(self):
-        return self._get('subjectgroups')
+        return self._get('subjects', params=p)
+
+    def get_subject(self, subject_id=''):
+        """
+        get the subject given the subject id
+        :param subject_id: the UUID for the subject
+        :return:
+        """
+        return self._get(path='subject/{0}'.format(subject_id))
+
+    def get_subjectgroups(self, include_inactive=False):
+        p = dict()
+        p['include_inactive'] = include_inactive
+        return self._get('subjectgroups', params=p)
 
     def get_sources(self):
         return self._get('sources')
