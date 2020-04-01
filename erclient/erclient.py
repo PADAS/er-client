@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 import pytz
 import logging
+import re
 
 # Remove these once the socketio stuff is working properly
 logging.getLogger('requests').setLevel(logging.WARNING)
@@ -11,7 +12,7 @@ import requests
 import io
 import dateutil.parser as dp
 import json
-from .version import __version__
+from version import __version__
 
 version_string = __version__
 
@@ -38,7 +39,6 @@ class DasClient(object):
         
     """
     def __init__(self, **kwargs):
-
         """
         Initialize a DasClient instance.
         
@@ -122,17 +122,16 @@ class DasClient(object):
     def _das_url(self, path):
         return '/'.join((self.service_root, path))
 
-    def _get(self, path, **kwargs):
+    def _get(self, path, stream=False, **kwargs):
         headers = {'User-Agent': self.user_agent}
 
         headers.update(self.auth_headers())
 
-        response = requests.get(self._das_url(path), headers=headers, params=kwargs.get('params'))
+        response = requests.get(self._das_url(path), headers=headers, params=kwargs.get('params'), stream = stream)
         if response.ok:
             if kwargs.get('return_response', False):
                 return response
             return json.loads(response.text)['data']
-
 
         if response.status_code == 404:  # not found
             raise DasClientNotFound()
@@ -147,13 +146,13 @@ class DasClient(object):
 
         raise DasClientException('Failed to call DAS web service.')
 
+        
     def _post(self, path, payload):
-
         headers = {'Content-Type': 'application/json',
                    'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
         body = json.dumps(payload)
-
+        
         response = requests.post(self._das_url(path), data=body, headers=headers)
         if response and response.ok:
             return json.loads(response.text)['data']
@@ -172,6 +171,29 @@ class DasClient(object):
         self.logger.error('provider_key: %s, path: %s\n\tBad result from das service. Message: %s',
             self.provider_key, path, response.text if response else '<no response')
         raise DasClientException('Failed to post to DAS web service.')
+
+    def delete_event(self, event_id):
+        headers = {'User-Agent': self.user_agent}
+        headers.update(self.auth_headers())
+
+        path = 'activity/event/' + event_id + '/'
+
+        response = requests.delete(self._das_url(path), headers=headers)
+        if response.ok:
+            return True
+
+        if response.status_code == 404:  # not found
+            raise DasClientNotFound()
+
+        if response.status_code == 403:  # forbidden
+            try:
+                _ = json.loads(response.text)
+                reason = _['status']['detail']
+            except:
+                reason = 'unknown reason'
+            raise DasClientPermissionDenied(reason)
+
+        raise DasClientException('Failed to delete event.')
 
     def _post_form(self, path, body=None, files=None):
 
@@ -214,6 +236,22 @@ class DasClient(object):
         with open(filepath, "rb") as f:
             files = {'filecontent.file': f}
             return self._post_form(documents_path, body={'comment': comment}, files=files)
+
+    def post_event_note(self, event_id, notes):
+        
+        created = []
+        
+        if(not isinstance(notes, list)):
+            note = notes
+            notes = []
+            notes.append(note)
+        
+        for note in notes:
+            params = dict((k, v) for k, v in note.items() if k in ('text', 'created_at', 'page', 'event_type', 'filter', 'include_notes'))
+            result = self._post('activity/event/' + event_id + '/notes', params)
+            created.append(result)
+
+        return created
 
     def get_me(self):
         """
@@ -285,10 +323,14 @@ class DasClient(object):
         """
         return self.post_report(event)
 
+    def get_file(self, url):
+        return self._get(url, stream = True, return_response = True)
+        
+    def get_event_types(self):
+        return self._get('activity/events/eventtypes')
+
     def get_events(self, **kwargs):
-
-        params = dict((k, v) for k, v in kwargs.items() if k in ('state', 'page_size', 'page', 'event_type', 'filter'))
-
+        params = dict((k, v) for k, v in kwargs.items() if k in ('state', 'page_size', 'page', 'event_type', 'filter', 'include_notes'))
         events = self._get('activity/events', params=params)
 
         while True:
@@ -296,8 +338,9 @@ class DasClient(object):
                 for result in events['results']:
                     yield result
             if events['next']:
-                url, params = split_link(events['next'])
-                events = self._get('activity/events', params=params)
+                url = events['next']
+                url = re.sub('.*activity/events?','activity/events', events['next'])
+                events = self._get(url)
             else:
                 break
 
