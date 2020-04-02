@@ -5,7 +5,7 @@ import re
 
 # Remove these once the socketio stuff is working properly
 logging.getLogger('requests').setLevel(logging.WARNING)
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.WARNING)
 
 import requests
 
