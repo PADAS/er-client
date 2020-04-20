@@ -154,7 +154,7 @@ class DasClient(object):
         headers.update(self.auth_headers())
 
         def time_converter(t):
-            if isinstance(t, datetime.datetime):
+            if isinstance(t, datetime):
                 return t.__str__()
 
         body = json.dumps(payload, default=time_converter)
@@ -220,6 +220,11 @@ class DasClient(object):
             files = {'filecontent.file': f}
             return self._post_form(documents_path, body={'comment': comment}, files=files)
 
+    def post_event_note(self, event_id, note=None):
+
+        notes_path = 'activity/event/' + str(event_id) + '/notes/'
+        return self._post(notes_path, payload={'text': note})
+
     def get_me(self):
         """
         Get details for the 'me', the current DAS user.
@@ -252,6 +257,7 @@ class DasClient(object):
         self.logger.debug('Result of post is: %s', result)
         return result
 
+
     def post_radio_heartbeat(self, data):
         self.logger.debug('Posting heartbeat: %s', data)
         result = self._post('sensors/dasradioagent/{}/status'.format(self.provider_key), payload=data)
@@ -271,7 +277,7 @@ class DasClient(object):
 
     def post_sensor_observation(self, observation, sensor_type='generic'):
         # Clean-up data before posting
-        observation['recorded_at'] = observation['recorded_at'].isoformat()
+        # observation['recorded_at'] = observation['recorded_at'].isoformat()
         self.logger.debug('Posting observation: %s', observation)
         result = self._post('sensors/{}/{}/status'.format(sensor_type, self.provider_key), payload=observation)
         self.logger.debug('Result of post is: %s', result)
@@ -361,6 +367,9 @@ class DasClient(object):
 
     def get_sources(self):
         return self._get('sources')
+
+    def get_users(self):
+        return self._get('users')
 
 
 class DasClientException(Exception):
