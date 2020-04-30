@@ -12,7 +12,7 @@ import requests
 import io
 import dateutil.parser as dp
 import json
-from version import __version__
+from .version import __version__
 
 version_string = __version__
 
