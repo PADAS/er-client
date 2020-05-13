@@ -344,7 +344,9 @@ class DasClient(object):
         return self._get('activity/events/eventtypes')
 
     def get_events(self, **kwargs):
-        params = dict((k, v) for k, v in kwargs.items() if k in ('state', 'page_size', 'page', 'event_type', 'filter', 'include_notes'))
+        params = dict((k, v) for k, v in kwargs.items() if k in
+            ('state', 'page_size', 'page', 'event_type', 'filter', 'include_notes', 'include_related_events','include_files', 'include_details', 'include_updates'))        
+        self.logger.debug('Getting events: ', params)
         events = self._get('activity/events', params=params)
 
         while True:
@@ -354,6 +356,7 @@ class DasClient(object):
             if events['next']:
                 url = events['next']
                 url = re.sub('.*activity/events?','activity/events', events['next'])
+                self.logger.debug('Getting more events: ' + url)
                 events = self._get(url)
             else:
                 break
