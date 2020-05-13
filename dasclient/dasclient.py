@@ -144,6 +144,7 @@ class DasClient(object):
                 reason = 'unknown reason'
             raise DasClientPermissionDenied(reason)
 
+        self.logger.debug("Fail: " + response.text)
         raise DasClientException('Failed to call DAS web service.')
 
         
@@ -168,9 +169,18 @@ class DasClient(object):
                 reason = 'unknown reason'
             raise DasClientPermissionDenied(reason)
 
-        self.logger.error('provider_key: %s, path: %s\n\tBad result from das service. Message: %s',
-            self.provider_key, path, response.text if response else '<no response')
+        self.logger.error('provider_key: %s,service: %s, path: %s\n\tBad result from das service. Message: %s',
+            self.provider_key, self.service_root, path, response.text if response else '<no response')
         raise DasClientException('Failed to post to DAS web service.')
+
+    def add_event_to_incident(self, event_id, incident_id):
+        
+        params = {
+            'to_event_id': event_id,
+            'type': 'contains'
+        }
+        
+        result = self._post('activity/event/' + incident_id + '/relationships', params)
 
     def delete_event(self, event_id):
         headers = {'User-Agent': self.user_agent}
@@ -247,8 +257,12 @@ class DasClient(object):
             notes.append(note)
         
         for note in notes:
-            params = dict((k, v) for k, v in note.items() if k in ('text', 'created_at', 'page', 'event_type', 'filter', 'include_notes'))
-            result = self._post('activity/event/' + event_id + '/notes', params)
+            notesRequest = {
+                'event': event_id,
+                'text': note
+            }
+            
+            result = self._post('activity/event/' + event_id + '/notes', notesRequest)
             created.append(result)
 
         return created
