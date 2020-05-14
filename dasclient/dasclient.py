@@ -257,7 +257,6 @@ class DasClient(object):
         self.logger.debug('Result of post is: %s', result)
         return result
 
-
     def post_radio_heartbeat(self, data):
         self.logger.debug('Posting heartbeat: %s', data)
         result = self._post('sensors/dasradioagent/{}/status'.format(self.provider_key), payload=data)
@@ -340,6 +339,20 @@ class DasClient(object):
             p['until'] = end.isoformat()
 
         return self._get(path='subject/{0}/tracks'.format(subject_id), params=p)
+
+    def get_subject_trackingdata(self, subject_id='', include_inactive=True, start=None, end=None, out_format='json'):
+        p = {}
+        if start is not None and isinstance(start, datetime):
+            p['after_date'] = start.isoformat()
+        if end is not None and isinstance(end, datetime):
+            p['before_date'] = end.isoformat()
+        p['subject_id'] = subject_id
+        p['include_inactive'] = include_inactive
+        p['format'] = out_format  # should be 'json' or 'csv'
+        # Todo: filter flag
+        # Todo: max records
+
+        return self._get(path='trackingdata/export', params=p)
 
     def get_subjects(self, subject_group_id='', include_inactive=False):
         """
