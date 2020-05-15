@@ -2,3 +2,8 @@ build
 build_data.py
 dasclient.egg*
 dist
+.vscode
+.venv
+.idea
+wheelhouse
+

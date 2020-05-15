@@ -12,7 +12,7 @@ import requests
 import io
 import dateutil.parser as dp
 import json
-from version import __version__
+from .version import __version__
 
 version_string = __version__
 
@@ -317,8 +317,14 @@ class DasClient(object):
         return self._post('observations', payload=payload)
 
     def post_sensor_observation(self, observation, sensor_type='generic'):
-        # Clean-up data before posting
-        observation['recorded_at'] = observation['recorded_at'].isoformat()
+        """
+        Post a new observation, or a list of observations.
+        """
+        if isinstance(observation, (list, set)):
+            payload = [self._clean_observation(o) for o in observation]
+        else:
+            payload = self._clean_observation(observation)
+            
         self.logger.debug('Posting observation: %s', observation)
         result = self._post('sensors/{}/{}/status'.format(sensor_type, self.provider_key), payload=observation)
         self.logger.debug('Result of post is: %s', result)
