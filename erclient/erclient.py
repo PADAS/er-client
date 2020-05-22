@@ -340,7 +340,8 @@ class DasClient(object):
 
         return self._get(path='subject/{0}/tracks'.format(subject_id), params=p)
 
-    def get_subject_trackingdata(self, subject_id='', include_inactive=True, start=None, end=None, out_format='json'):
+    def get_subject_trackingdata(self, subject_id='', include_inactive=True, start=None, end=None,
+                                 out_format='json', filter_flag=0):
         p = {}
         if start is not None and isinstance(start, datetime):
             p['after_date'] = start.isoformat()
@@ -349,7 +350,7 @@ class DasClient(object):
         p['subject_id'] = subject_id
         p['include_inactive'] = include_inactive
         p['format'] = out_format  # should be 'json' or 'csv'
-        # Todo: filter flag
+        p['filter'] = filter_flag
         # Todo: max records
 
         return self._get(path='trackingdata/export', params=p)
