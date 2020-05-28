@@ -2,13 +2,7 @@ from datetime import datetime, timedelta
 import pytz
 import logging
 import re
-
-# Remove these once the socketio stuff is working properly
-logging.getLogger('requests').setLevel(logging.WARNING)
-logging.basicConfig(level=logging.WARNING)
-
 import requests
-
 import io
 import dateutil.parser as dp
 import json
