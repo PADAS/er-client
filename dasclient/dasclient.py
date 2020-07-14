@@ -357,6 +357,19 @@ class DasClient(object):
 
         return self._get(path='trackingdata/export', params=p)
 
+    def get_subject_observations(self, subject_id='', start=None, end=None,
+                                 filter_flag=0, include_details=True):
+        p = {}
+        if start is not None and isinstance(start, datetime):
+            p['since'] = start.isoformat()
+        if end is not None and isinstance(end, datetime):
+            p['until'] = end.isoformat()
+        p['subject_id'] = subject_id
+        p['filter'] = filter_flag
+        p['include_details'] = include_details
+        return self._get(path='observations', params=p)
+
+
     def get_subjects(self, subject_group_id='', include_inactive=False):
         """
         Get the list of subjects to whom the user has access.
