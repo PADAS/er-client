@@ -341,7 +341,7 @@ class DasClient(object):
         return self._get(path='subject/{0}/tracks'.format(subject_id), params=p)
 
     def get_subject_trackingdata(self, subject_id='', include_inactive=True, start=None, end=None,
-                                 out_format='json', filter_flag=0, current_status=False, page_size=100):
+                                 out_format='json', filter_flag=0, current_status=False):
         p = {}
         if start is not None and isinstance(start, datetime):
             p['after_date'] = start.isoformat()
@@ -351,10 +351,7 @@ class DasClient(object):
         p['include_inactive'] = include_inactive
         p['format'] = out_format  # should be 'json' or 'csv'
         p['filter'] = filter_flag
-        p['page_size'] = 100
         p['current_status'] = current_status
-        # Todo: max records
-
         return self._get(path='trackingdata/export', params=p)
 
     def get_subject_observations(self, subject_id='', start=None, end=None,
@@ -367,8 +364,21 @@ class DasClient(object):
         p['subject_id'] = subject_id
         p['filter'] = filter_flag
         p['include_details'] = include_details
-        return self._get(path='observations', params=p)
+        p['page_size'] = 100  # current limit
+        
+        results = self._get(path='observations', params=p)
 
+        while True:
+            if results and results.get('results'):
+                for r in results['results']:
+                    yield r
+                    
+            if results['next']:
+                url, params = split_link(results['next'])
+                p['page'] = params['page']
+                results = self._get(path='observations', params=p)
+            else:
+                break
 
     def get_subjects(self, subject_group_id='', include_inactive=False):
         """
