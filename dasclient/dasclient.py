@@ -355,7 +355,7 @@ class DasClient(object):
         return self._get(path='trackingdata/export', params=p)
 
     def get_subject_observations(self, subject_id='', start=None, end=None,
-                                 filter_flag=0, include_details=True):
+                                 filter_flag=0, include_details=True, page_size=1000):
         p = {}
         if start is not None and isinstance(start, datetime):
             p['since'] = start.isoformat()
@@ -364,7 +364,7 @@ class DasClient(object):
         p['subject_id'] = subject_id
         p['filter'] = filter_flag
         p['include_details'] = include_details
-        p['page_size'] = 100  # current limit
+        p['page_size'] = page_size  # current limit
         
         results = self._get(path='observations', params=p)
 
