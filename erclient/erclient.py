@@ -169,7 +169,7 @@ class DasClient(object):
             raise DasClientPermissionDenied(reason)
 
         self.logger.error('provider_key: %s,service: %s, path: %s\n\tBad result from das service. Message: %s',
-            self.provider_key, self.service_root, path, response.text if response else '<no response')
+            self.provider_key, self.service_root, path, response.text if response else '<no response>')
         raise DasClientException('Failed to post to DAS web service.')
 
     def add_event_to_incident(self, event_id, incident_id):
@@ -301,7 +301,7 @@ class DasClient(object):
         self.logger.debug('Result of heartbeat post is: %s', result)
 
     def post_observation(self, observation):
-        """
+        """ 
         Post a new observation, or a list of observations.
         """
         if isinstance(observation, (list, set)):
@@ -380,6 +380,9 @@ class DasClient(object):
         """
         return self._get('status')
 
+    def get_subject_sources(self, subject_id):
+        return self._get(path=f'subject/{subject_id}/sources')
+
     def get_subject_tracks(self, subject_id='', start=None, end=None):
         """
         Get the latest tracks for the Subject having the given subject_id.
@@ -406,14 +409,29 @@ class DasClient(object):
         p['current_status'] = current_status
         return self._get(path='trackingdata/export', params=p)
 
-    def get_subject_observations(self, subject_id='', start=None, end=None,
+    def get_subject_observations(self, subject_id, start=None, end=None,
+                                 filter_flag=0, include_details=True, page_size=10000):
+        return self._get_observations(subject_id=subject_id, start=start, end=end,
+            filter_flag=filter_flag, include_details=include_details, page_size=page_size)
+
+    def get_source_observations(self, source_id, start=None, end=None,
+                                 filter_flag=0, include_details=True, page_size=10000):
+        return self._get_observations(source_id=source_id, start=start, end=end,
+            filter_flag=filter_flag, include_details=include_details, page_size=page_size)
+
+    def _get_observations(self, subject_id=None, source_id=None, start=None, end=None,
                                  filter_flag=0, include_details=True, page_size=10000):
         p = {}
         if start is not None and isinstance(start, datetime):
             p['since'] = start.isoformat()
         if end is not None and isinstance(end, datetime):
             p['until'] = end.isoformat()
-        p['subject_id'] = subject_id
+        if subject_id:
+            p['subject_id'] = subject_id
+        elif source_id:
+            p['source_id'] = source_id
+        else:
+            raise ValueError('subject_id or source_id missing')
         p['filter'] = filter_flag
         p['include_details'] = include_details
         p['page_size'] = page_size  # current limit
@@ -432,14 +450,16 @@ class DasClient(object):
             else:
                 break
 
-    def get_subjects(self, subject_group_id='', include_inactive=False):
+    def get_subjects(self, subject_group_id=None, include_inactive=None):
         """
         Get the list of subjects to whom the user has access.
         :return: 
         """
         p = dict()
-        p['subject_group'] = subject_group_id
-        p['include_inactive'] = include_inactive
+        if subject_group_id:
+            p['subject_group'] = subject_group_id
+        if not include_inactive is None:
+            p['include_inactive'] = include_inactive
 
         return self._get('subjects', params=p)
 
