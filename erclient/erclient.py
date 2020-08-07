@@ -125,7 +125,10 @@ class DasClient(object):
         if response.ok:
             if kwargs.get('return_response', False):
                 return response
-            return json.loads(response.text)['data']
+            data = json.loads(response.text)
+            if 'metadata' in data:
+                return data['metadata']
+            return data['data']
 
         if response.status_code == 404:  # not found
             raise DasClientNotFound()
@@ -146,8 +149,13 @@ class DasClient(object):
         headers = {'Content-Type': 'application/json',
                    'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
-        body = json.dumps(payload)
-        
+
+        def time_converter(t):
+            if isinstance(t, datetime):
+                return t.isoformat()
+
+        body = json.dumps(payload, default=time_converter)
+
         response = requests.post(self._das_url(path), data=body, headers=headers)
         if response and response.ok:
             return json.loads(response.text)['data']
@@ -164,7 +172,7 @@ class DasClient(object):
             raise DasClientPermissionDenied(reason)
 
         self.logger.error('provider_key: %s,service: %s, path: %s\n\tBad result from das service. Message: %s',
-            self.provider_key, self.service_root, path, response.text if response else '<no response')
+            self.provider_key, self.service_root, path, response.text if response else '<no response>')
         raise DasClientException('Failed to post to DAS web service.')
 
     def add_event_to_incident(self, event_id, incident_id):
@@ -242,13 +250,10 @@ class DasClient(object):
             return self._post_form(documents_path, body={'comment': comment}, files=files)
 
     def post_event_note(self, event_id, notes):
-        
         created = []
         
         if(not isinstance(notes, list)):
-            note = notes
-            notes = []
-            notes.append(note)
+            notes = [notes,]
         
         for note in notes:
             notesRequest = {
@@ -299,7 +304,7 @@ class DasClient(object):
         self.logger.debug('Result of heartbeat post is: %s', result)
 
     def post_observation(self, observation):
-        """
+        """ 
         Post a new observation, or a list of observations.
         """
         if isinstance(observation, (list, set)):
@@ -318,7 +323,7 @@ class DasClient(object):
             payload = [self._clean_observation(o) for o in observation]
         else:
             payload = self._clean_observation(observation)
-            
+
         self.logger.debug('Posting observation: %s', observation)
         result = self._post('sensors/{}/{}/status'.format(sensor_type, self.provider_key), payload=observation)
         self.logger.debug('Result of post is: %s', result)
@@ -370,7 +375,6 @@ class DasClient(object):
         response = self._get('activity/events/export/', params=params, return_response=True)
         return response
 
-
     def pulse(self, message=None):
         """
         Convenience method for getting status of the DAS api.
@@ -378,6 +382,9 @@ class DasClient(object):
         :return: 
         """
         return self._get('status')
+
+    def get_subject_sources(self, subject_id):
+        return self._get(path=f'subject/{subject_id}/sources')
 
     def get_subject_tracks(self, subject_id='', start=None, end=None):
         """
@@ -391,18 +398,103 @@ class DasClient(object):
 
         return self._get(path='subject/{0}/tracks'.format(subject_id), params=p)
 
-    def get_subjects(self):
+    def get_subject_trackingdata(self, subject_id=None, subject_chronofile=None, include_inactive=True, start=None, end=None,
+                                 out_format='json', filter_flag=0, current_status=False):
+        p = {}
+        if start is not None and isinstance(start, datetime):
+            p['after_date'] = start.isoformat()
+        if end is not None and isinstance(end, datetime):
+            p['before_date'] = end.isoformat()
+        if subject_id:
+            p['subject_id'] = subject_id
+        elif subject_chronofile:
+            p['subject_chronofile'] = subject_chronofile
+        else:
+            raise ValueError('specify subject_id or subject_chronofile')
+        p['include_inactive'] = include_inactive
+        p['format'] = out_format  # should be 'json' or 'csv'
+        p['filter'] = filter_flag
+        p['current_status'] = current_status
+        return self._get(path='trackingdata/export', params=p)
+
+    def get_subject_trackingmetadata(self, include_inactive=True, out_format='json'):
+        p = {}
+        p['include_inactive'] = include_inactive
+        p['format'] = out_format  # should be 'json' or 'csv'
+        return self._get(path='trackingmetadata/export', params=p)
+
+    def get_subject_observations(self, subject_id, start=None, end=None,
+                                 filter_flag=0, include_details=True, page_size=10000):
+        return self._get_observations(subject_id=subject_id, start=start, end=end,
+            filter_flag=filter_flag, include_details=include_details, page_size=page_size)
+
+    def get_source_observations(self, source_id, start=None, end=None,
+                                 filter_flag=0, include_details=True, page_size=10000):
+        return self._get_observations(source_id=source_id, start=start, end=end,
+            filter_flag=filter_flag, include_details=include_details, page_size=page_size)
+
+    def _get_observations(self, subject_id=None, source_id=None, start=None, end=None,
+                                 filter_flag=0, include_details=True, page_size=10000):
+        p = {}
+        if start is not None and isinstance(start, datetime):
+            p['since'] = start.isoformat()
+        if end is not None and isinstance(end, datetime):
+            p['until'] = end.isoformat()
+        if subject_id:
+            p['subject_id'] = subject_id
+        elif source_id:
+            p['source_id'] = source_id
+        else:
+            raise ValueError('subject_id or source_id missing')
+        p['filter'] = filter_flag
+        p['include_details'] = include_details
+        p['page_size'] = page_size  # current limit
+        
+        results = self._get(path='observations', params=p)
+
+        while True:
+            if results and results.get('results'):
+                for r in results['results']:
+                    yield r
+                    
+            if results['next']:
+                url, params = split_link(results['next'])
+                p['page'] = params['page']
+                results = self._get(path='observations', params=p)
+            else:
+                break
+
+    def get_subjects(self, subject_group_id=None, include_inactive=None):
         """
         Get the list of subjects to whom the user has access.
         :return: 
         """
-        return self._get('subjects')
+        p = dict()
+        if subject_group_id:
+            p['subject_group'] = subject_group_id
+        if not include_inactive is None:
+            p['include_inactive'] = include_inactive
 
-    def get_subjectgroups(self):
-        return self._get('subjectgroups')
+        return self._get('subjects', params=p)
+
+    def get_subject(self, subject_id=''):
+        """
+        get the subject given the subject id
+        :param subject_id: the UUID for the subject
+        :return:
+        """
+        return self._get(path='subject/{0}'.format(subject_id))
+
+    def get_subjectgroups(self, include_inactive=False):
+        p = dict()
+        p['include_inactive'] = include_inactive
+        return self._get('subjectgroups', params=p)
 
     def get_sources(self):
         return self._get('sources')
+
+    def get_users(self):
+        return self._get('users')
 
 
 class DasClientException(Exception):
@@ -422,14 +514,13 @@ if __name__ == '__main__':
     Here's an example for using the client. You'll need to provide the valid arguments to the 
     DasClient constructor.
     """
-
     MY_USERNAME = '<your username>'
     MY_PASSWORD = '<your password>'
-    MY_SERVICE_ROOT = 'https://demo.pamdas.org/api/v1.0'
-    MY_TOKEN_URL = 'https://demo.pamdas.org/oauth2/token'
+    MY_SERVICE_ROOT = 'https://sandbox.pamdas.org/api/v1.0'
+    MY_TOKEN_URL = 'https://sandbox.pamdas.org/oauth2/token'
     MY_PROVIDER_KEY = 'demo-provider'
     MY_CLIENT_ID = 'das_web_client'
-    MY_REALTIME_URL = 'https://demo.pamdas.org/socket.io'
+    MY_REALTIME_URL = 'https://sandbox.pamdas.org/socket.io'
 
     dc = DasClient(username=MY_USERNAME, password=MY_PASSWORD,
                    service_root=MY_SERVICE_ROOT,
