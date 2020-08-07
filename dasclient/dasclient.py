@@ -125,7 +125,10 @@ class DasClient(object):
         if response.ok:
             if kwargs.get('return_response', False):
                 return response
-            return json.loads(response.text)['data']
+            data = json.loads(response.text)
+            if 'metadata' in data:
+                return data['metadata']
+            return data['data']
 
         if response.status_code == 404:  # not found
             raise DasClientNotFound()
@@ -395,19 +398,30 @@ class DasClient(object):
 
         return self._get(path='subject/{0}/tracks'.format(subject_id), params=p)
 
-    def get_subject_trackingdata(self, subject_id='', include_inactive=True, start=None, end=None,
+    def get_subject_trackingdata(self, subject_id=None, subject_chronofile=None, include_inactive=True, start=None, end=None,
                                  out_format='json', filter_flag=0, current_status=False):
         p = {}
         if start is not None and isinstance(start, datetime):
             p['after_date'] = start.isoformat()
         if end is not None and isinstance(end, datetime):
             p['before_date'] = end.isoformat()
-        p['subject_id'] = subject_id
+        if subject_id:
+            p['subject_id'] = subject_id
+        elif subject_chronofile:
+            p['subject_chronofile'] = subject_chronofile
+        else:
+            raise ValueError('specify subject_id or subject_chronofile')
         p['include_inactive'] = include_inactive
         p['format'] = out_format  # should be 'json' or 'csv'
         p['filter'] = filter_flag
         p['current_status'] = current_status
         return self._get(path='trackingdata/export', params=p)
+
+    def get_subject_trackingmetadata(self, include_inactive=True, out_format='json'):
+        p = {}
+        p['include_inactive'] = include_inactive
+        p['format'] = out_format  # should be 'json' or 'csv'
+        return self._get(path='trackingmetadata/export', params=p)
 
     def get_subject_observations(self, subject_id, start=None, end=None,
                                  filter_flag=0, include_details=True, page_size=10000):
