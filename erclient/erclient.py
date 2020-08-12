@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import urllib.parse
 import pytz
 import logging
 import re
@@ -142,7 +143,7 @@ class DasClient(object):
             raise DasClientPermissionDenied(reason)
 
         self.logger.debug("Fail: " + response.text)
-        raise DasClientException('Failed to call DAS web service.')
+        raise DasClientException(f'Failed to call DAS web service. {response.status_code} {response.text}')
 
         
     def _post(self, path, payload):
@@ -163,17 +164,18 @@ class DasClient(object):
         if response.status_code == 404:  # not found
             raise DasClientNotFound()
 
+        try:
+            _ = json.loads(response.text)
+            reason = _['status']['detail']
+        except:
+            reason = 'unknown reason'
+
         if response.status_code == 403:  # forbidden
-            try:
-                _ = json.loads(response.text)
-                reason = _['status']['detail']
-            except:
-                reason = 'unknown reason'
             raise DasClientPermissionDenied(reason)
 
-        self.logger.error('provider_key: %s,service: %s, path: %s\n\tBad result from das service. Message: %s',
-            self.provider_key, self.service_root, path, response.text if response else '<no response>')
-        raise DasClientException('Failed to post to DAS web service.')
+        message = f"provider_key: {self.provider_key}, service: {self.service_root}, path: {path},\n\t {response.status_code} from ER. Message: {reason} {response.text}"
+        self.logger.error(message)
+        raise DasClientException(f"Failed to post to DAS web service. {message}")
 
     def add_event_to_incident(self, event_id, incident_id):
         
@@ -413,7 +415,7 @@ class DasClient(object):
             raise ValueError('specify subject_id or subject_chronofile')
         p['include_inactive'] = include_inactive
         p['format'] = out_format  # should be 'json' or 'csv'
-        p['filter'] = filter_flag
+        p['filter'] = 'null' if filter_flag is None else filter_flag
         p['current_status'] = current_status
         return self._get(path='trackingdata/export', params=p)
 
@@ -446,7 +448,7 @@ class DasClient(object):
             p['source_id'] = source_id
         else:
             raise ValueError('subject_id or source_id missing')
-        p['filter'] = filter_flag
+        p['filter'] = 'null' if filter_flag is None else filter_flag
         p['include_details'] = include_details
         p['page_size'] = page_size  # current limit
         
@@ -484,6 +486,22 @@ class DasClient(object):
         :return:
         """
         return self._get(path='subject/{0}'.format(subject_id))
+    
+    def get_source_by_id(self, id):
+        """
+        get the source by id
+        :param id: source id
+        :return:
+        """
+        return self._get(path='source/{0}'.format(id))
+
+    def get_source_by_manufacturer_id(self, id):
+        """
+        get the source by manufacturer id or collar id
+        :param id: the manufacturer id
+        :return:
+        """
+        return self._get(path='source/{0}'.format(id))
 
     def get_subjectgroups(self, include_inactive=False):
         p = dict()
