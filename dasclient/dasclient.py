@@ -4,7 +4,6 @@ import logging
 import re
 import requests
 import io
-import dateutil.parser as dp
 import json
 from .version import __version__
 
