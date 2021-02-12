@@ -120,7 +120,6 @@ class DasClient(object):
         headers = {'User-Agent': self.user_agent}
 
         headers.update(self.auth_headers())
-
         response = requests.get(self._das_url(path), headers=headers, params=kwargs.get('params'), stream = stream)
         if response.ok:
             if kwargs.get('return_response', False):
@@ -141,14 +140,19 @@ class DasClient(object):
         self.logger.debug("Fail: " + response.text)
         raise DasClientException('Failed to call DAS web service.')
 
-        
-    def _post(self, path, payload):
+    
+    def _call(self, path, payload, method):
         headers = {'Content-Type': 'application/json',
                    'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
         body = json.dumps(payload)
-        
-        response = requests.post(self._das_url(path), data=body, headers=headers)
+
+        response = None
+        if(method == "POST"):
+            response = requests.post(self._das_url(path), data=body, headers=headers)
+        elif(method == "PATCH"):
+            response = requests.patch(self._das_url(path), data=body, headers=headers)
+            
         if response and response.ok:
             return json.loads(response.text)['data']
 
@@ -165,7 +169,13 @@ class DasClient(object):
 
         self.logger.error('provider_key: %s,service: %s, path: %s\n\tBad result from das service. Message: %s',
             self.provider_key, self.service_root, path, response.text if response else '<no response')
-        raise DasClientException('Failed to post to DAS web service.')
+        raise DasClientException('Failed to call DAS web service.')
+
+    def _post(self, path, payload):
+        return self._call(path, payload, "POST")
+
+    def _patch(self, path, payload):
+        return self._call(path, payload, "PATCH")
 
     def add_event_to_incident(self, event_id, incident_id):
         
@@ -174,7 +184,7 @@ class DasClient(object):
             'type': 'contains'
         }
         
-        result = self._post('activity/event/' + incident_id + '/relationships', params)
+        result = self._patch('activity/event/' + incident_id + '/relationships', params)
 
     def delete_event(self, event_id):
         headers = {'User-Agent': self.user_agent}
@@ -324,6 +334,13 @@ class DasClient(object):
         self.logger.debug('Result of post is: %s', result)
         return result
 
+    def post_patrol(self, data):
+        payload = self._clean_event(data)
+        self.logger.debug('Posting patrol: %s', payload)
+        result = self._post('activity/patrols', payload=payload)
+        self.logger.debug('Result of patrol post is: %s', result)
+        return result
+
     def post_report(self, data):
         payload = self._clean_event(data)
         self.logger.debug('Posting report: %s', payload)
@@ -336,6 +353,17 @@ class DasClient(object):
         Post a new Event.
         """
         return self.post_report(event)
+        
+    def add_events_to_patrol_segment(self, events, patrol_segment):        
+        for event in events:
+            payload = {
+                'id': event['id'],
+                'patrol_segments': [
+                    patrol_segment['id']
+                ]
+            }
+            
+            result = self._patch(f"activity/event/{event['id']}", payload=payload)
 
     def get_file(self, url):
         return self._get(url, stream = True, return_response = True)
@@ -358,6 +386,24 @@ class DasClient(object):
                 url = re.sub('.*activity/events?','activity/events', events['next'])
                 self.logger.debug('Getting more events: ' + url)
                 events = self._get(url)
+            else:
+                break
+
+    def get_patrols(self, **kwargs):
+        params = dict((k, v) for k, v in kwargs.items() if k in
+            ('state', 'page_size', 'page', 'event_type', 'filter'))        
+        self.logger.debug('Getting patrols: ', params)
+        patrols = self._get('activity/patrols', params=params)
+
+        while True:
+            if patrols and patrols.get('results'):
+                for result in patrols['results']:
+                    yield result
+            if patrols['next']:
+                url = patrols['next']
+                url = re.sub('.*activity/patrols?','activity/patrols', patrols['next'])
+                self.logger.debug('Getting more patrols: ' + url)
+                patrols = self._get(url)
             else:
                 break
 
@@ -391,19 +437,18 @@ class DasClient(object):
 
         return self._get(path='subject/{0}/tracks'.format(subject_id), params=p)
 
-    def get_subjects(self):
+    def get_subjects(self, params = {}):
         """
         Get the list of subjects to whom the user has access.
         :return: 
         """
-        return self._get('subjects')
+        return self._get('subjects', params = params)
 
     def get_subjectgroups(self):
         return self._get('subjectgroups')
 
     def get_sources(self):
         return self._get('sources')
-
 
 class DasClientException(Exception):
     pass

@@ -52,4 +52,27 @@ class DasGpxConverter(object):
         return gpx.to_xml()
 
 if __name__ == '__main__':
-    pass
+    
+    """
+    Example usage:
+    """
+    ER_SERVER = "https://yourserver.pamdas.org/api/v1.0"
+    ER_TOKEN = "your er token"
+    HOURS = 240
+    FILENAME = "output.gpx"
+    
+    das_client = dasclient.DasClient(
+        token=ER_TOKEN,
+        service_root=ER_SERVER
+    )
+
+    start_time = datetime.now()
+    start_time -= timedelta(hours=HOURS)
+    converter = dasgpxconverter.DasGpxConverter(das_client)
+    filter = {'date_range' : {'lower': start_time.strftime("%Y-%m-%dT%H:%M:%S")}}
+
+    result = converter.convert_to_gpx(json.dumps(filter))
+    
+    f = open(FILENAME, "w")
+    f.write(result)
+    f.close()
