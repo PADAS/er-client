@@ -503,10 +503,11 @@ class DasClient(object):
         """
         return self._get(path='source/{0}'.format(id))
 
-    def get_subjectgroups(self, include_inactive=False, include_hidden=True):
+    def get_subjectgroups(self, include_inactive=False, include_hidden=True, isvisible=False):
         p = dict()
         p['include_inactive'] = include_inactive
         p['include_hidden'] = include_hidden
+        p['isvisible'] = isvisible
         return self._get('subjectgroups', params=p)
 
     def get_sources(self):
