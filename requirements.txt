@@ -1,3 +1,5 @@
 pytz
 requests
-python-dateutil
+gpxpy
+pydantic
+dateparser
