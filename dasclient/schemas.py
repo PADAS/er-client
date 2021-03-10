@@ -24,9 +24,8 @@ class EREvent(BaseModel):
     priority_label: str
     title: str = None
     state: str = None
-    event_details: dict = {}
-    patrol_segments: List[str] = []
+    event_details: dict = Field(default_factory=dict)
+    patrol_segments: List[str] = Field(default_factory=list)
     updated_at: datetime
     created_at: datetime
     event_category: str
-
