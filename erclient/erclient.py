@@ -144,23 +144,24 @@ class DasClient(object):
         headers = {'Content-Type': 'application/json',
                    'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
-        body = json.dumps(payload)
 
-        response = None
-        if(method == "POST"):
-            response = requests.post(self._das_url(path), data=body, headers=headers)
-        elif(method == "PATCH"):
-            response = requests.patch(self._das_url(path), data=body, headers=headers)
+        fmap = {'POST': requests.post, 'PATCH': requests.patch}
+        try:
+            fn = fmap[method]
+        except KeyError:
+            self.logger.error('method must be one of...')
+        else:
+            response = fn(self._das_url(path), json=payload, headers=headers)
             
         if response and response.ok:
-            return json.loads(response.text)['data']
+            return response.json()['data']
 
         if response.status_code == 404:  # not found
             raise DasClientNotFound()
 
         if response.status_code == 403:  # forbidden
             try:
-                _ = json.loads(response.text)
+                _ = response.json()['data']
                 reason = _['status']['detail']
             except:
                 reason = 'unknown reason'
@@ -364,6 +365,12 @@ class DasClient(object):
             
             result = self._patch(f"activity/event/{event['id']}", payload=payload)
 
+    def patch_event(self, event_id, payload):
+        self.logger.debug('Patching event: %s', payload)
+        result = self._patch('activity/event/' + event_id, payload=payload)
+        self.logger.debug('Result of event patch is: %s', result)
+        return result
+
     def get_file(self, url):
         return self._get(url, stream = True, return_response = True)
         
@@ -372,14 +379,18 @@ class DasClient(object):
 
     def get_events(self, **kwargs):
         params = dict((k, v) for k, v in kwargs.items() if k in
-            ('state', 'page_size', 'page', 'event_type', 'filter', 'include_notes', 'include_related_events','include_files', 'include_details', 'include_updates'))        
+            ('state', 'page_size', 'page', 'event_type', 'filter', 'include_notes', 'include_related_events','include_files', 'include_details', 'include_updates', 'max_results'))        
         self.logger.debug('Getting events: ', params)
         events = self._get('activity/events', params=params)
 
+        count = 0
         while True:
             if events and events.get('results'):
                 for result in events['results']:
                     yield result
+                    count += 1
+                    if(('max_results' in params) and (count >= params['max_results'])):
+                        return
             if events['next']:
                 url = events['next']
                 url = re.sub('.*activity/events?','activity/events', events['next'])
@@ -424,6 +435,16 @@ class DasClient(object):
         """
         return self._get('status')
 
+    def get_source_provider(self, provider_key):
+        providers = self._get('sourceproviders')
+        
+        if providers and providers.get('results'):
+            for provider in providers['results']:
+                if(provider['provider_key'] == provider_key):
+                    return provider
+                        
+        return None
+
     def get_subject_tracks(self, subject_id='', start=None, end=None):
         """
         Get the latest tracks for the Subject having the given subject_id.
@@ -436,12 +457,15 @@ class DasClient(object):
 
         return self._get(path='subject/{0}/tracks'.format(subject_id), params=p)
 
-    def get_subjects(self, params = {}):
+    def get_subjects(self, **kwargs):
         """
         Get the list of subjects to whom the user has access.
         :return: 
         """
-        return self._get('subjects', params = params)
+        params = dict((k, v) for k, v in kwargs.items() if k in
+            ('subject_group'))
+        self.logger.debug('Getting subjects: ', params)
+        return self._get('subjects', params=params)
 
     def get_subjectgroups(self):
         return self._get('subjectgroups')

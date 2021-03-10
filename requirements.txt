@@ -1,4 +1,5 @@
 pytz
 requests
 gpxpy
+pydantic
 dateparser
