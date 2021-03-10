@@ -22,20 +22,26 @@ def split_link(url):
 class DasClient(object):
     """
     DasClient provides basic access to a DAS API. It requires the coordinates of a DAS API service as well 
+    DasClient provides basic access to a DAS API. It requires the coordinates of a DAS API service as well
     as valid credentials for a user.
     
+
     The boiler-plate code handles authentication, so you don't have to think about Oauth2 or refresh tokens.
     
+
     As of May 12, 2017 it includes just a basic set of functions to access Subject data and to post observations.
 
     June 6, 2017: Added methods to add a photo or document to an Event.
         
+
     """
     def __init__(self, **kwargs):
         """
         Initialize a DasClient instance.
         
         :param username: DAS username 
+
+        :param username: DAS username
         :param password: DAS password
         :param service_root: The root of the DAS API (Ex. https://demo.pamdas.org/api/v1.0)
         :param token_url: The auth token url for DAS (Ex. https://demo.pamdas.org/oauth2/token)
@@ -118,6 +124,7 @@ class DasClient(object):
     def _get(self, path, stream=False, **kwargs):
         headers = {'User-Agent': self.user_agent}
 
+        
         headers.update(self.auth_headers())
         response = requests.get(self._das_url(path), headers=headers, params=kwargs.get('params'), stream = stream)
         if response.ok:
@@ -140,6 +147,7 @@ class DasClient(object):
         raise DasClientException('Failed to call DAS web service.')
 
     
+
     def _call(self, path, payload, method):
         headers = {'Content-Type': 'application/json',
                    'User-Agent': self.user_agent}
@@ -153,6 +161,7 @@ class DasClient(object):
         else:
             response = fn(self._das_url(path), json=payload, headers=headers)
             
+
         if response and response.ok:
             return response.json()['data']
 
@@ -179,11 +188,13 @@ class DasClient(object):
 
     def add_event_to_incident(self, event_id, incident_id):
         
+
         params = {
             'to_event_id': event_id,
             'type': 'contains'
         }
         
+
         result = self._patch('activity/event/' + incident_id + '/relationships', params)
 
     def delete_event(self, event_id):
@@ -253,19 +264,23 @@ class DasClient(object):
 
     def post_event_note(self, event_id, notes):
         
+
         created = []
         
+
         if(not isinstance(notes, list)):
             note = notes
             notes = []
             notes.append(note)
         
+
         for note in notes:
             notesRequest = {
                 'event': event_id,
                 'text': note
             }
             
+
             result = self._post('activity/event/' + event_id + '/notes', notesRequest)
             created.append(result)
 
@@ -275,6 +290,7 @@ class DasClient(object):
         """
         Get details for the 'me', the current DAS user.
         :return: 
+        :return:
         """
         return self._get('user/me')
 
@@ -283,6 +299,8 @@ class DasClient(object):
         Post a source payload to create a new source.
         :param source: 
         :return: 
+        :param source:
+        :return:
         '''
         self.logger.debug('Posting source for manufacturer_id: %s', source.get('manufacturer_id'))
         return self._post('sources', payload=source)
@@ -329,6 +347,7 @@ class DasClient(object):
         else:
             payload = self._clean_observation(observation)
             
+
         self.logger.debug('Posting observation: %s', observation)
         result = self._post('sensors/{}/{}/status'.format(sensor_type, self.provider_key), payload=observation)
         self.logger.debug('Result of post is: %s', result)
@@ -355,6 +374,8 @@ class DasClient(object):
         return self.post_report(event)
         
     def add_events_to_patrol_segment(self, events, patrol_segment):        
+
+    def add_events_to_patrol_segment(self, events, patrol_segment):
         for event in events:
             payload = {
                 'id': event['id'],
@@ -363,6 +384,7 @@ class DasClient(object):
                 ]
             }
             
+
             result = self._patch(f"activity/event/{event['id']}", payload=payload)
 
     def patch_event(self, event_id, payload):
@@ -373,13 +395,13 @@ class DasClient(object):
 
     def get_file(self, url):
         return self._get(url, stream = True, return_response = True)
-        
+
     def get_event_types(self):
         return self._get('activity/events/eventtypes')
 
     def get_events(self, **kwargs):
         params = dict((k, v) for k, v in kwargs.items() if k in
-            ('state', 'page_size', 'page', 'event_type', 'filter', 'include_notes', 'include_related_events','include_files', 'include_details', 'include_updates', 'max_results'))        
+            ('state', 'page_size', 'page', 'event_type', 'filter', 'include_notes', 'include_related_events','include_files', 'include_details', 'include_updates', 'max_results'))
         self.logger.debug('Getting events: ', params)
         events = self._get('activity/events', params=params)
 
@@ -401,7 +423,7 @@ class DasClient(object):
 
     def get_patrols(self, **kwargs):
         params = dict((k, v) for k, v in kwargs.items() if k in
-            ('state', 'page_size', 'page', 'event_type', 'filter'))        
+            ('state', 'page_size', 'page', 'event_type', 'filter'))
         self.logger.debug('Getting patrols: ', params)
         patrols = self._get('activity/patrols', params=params)
 
@@ -430,19 +452,19 @@ class DasClient(object):
     def pulse(self, message=None):
         """
         Convenience method for getting status of the DAS api.
-        :param message: 
-        :return: 
+        :param message:
+        :return:
         """
         return self._get('status')
 
     def get_source_provider(self, provider_key):
         providers = self._get('sourceproviders')
-        
+
         if providers and providers.get('results'):
             for provider in providers['results']:
                 if(provider['provider_key'] == provider_key):
                     return provider
-                        
+
         return None
 
     def get_subject_tracks(self, subject_id='', start=None, end=None):
@@ -461,6 +483,7 @@ class DasClient(object):
         """
         Get the list of subjects to whom the user has access.
         :return: 
+        :return:
         """
         params = dict((k, v) for k, v in kwargs.items() if k in
             ('subject_group'))
@@ -488,6 +511,7 @@ class DasClientNotFound(DasClientException):
 if __name__ == '__main__':
     """
     Here's an example for using the client. You'll need to provide the valid arguments to the 
+    Here's an example for using the client. You'll need to provide the valid arguments to the
     DasClient constructor.
     """
 
