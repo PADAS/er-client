@@ -117,7 +117,7 @@ class DasClient(object):
 
     def _get(self, path, stream=False, **kwargs):
         headers = {'User-Agent': self.user_agent}
-        
+
         headers.update(self.auth_headers())
         response = requests.get(self._das_url(path), headers=headers, params=kwargs.get('params'), stream = stream)
         if response.ok:
