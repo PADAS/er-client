@@ -3,6 +3,7 @@ import urllib.parse
 import pytz
 import logging
 import re
+import dateparser
 import requests
 import io
 import json
@@ -120,7 +121,10 @@ class DasClient(object):
         headers = {'User-Agent': self.user_agent}
 
         headers.update(self.auth_headers())
-        response = requests.get(self._das_url(path), headers=headers, params=kwargs.get('params'), stream = stream)
+        if(not(path.startswith("http"))):
+            path = self._das_url(path)
+
+        response = requests.get(path, headers=headers, params=kwargs.get('params'), stream = stream)
         if response.ok:
             if kwargs.get('return_response', False):
                 return response
@@ -386,9 +390,14 @@ class DasClient(object):
     def get_event_types(self):
         return self._get('activity/events/eventtypes')
 
+    def get_event_schema(self, event_type):
+        return self._get(f'activity/events/schema/eventtype/{event_type}')
+
     def get_events(self, **kwargs):
         params = dict((k, v) for k, v in kwargs.items() if k in
-            ('state', 'page_size', 'page', 'event_type', 'filter', 'include_notes', 'include_related_events','include_files', 'include_details', 'include_updates', 'max_results'))
+            ('state', 'page_size', 'page', 'event_type', 'filter', 'include_notes',
+            'include_related_events','include_files', 'include_details',
+            'include_updates', 'max_results', 'oldest_update_date'))
         self.logger.debug('Getting events: ', params)
         events = self._get('activity/events', params=params)
 
@@ -396,6 +405,9 @@ class DasClient(object):
         while True:
             if events and events.get('results'):
                 for result in events['results']:
+                    if('oldest_update_date' in params):
+                        if(dateparser.parse(result['updated_at']) < params['oldest_update_date']):
+                            return
                     yield result
                     count += 1
                     if(('max_results' in params) and (count >= params['max_results'])):
