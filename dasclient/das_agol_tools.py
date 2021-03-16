@@ -471,9 +471,9 @@ class das_agol_tools(object):
                 feature['attributes']['REPORTED_BY'] = str(event['reported_by'].get('name', ''))
 
             if(event['event_type'] not in er_field_types):
-                er_event_type_names['event_type'], er_field_types[event['event_type']] = self._get_er_field_definitions(event['event_type'])
+                er_event_type_names[event['event_type']], er_field_types[event['event_type']] = self._get_er_field_definitions(event['event_type'])
 
-            feature['attributes']['ER_REPORT_TYPE'] = er_event_type_names['event_type']
+            feature['attributes']['ER_REPORT_TYPE'] = er_event_type_names[event['event_type']]
 
             for field in event['event_details'].keys():
                 field_def = er_field_types[event['event_type']][field]
@@ -484,7 +484,7 @@ class das_agol_tools(object):
                 if not(self._field_already_exists(field_name, esri_layer, fields_to_add)):
                     fields_to_add.append([field_name, esri_type, field_def.get('title', field)])
 
-                field_value = str(event['event_details'][field])
+                field_value = event['event_details'][field]
                 if(type(field_value) != list):
                     field_value = [field_value]
 
