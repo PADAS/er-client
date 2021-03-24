@@ -3,3 +3,5 @@ requests
 gpxpy
 pydantic
 dateparser
+tempfile
+urllib
