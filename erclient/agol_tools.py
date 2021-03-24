@@ -1,8 +1,7 @@
 import logging
 import urllib
-import pytz
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import dateparser
 from arcgis.gis import GIS
 from arcgis.features import FeatureLayer, Feature
@@ -11,7 +10,7 @@ from .dasclient import DasClient
 from .version import __version__
 from .schemas import EREvent, ERLocation
 
-class das_agol_tools(object):
+class AgolTools(object):
 
     UPDATE_TIME_PADDING = 24*60 # minutes
 
@@ -29,7 +28,7 @@ class das_agol_tools(object):
 
     def __init__(self, er_token, er_service_root, esri_url, esri_username, esri_password):
         """
-        Initialized a das_agol_tools object.  Establishes sessions to both ER
+        Initialized an AgolTools object.  Establishes sessions to both ER
         and ArcGIS Online
 
         :param er_token: Token for connecting to EarthRanger
@@ -94,7 +93,7 @@ class das_agol_tools(object):
             if(not(self._field_already_exists(field['name'], esri_layer, []))):
                 new_fields.append(field)
 
-        if(len(new_fields) == 0):
+        if(not new_fields):
             self.logger.info("Fields already exist in layer")
         else:
             self.logger.info("Creating fields in layer")
@@ -152,13 +151,12 @@ class das_agol_tools(object):
         """
         value_map = {}
         for schema_def in schema_defs:
-            if('items' in schema_def):
-                for item in schema_def['items']:
-                    if(('key' in item) and (item['key'] == key)):
-                            if('titleMap' in item):
-                                for map_item in item['titleMap']:
-                                    value_map[map_item['value']] = map_item['name']
-                                return value_map
+            for item in schema_def.get('items', []):
+                if(('key' in item) and (item['key'] == key)):
+                        if('titleMap' in item):
+                            for map_item in item['titleMap']:
+                                value_map[map_item['value']] = map_item['name']
+                            return value_map
         return {}
 
     def _get_er_field_definitions(self, event_type):
@@ -352,7 +350,7 @@ class das_agol_tools(object):
         features_to_update = []
 
         if(since == None):
-            since = pytz.utc.localize(datetime.utcnow()) - timedelta(days=30)
+            since = datetime.now(tz=timezone.utc) - timedelta(days=30)
 
         for subject in subjects:
 
@@ -360,7 +358,7 @@ class das_agol_tools(object):
                 continue
 
             last_position_date = dateparser.parse(subject['last_position_date'])
-            cutoff = pytz.utc.localize(datetime.utcnow()) - timedelta(minutes=self.UPDATE_TIME_PADDING)
+            cutoff = datetime.now(tz=timezone.utc) - timedelta(minutes=self.UPDATE_TIME_PADDING)
             if(last_position_date < cutoff):
                 continue
 
@@ -424,7 +422,7 @@ class das_agol_tools(object):
         ])
 
         if(oldest_date == None):
-            oldest_date = pytz.utc.localize(datetime.utcnow()) - timedelta(days=30)
+            oldest_date = datetime.now(tz=timezone.utc) - timedelta(days=30)
 
         er_events = self.das_client.get_events(include_notes = True,
             include_related_events = False, include_files = True,
@@ -510,7 +508,7 @@ class das_agol_tools(object):
                     })
 
         self.logger.info(f"Processed {event_count} events from ER")
-        if(len(fields_to_add) == 0):
+        if(not fields_to_add):
             self.logger.info(f"No new fields to add to the Esri layer.")
         else:
             new_fields = self._add_fields_to_layer(fields_to_add, esri_layer)
