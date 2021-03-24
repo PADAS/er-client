@@ -121,7 +121,7 @@ class DasClient(object):
         headers = {'User-Agent': self.user_agent}
 
         headers.update(self.auth_headers())
-        if(not(path.startswith("http"))):
+        if(not path.startswith("http")):
             path = self._das_url(path)
 
         response = requests.get(path, headers=headers, params=kwargs.get('params'), stream = stream)
@@ -405,7 +405,7 @@ class DasClient(object):
         while True:
             if events and events.get('results'):
                 for result in events['results']:
-                    if('oldest_update_date' in params):
+                    if 'oldest_update_date' in params:
                         if(dateparser.parse(result['updated_at']) < params['oldest_update_date']):
                             return
                     yield result
