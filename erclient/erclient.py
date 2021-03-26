@@ -553,7 +553,7 @@ class DasClient(object):
         """
         params = dict((k, v) for k, v in kwargs.items() if k in
             ('subject_group', 'include_inactive'))
-        self.logger.debug('Getting subjects: ', params)
+        
         return self._get('subjects', params=params)
 
     def get_subject(self, subject_id=''):
