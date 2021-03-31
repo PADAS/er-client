@@ -417,7 +417,8 @@ class AgolTools(object):
         else:
             self.logger.info(f"No tracks to add or update")
 
-    def upsert_events_from_er(self, esri_layer, oldest_date = None, include_attachments = True):
+    def upsert_events_from_er(self, esri_layer, oldest_date = None, include_attachments = True,
+        include_incidents = True):
         """
         Queries all EarthRanger events from the active ER connection and creates
         or updates points in AGO to match.  The EarthRanger report serial number
@@ -430,23 +431,32 @@ class AgolTools(object):
         into consideration.
 
         :param esri_layer: The AGO layer to upsert
+        :param oldest_date: The start-date of the date range to synchronize
+        :param include_attachments: Whether to synchronize event attachment files
+        :param include_incidents: Whether to include ER incidents with a reference to its included reports
         :return: None
         """
-        self._ensure_attributes_in_layer(esri_layer, [
+        
+        base_attributes = [
             {'name':'ER_REPORT_NUMBER', 'alias': 'ER Report Number', 'type': 'esriFieldTypeInteger'},
             {'name':'ER_REPORT_TIME', 'alias': 'ER Report Time', 'type': 'esriFieldTypeDate'},
             {'name':'ER_REPORT_TITLE', 'alias': 'ER Report Title', 'type': 'esriFieldTypeString'},
             {'name':'ER_REPORT_TYPE', 'alias': 'ER Report Type', 'type': 'esriFieldTypeString'},
             {'name':'REPORTED_BY', 'alias': 'Reported By', 'type': 'esriFieldTypeString'},
             {'name':'LATITUDE', 'alias': 'Latitude', 'type': 'esriFieldTypeDouble'},
-            {'name':'LONGITUDE', 'alias': 'Longitude', 'type': 'esriFieldTypeDouble'},
-        ])
+            {'name':'LONGITUDE', 'alias': 'Longitude', 'type': 'esriFieldTypeDouble'}]
+
+        if(include_incidents):
+            base_attributes.append({'name':'CHILDREN_EVENTS',
+                'alias': 'Children Events', 'type': 'esriFieldTypeString'})
+        
+        self._ensure_attributes_in_layer(esri_layer, base_attributes)
 
         if(oldest_date == None):
             oldest_date = datetime.now(tz=timezone.utc) - timedelta(days=30)
 
         er_events = self.das_client.get_events(include_notes = True,
-            include_related_events = False, include_files = True,
+            include_related_events = include_incidents, include_files = True,
             include_updates = False, oldest_update_date = oldest_date)
 
         existing_events = self._get_existing_esri_events(esri_layer, oldest_date)
@@ -469,9 +479,11 @@ class AgolTools(object):
                 # If the Esri event was updated more recently than an hour after the ER one was, skip it
                 if(esri_update_time > (er_update_time + self.UPDATE_TIME_PADDING * 60*1000)):
                     continue
+            
+            if(not include_incidents and event.get('is_collection')):
+                continue
                             
             feature = {
-
                 "attributes":{
                     'ER_REPORT_NUMBER': str(event['serial_number']),
                     'ER_REPORT_TIME': dateparser.parse(event['time']).timestamp()*1000
@@ -523,6 +535,12 @@ class AgolTools(object):
                 for i in range(0, len(field_value)):
                     field_value[i] = str(field_value[i])
                 feature['attributes'][field_name] = ",".join(field_value)
+
+            if(event.get('is_collection') and ('contains' in event.keys())):
+                children = []
+                for child_event in event['contains']:
+                    children.append(str(child_event['related_event']['serial_number']))
+                feature['attributes']['CHILDREN_EVENTS'] = ",".join(children)
 
             if(str(event['serial_number']) in existing_events.keys()):
                 feature['attributes']['OBJECTID'] = existing_events[str(event['serial_number'])][0]
