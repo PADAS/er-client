@@ -49,6 +49,27 @@ class AgolTools(object):
 
         return
 
+    def _clean_field_alias(self, alias):
+        """
+        Exists as an interface to allow calling functions to modify the handling
+        of a field alias.
+
+        :param field: Field alias to clean
+        :return: Clean field alias
+        """
+        return alias
+
+    def _clean_field_value(self, value):
+        """
+        Exists as an interface to allow callers to modify the handling of a
+        field's value.
+
+        :param value: Field value to clean
+        :return: Clean field value
+        """
+        return value
+
+
     def _clean_field_name(self, field):
         """
         Cleans a field name to make sure that Esri doesn't choke on it.
@@ -213,7 +234,7 @@ class AgolTools(object):
             new_field = {'name': self._clean_field_name(field[0]), 'type': field[1]}
 
             if(len(field) == 3):
-                new_field['alias'] = field[2]
+                new_field['alias'] = self._clean_field_alias(field[2])
 
             new_fields.append(new_field)
         result = esri_layer.manager.add_to_definition({'fields': new_fields})
@@ -396,7 +417,7 @@ class AgolTools(object):
         else:
             self.logger.info(f"No tracks to add or update")
 
-    def upsert_events_from_er(self, esri_layer, oldest_date = None):
+    def upsert_events_from_er(self, esri_layer, oldest_date = None, include_attachments = True):
         """
         Queries all EarthRanger events from the active ER connection and creates
         or updates points in AGO to match.  The EarthRanger report serial number
@@ -448,12 +469,12 @@ class AgolTools(object):
                 # If the Esri event was updated more recently than an hour after the ER one was, skip it
                 if(esri_update_time > (er_update_time + self.UPDATE_TIME_PADDING * 60*1000)):
                     continue
-
+                            
             feature = {
+
                 "attributes":{
                     'ER_REPORT_NUMBER': str(event['serial_number']),
-                    'ER_REPORT_TIME': dateparser.parse(event['time']).timestamp()*1000,
-                    'ER_REPORT_TITLE': str(event['title'])
+                    'ER_REPORT_TIME': dateparser.parse(event['time']).timestamp()*1000
                 }
             }
 
@@ -471,9 +492,19 @@ class AgolTools(object):
             if(event['event_type'] not in er_field_types):
                 er_event_type_names[event['event_type']], er_field_types[event['event_type']] = self._get_er_field_definitions(event['event_type'])
 
-            feature['attributes']['ER_REPORT_TYPE'] = er_event_type_names[event['event_type']]
+            feature['attributes']['ER_REPORT_TYPE'] = self._clean_field_value(er_event_type_names[event['event_type']])
+
+            if(event['title'] == None):
+                feature['attributes']['ER_REPORT_TITLE'] = feature['attributes']['ER_REPORT_TYPE']
+            else:
+                feature['attributes']['ER_REPORT_TITLE'] = self._clean_field_value(str(event['title']))
 
             for field in event['event_details'].keys():
+                
+                if(field not in er_field_types[event['event_type']].keys()):
+                    self.logger.warning(f"Additional data entry field {field} for event {event['serial_number']} not in event type model - skipping")
+                    continue
+                    
                 field_def = er_field_types[event['event_type']][field]
                 field_type = field_def.get('type', 'string')
                 esri_type = self.ER_TO_ESRI_FIELD_TYPE.get(field_type, self.ER_TO_ESRI_FIELD_TYPE['default'])
@@ -516,14 +547,15 @@ class AgolTools(object):
 
         if((len(features_to_add) > 0) or (len(features_to_update) > 0)):
             (added, updated) = self._upsert_features(features_to_add, features_to_update, esri_layer, 50)
-            self.logger.info(f"Created {added} and updated {updated} features in Esri")
+            self.logger.info(f"Created {added} and updated {updated} point features in Esri")
         else:
-            self.logger.info(f"No new event features to add")
+            self.logger.info(f"No event features to add or update")
 
-        if(len(er_event_files) > 0):
-            self._replace_attachments(esri_layer, oldest_date, er_event_files)
-        else:
-            self.logger.info(f"No attachments to add")
+        if(include_attachments):
+            if(len(er_event_files) > 0):
+                self._replace_attachments(esri_layer, oldest_date, er_event_files)
+            else:
+                self.logger.info(f"No attachments to add")
 
 if __name__ == '__main__':
     pass
