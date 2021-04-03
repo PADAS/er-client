@@ -568,7 +568,8 @@ class DasClient(object):
         """
         return self._get(path='source/{0}'.format(id))
 
-    def get_subjectgroups(self, include_inactive=False, include_hidden=True, isvisible=True):
+    def get_subjectgroups(self, include_inactive=False,
+                          include_hidden=True, isvisible=True, flat=True, group_name=None):
         """Get the list of visible subjectgroups including members.
          By default don't include inactive subjects
          to get all subject groups whether visible or not, call with include_hidden=True
@@ -578,6 +579,7 @@ class DasClient(object):
             include_hidden (bool, optional): include subject groups that are not visible (isvisible flag is false). Defaults to True.
             isvisible (bool, optional): either include all visible groups, or only include not visible groups. Defaults to True.
 
+
         Returns:
             [type]: [description]
         """
@@ -585,6 +587,9 @@ class DasClient(object):
         p['include_inactive'] = include_inactive
         p['include_hidden'] = include_hidden
         p['isvisible'] = isvisible
+        p['flat'] = flat
+        p['group_name'] = group_name
+
         return self._get('subjectgroups', params=p)
 
     def get_sources(self):
