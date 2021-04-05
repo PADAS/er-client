@@ -578,7 +578,8 @@ class DasClient(object):
             include_inactive (bool, optional): set to True to include inactive subjects. Defaults to False.
             include_hidden (bool, optional): include subject groups that are not visible (isvisible flag is false). Defaults to True.
             isvisible (bool, optional): either include all visible groups, or only include not visible groups. Defaults to True.
-
+            flat (bool, optional): unnest parent/child subjectgroups returning a flat list of subjectgroups
+            group_name (string, optional): filter the subjectgroups to this name
 
         Returns:
             [type]: [description]
