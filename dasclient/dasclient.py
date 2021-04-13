@@ -387,6 +387,9 @@ class DasClient(object):
     def get_file(self, url):
         return self._get(url, stream = True, return_response = True)
 
+    def get_event_type(self, event_type_name):
+        return self._get(f'activity/events/schema/eventtype/{event_type_name}')
+
     def get_event_types(self):
         return self._get('activity/events/eventtypes')
 
@@ -539,7 +542,7 @@ class DasClient(object):
                 for r in results['results']:
                     yield r
 
-            if results['next']:
+            if results and results['next']:
                 url, params = split_link(results['next'])
                 p['page'] = params['page']
                 results = self._get(path='observations', params=p)
@@ -553,7 +556,7 @@ class DasClient(object):
         """
         params = dict((k, v) for k, v in kwargs.items() if k in
             ('subject_group', 'include_inactive'))
-        
+
         return self._get('subjects', params=params)
 
     def get_subject(self, subject_id=''):
