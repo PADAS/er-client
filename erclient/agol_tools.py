@@ -120,6 +120,28 @@ class AgolTools(object):
             self.logger.info("Creating fields in layer")
             esri_layer.manager.add_to_definition({'fields': new_fields})
 
+    def _get_existing_esri_points(self, points_layer, oldest_date, er_subject_id = None):
+        """
+        Grabs existing Esri track points from AGOL.
+
+        :param points_layer: AGO layer to check
+        :param oldest_date: Start date for date range
+        :param er_subject_id: ER subject ID for which to grab points (optional)
+        :return: None
+        """
+
+        query = "EditDate > '" + oldest_date.strftime("%Y-%m-%d %H:%M:%S") + "'"
+
+        if(er_subject_id != None):
+            query += f" and ER_SUBJECT_ID = '{er_subject_id}'"
+
+        existing = points_layer.query(where=query)
+        existing_ids = {}
+        for event in existing:
+            existing_ids[str(event.attributes['ER_OBSERVATION_ID'])] = [event.attributes['OBJECTID'], event.attributes['EditDate']]
+        return existing_ids
+
+
     def _get_existing_esri_events(self, events_layer, oldest_date):
         """
         Loads the existing EarthRanger reports contained within an AGO layer.
@@ -436,7 +458,7 @@ class AgolTools(object):
         :param include_incidents: Whether to include ER incidents with a reference to its included reports
         :return: None
         """
-        
+
         base_attributes = [
             {'name':'ER_REPORT_NUMBER', 'alias': 'ER Report Number', 'type': 'esriFieldTypeInteger'},
             {'name':'ER_REPORT_TIME', 'alias': 'ER Report Time', 'type': 'esriFieldTypeDate'},
@@ -447,9 +469,9 @@ class AgolTools(object):
             {'name':'LONGITUDE', 'alias': 'Longitude', 'type': 'esriFieldTypeDouble'}]
 
         if(include_incidents):
-            base_attributes.append({'name':'CHILDREN_EVENTS',
-                'alias': 'Children Events', 'type': 'esriFieldTypeString'})
-        
+            base_attributes.append({'name':'PARENT_INCIDENT',
+                'alias': 'Parent Incident', 'type': 'esriFieldTypeString'})
+
         self._ensure_attributes_in_layer(esri_layer, base_attributes)
 
         if(oldest_date == None):
@@ -479,10 +501,10 @@ class AgolTools(object):
                 # If the Esri event was updated more recently than an hour after the ER one was, skip it
                 if(esri_update_time > (er_update_time + self.UPDATE_TIME_PADDING * 60*1000)):
                     continue
-            
+
             if(not include_incidents and event.get('is_collection')):
                 continue
-                            
+
             feature = {
                 "attributes":{
                     'ER_REPORT_NUMBER': str(event['serial_number']),
@@ -507,16 +529,16 @@ class AgolTools(object):
             feature['attributes']['ER_REPORT_TYPE'] = self._clean_field_value(er_event_type_names[event['event_type']])
 
             if(event['title'] == None):
-                feature['attributes']['ER_REPORT_TITLE'] = feature['attributes']['ER_REPORT_TYPE']
+                feature['attributes']['ER_REPORT_TITLE'] = self._clean_field_value(feature['attributes']['ER_REPORT_TYPE'])
             else:
                 feature['attributes']['ER_REPORT_TITLE'] = self._clean_field_value(str(event['title']))
 
             for field in event['event_details'].keys():
-                
+
                 if(field not in er_field_types[event['event_type']].keys()):
                     self.logger.warning(f"Additional data entry field {field} for event {event['serial_number']} not in event type model - skipping")
                     continue
-                    
+
                 field_def = er_field_types[event['event_type']][field]
                 field_type = field_def.get('type', 'string')
                 esri_type = self.ER_TO_ESRI_FIELD_TYPE.get(field_type, self.ER_TO_ESRI_FIELD_TYPE['default'])
@@ -533,14 +555,15 @@ class AgolTools(object):
                     for i in range(0, len(field_value)):
                         field_value[i] = field_def['value_map'].get(field_value[i], field_value[i])
                 for i in range(0, len(field_value)):
-                    field_value[i] = str(field_value[i])
+                    field_value[i] = self._clean_field_value(str(field_value[i]))
                 feature['attributes'][field_name] = ",".join(field_value)
 
-            if(event.get('is_collection') and ('contains' in event.keys())):
-                children = []
-                for child_event in event['contains']:
-                    children.append(str(child_event['related_event']['serial_number']))
-                feature['attributes']['CHILDREN_EVENTS'] = ",".join(children)
+            if(include_incidents):
+                for potential_parent in event.get('is_contained_in'):
+                    if(potential_parent.get('type') == 'contains'):
+                        feature['attributes']['PARENT_INCIDENT'] = potential_parent['related_event']['serial_number']
+                        break
+
 
             if(str(event['serial_number']) in existing_events.keys()):
                 feature['attributes']['OBJECTID'] = existing_events[str(event['serial_number'])][0]
@@ -574,6 +597,70 @@ class AgolTools(object):
                 self._replace_attachments(esri_layer, oldest_date, er_event_files)
             else:
                 self.logger.info(f"No attachments to add")
+
+    def upsert_track_points_from_er(self, esri_layer, oldest_date = None):
+        """
+        Updates an AGOL point layer, adding any missing observation points from
+        EarthRanger.  Each point in the track layer represents a single
+        observation object from EarthRanger.  Points that already exist in AGOL
+        are skipped.
+
+        :param esri_layer: The AGO layer to upsert
+        :param oldest_date: The start-date of the date range to synchronize
+        :return: None
+        """
+
+        base_attributes = [
+            {'name':'ER_OBSERVATION_ID', 'alias': 'Observation ID', 'type': 'esriFieldTypeString'},
+            {'name':'SUBJECT_NAME', 'alias': 'Subject Name', 'type': 'esriFieldTypeString'},
+            {'name':'OBSERVATION_TIME', 'alias': 'Observation Time', 'type': 'esriFieldTypeDate'},
+            {'name':'ER_SUBJECT_ID', 'alias': 'Subject ID', 'type': 'esriFieldTypeString'},
+            {'name':'LATITUDE', 'alias': 'Latitude', 'type': 'esriFieldTypeDouble'},
+            {'name':'LONGITUDE', 'alias': 'Longitude', 'type': 'esriFieldTypeDouble'}]
+        self._ensure_attributes_in_layer(esri_layer, base_attributes)
+
+        if(oldest_date == None):
+            oldest_date = datetime.now(tz=timezone.utc) - timedelta(days=30)
+
+        subjects = self.das_client.get_subjects()
+
+        for subject in subjects:
+            er_observations = self.das_client.get_subject_observations(
+                subject['id'], oldest_date, None, 0, False, 10000)
+
+            existing_points = self._get_existing_esri_points(esri_layer, oldest_date, subject['id'])
+            self.logger.info(f"Loaded {len(existing_points)} existing points from Esri for subject {subject['name']}")
+
+            features_to_add = []
+            point_count = 0
+            for point in er_observations:
+                point_count += 1
+                if(str(point['id']) in existing_points.keys()):
+                    continue
+
+                feature = {
+                    "attributes": {
+                        'ER_OBSERVATION_ID': point['id'],
+                        'ER_SUBJECT_ID': subject['id'],
+                        'SUBJECT_NAME': subject['name'],
+                        'OBSERVATION_TIME': dateparser.parse(point['recorded_at']).timestamp()*1000
+                    }
+                }
+
+                if(point.get('location')):
+                    feature['geometry'] = Point(
+                        {'y': point['location']['latitude'], 'x': point['location']['longitude'],
+                        'spatialReference': {'wkid': 4326}})
+
+                    feature['attributes']['LATITUDE'] = str(point['location']['latitude'])
+                    feature['attributes']['LONGITUDE'] = str(point['location']['longitude'])
+
+                features_to_add.append(feature)
+
+            self.logger.info(f"Processed {point_count} track points from ER")
+            if(len(features_to_add) > 0):
+                (added, updated) = self._upsert_features(features_to_add, [], esri_layer, 50)
+                self.logger.info(f"Created {added} point features in Esri")
 
 if __name__ == '__main__':
     pass
