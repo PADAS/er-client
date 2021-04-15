@@ -625,6 +625,17 @@ class AgolTools(object):
         subjects = self.das_client.get_subjects()
 
         for subject in subjects:
+            if(not subject.get('tracks_available')):
+                continue
+
+            last_position_date = subject.get('last_position_date')
+            if(not last_position_date):
+                continue
+
+            last_position_datetime = dateparser.parse(last_position_date)
+            if(last_position_datetime < oldest_date):
+                continue
+
             er_observations = self.das_client.get_subject_observations(
                 subject['id'], oldest_date, None, 0, False, 10000)
 
