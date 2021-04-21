@@ -199,7 +199,7 @@ class DasClient(object):
             'type': 'contains'
         }
 
-        result = self._patch('activity/event/' + incident_id + '/relationships', params)
+        result = self._post('activity/event/' + incident_id + '/relationships', params)
 
     def delete_event(self, event_id):
         headers = {'User-Agent': self.user_agent}
