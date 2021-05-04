@@ -400,10 +400,13 @@ class AgolTools(object):
             if(('last_position_date' not in subject) or (subject['last_position_date'] == None)):
                 continue
 
-            last_position_date = dateparser.parse(subject['last_position_date'])
-            cutoff = datetime.now(tz=timezone.utc) - timedelta(minutes=self.UPDATE_TIME_PADDING)
-            if(last_position_date < cutoff):
-                continue
+            if(subject['id'] in existing_tracks.keys()):
+                last_position_date = dateparser.parse(subject['last_position_date'])
+                cutoff = datetime.now(tz=timezone.utc) - timedelta(minutes=self.UPDATE_TIME_PADDING)
+
+                if(last_position_date < cutoff):
+                    self.logger.info(f"Subject {subject['name']} not recently updated... Skipping.")
+                    continue
 
             results = self.das_client.get_subject_tracks(subject_id = subject['id'], start=since)
             self.logger.debug(f"Loaded {len(results['features'])} tracks from ER for subject {subject['name']}")
