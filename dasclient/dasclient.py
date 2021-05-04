@@ -171,6 +171,7 @@ class DasClient(object):
             return response.json()['data']
 
         if response.status_code == 404:  # not found
+            self.logger.error(f"Could not load {path}")
             raise DasClientNotFound()
 
         try:
@@ -201,17 +202,20 @@ class DasClient(object):
 
         result = self._post('activity/event/' + incident_id + '/relationships', params)
 
-    def delete_event(self, event_id):
+    def remove_event_from_incident(self, event_id, incident_id, relationship_type = 'contains'):
+        result = self._delete(f'activity/event/{incident_id}/relationship/{relationship_type}/{event_id}/')
+
+    def _delete(self, path):
+
         headers = {'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
-
-        path = 'activity/event/' + event_id + '/'
 
         response = requests.delete(self._das_url(path), headers=headers)
         if response.ok:
             return True
 
         if response.status_code == 404:  # not found
+            self.logger.error(f"404 when calling {path}")
             raise DasClientNotFound()
 
         if response.status_code == 403:  # forbidden
@@ -223,6 +227,9 @@ class DasClient(object):
             raise DasClientPermissionDenied(reason)
 
         raise DasClientException('Failed to delete event.')
+
+    def delete_event(self, event_id):
+        self._delete('activity/event/' + event_id + '/')
 
     def _post_form(self, path, body=None, files=None):
 
@@ -257,6 +264,14 @@ class DasClient(object):
         with open(image, "rb") as image_file:
             files = {'image': image_file}
             return self._post_form(photos_path, files=files)
+
+    def delete_event_file(self, event_id, file_id):
+        self._delete(f"activity/event/{event_id}/file/{file_id}")
+
+    def delete_event_note(self, event_id, note_id):
+
+        path = f"activity/event/{event_id}/note/{note_id}"
+        self._delete(path)
 
     def post_event_file(self, event_id, filepath=None, comment=''):
 
@@ -354,6 +369,18 @@ class DasClient(object):
         self.logger.debug('Result of patrol post is: %s', result)
         return result
 
+    def patch_event_type(self, event_type):
+        self.logger.debug('Patching event type: %s', event_type)
+        result = self._patch(f"activity/events/eventtypes/{event_type['id']}", payload=event_type)
+        self.logger.debug('Result of event type patch is: %s', result)
+        return result
+
+    def post_event_type(self, event_type):
+        self.logger.debug('Posting event type: %s', event_type)
+        result = self._post('activity/events/eventtypes/', payload=event_type)
+        self.logger.debug('Result of event type post is: %s', result)
+        return result
+
     def post_report(self, data):
         payload = self._clean_event(data)
         self.logger.debug('Posting report: %s', payload)
@@ -390,8 +417,12 @@ class DasClient(object):
     def get_event_type(self, event_type_name):
         return self._get(f'activity/events/schema/eventtype/{event_type_name}')
 
+    def get_event_categories(self):
+        return self._get(f'activity/events/categories')
+
     def get_event_types(self):
         return self._get('activity/events/eventtypes')
+
 
     def get_event_schema(self, event_type):
         return self._get(f'activity/events/schema/eventtype/{event_type}')
