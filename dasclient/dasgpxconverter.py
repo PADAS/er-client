@@ -24,9 +24,9 @@ class DasGpxConverter(object):
 
         return type
 
-    def _add_events(self, gpx, filter):
-        
-        events = self.dasclient.get_events(filter = json.dumps(filter),
+    def _add_events(self, gpx, filter, event_details=[]):
+
+        events = self.dasclient.get_events(filter = json.dumps(filter) if filter else None,
             include_notes = False,
             include_related_events = False,
             include_files = False,
@@ -41,13 +41,15 @@ class DasGpxConverter(object):
                 type = self._get_event_type_name(event.event_type)
 
                 point = gpxpy.gpx.GPXWaypoint(event.location.latitude, event.location.longitude)
-                point.time = event.time
+                point.time = event.time.astimezone(pytz.utc)
                 point.name = str(event.serial_number) + " " + (event.title if event.title else type)
                 point.type = type
 
                 descstr = f"Priority: {event.priority_label}"
+
                 for k,v in event.event_details.items():
-                    descstr += "\n" + str(k) + ": " + str(v)
+                    if((not event_details) or (k in event_details)):
+                        descstr += "\n" + str(k) + ": " + str(v)
                 point.description = html.escape(descstr, quote=True)
                 gpx.waypoints.append(point)
 
@@ -71,17 +73,19 @@ class DasGpxConverter(object):
 
         lower = None
         upper = None
-        try:
-            lower = dateparser.parse(filter['date_range']['lower'])
-            upper = dateparser.parse(filter['date_range']['upper'])
-        except KeyError as e:
-            pass
+
+        if(filter):
+            try:
+                lower = dateparser.parse(filter['date_range']['lower'])
+                upper = dateparser.parse(filter['date_range']['upper'])
+            except KeyError as e:
+                pass
 
         subjects = self.dasclient.get_subjects()
 
         for subject in subjects:
-            if((subject['tracks_available'] != True) or
-                (dateparser.parse(subject['last_position_date']).astimezone(pytz.utc) < lower.astimezone(pytz.utc))):
+            if((subject['tracks_available'] != True) or (lower and
+                (dateparser.parse(subject['last_position_date']).astimezone(pytz.utc) < lower.astimezone(pytz.utc)))):
                 continue
 
             track = self.dasclient.get_subject_tracks(subject['id'], lower, upper)
@@ -93,9 +97,9 @@ class DasGpxConverter(object):
                     gpx_track.segments += segments
             gpx.tracks.append(gpx_track)
 
-    def convert_to_gpx(self, filter=None):
+    def convert_to_gpx(self, filter=None, event_details=[]):
         gpx = gpxpy.gpx.GPX()
-        self._add_events(gpx, filter)
+        self._add_events(gpx, filter, event_details)
         self._add_paths(gpx, filter)
         return gpx.to_xml()
 
