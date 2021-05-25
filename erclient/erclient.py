@@ -125,6 +125,7 @@ class DasClient(object):
             path = self._das_url(path)
 
         response = requests.get(path, headers=headers, params=kwargs.get('params'), stream = stream)
+
         if response.ok:
             if kwargs.get('return_response', False):
                 return response
@@ -386,6 +387,18 @@ class DasClient(object):
         self.logger.debug('Posting report: %s', payload)
         result = self._post('activity/events', payload=payload)
         self.logger.debug('Result of report post is: %s', result)
+        return result
+
+    def post_event_category(self, data):
+        self.logger.debug('Posting event category: %s', data)
+        result = self._post('activity/events/categories', payload=data)
+        self.logger.debug('Result of report category post is: %s', result)
+        return result
+
+    def patch_event_category(self, data):
+        self.logger.debug('Patching event category: %s', data)
+        result = self._patch(f'activity/events/categories/{data["id"]}', payload=data)
+        self.logger.debug('Result of report category patch is: %s', result)
         return result
 
     def post_event(self, event):
