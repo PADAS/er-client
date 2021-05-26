@@ -12,21 +12,21 @@ except ImportError:
 
 
 setup(
-      name='dasclient',
-      version=version_data['version'],
-      description='DAS Client Tools For Python',
-      url='http://github.com/PADAS/das-clients/python',
-      author='Chris Doehring',
-      author_email='integration@pamdas.org',
-      license='MIT',
-      packages=['dasclient'],
-      platforms=u'Posix; MacOS X; Windows',
-      install_requires=['requests',],
-      zip_safe=False,
-      classifiers=[
-            'License :: OSI Approved :: MIT License',
+    name='dasclient',
+    version=version_data['version'],
+    description='DAS Client Tools For Python',
+    url='http://github.com/PADAS/das-clients/python',
+    author='Chris Doehring',
+    author_email='integration@pamdas.org',
+    license='MIT',
+    packages=['dasclient'],
+    platforms=u'Posix; MacOS X; Windows',
+    install_requires=['requests', ],
+    zip_safe=False,
+    classifiers=[
+        'License :: OSI Approved :: MIT License',
             'Programming Language :: Python',
             'Programming Language :: Python :: 3',
             'Programming Language :: Python :: 3.6',
-      ]
-      )
+    ]
+)

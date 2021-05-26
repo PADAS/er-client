@@ -6,6 +6,7 @@ import dateparser
 import pytz
 from .schemas import EREvent, ERLocation
 
+
 class DasGpxConverter(object):
 
     event_types = None
@@ -26,28 +27,29 @@ class DasGpxConverter(object):
 
     def _add_events(self, gpx, filter, event_details=[]):
 
-        events = self.dasclient.get_events(filter = json.dumps(filter) if filter else None,
-            include_notes = False,
-            include_related_events = False,
-            include_files = False,
-            include_details = True,
-            include_updates = False,
-            page_size = 100)
-
+        events = self.dasclient.get_events(filter=json.dumps(filter) if filter else None,
+                                           include_notes=False,
+                                           include_related_events=False,
+                                           include_files=False,
+                                           include_details=True,
+                                           include_updates=False,
+                                           page_size=100)
 
         for eventdict in events:
             event = EREvent(**eventdict)
             if(event.location != None):
                 type = self._get_event_type_name(event.event_type)
 
-                point = gpxpy.gpx.GPXWaypoint(event.location.latitude, event.location.longitude)
+                point = gpxpy.gpx.GPXWaypoint(
+                    event.location.latitude, event.location.longitude)
                 point.time = event.time.astimezone(pytz.utc)
-                point.name = str(event.serial_number) + " " + (event.title if event.title else type)
+                point.name = str(event.serial_number) + " " + \
+                    (event.title if event.title else type)
                 point.type = type
 
                 descstr = f"Priority: {event.priority_label}"
 
-                for k,v in event.event_details.items():
+                for k, v in event.event_details.items():
                     if((not event_details) or (k in event_details)):
                         descstr += "\n" + str(k) + ": " + str(v)
                 point.description = html.escape(descstr, quote=True)
@@ -85,15 +87,17 @@ class DasGpxConverter(object):
 
         for subject in subjects:
             if((subject['tracks_available'] != True) or (lower and
-                (dateparser.parse(subject['last_position_date']).astimezone(pytz.utc) < lower.astimezone(pytz.utc)))):
+                                                         (dateparser.parse(subject['last_position_date']).astimezone(pytz.utc) < lower.astimezone(pytz.utc)))):
                 continue
 
-            track = self.dasclient.get_subject_tracks(subject['id'], lower, upper)
+            track = self.dasclient.get_subject_tracks(
+                subject['id'], lower, upper)
             gpx_track = gpxpy.gpx.GPXTrack()
             gpx_track.name = subject['name']
             for path in track['features']:
                 if((path['geometry'] != None) and (path['geometry']['type'] == 'LineString')):
-                    segments = self._convert_array_to_gpx(path['geometry']['coordinates'], path['properties']['coordinateProperties']['times'])
+                    segments = self._convert_array_to_gpx(
+                        path['geometry']['coordinates'], path['properties']['coordinateProperties']['times'])
                     gpx_track.segments += segments
             gpx.tracks.append(gpx_track)
 
@@ -102,6 +106,7 @@ class DasGpxConverter(object):
         self._add_events(gpx, filter, event_details)
         self._add_paths(gpx, filter)
         return gpx.to_xml()
+
 
 if __name__ == '__main__':
 
@@ -121,7 +126,8 @@ if __name__ == '__main__':
     start_time = datetime.now()
     start_time -= timedelta(hours=HOURS)
     converter = dasgpxconverter.DasGpxConverter(das_client)
-    filter = {'date_range' : {'lower': start_time.strftime("%Y-%m-%dT%H:%M:%S")}}
+    filter = {'date_range': {
+        'lower': start_time.strftime("%Y-%m-%dT%H:%M:%S")}}
 
     result = converter.convert_to_gpx(json.dumps(filter))
 
