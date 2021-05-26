@@ -8,9 +8,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+
 class ERLocation(BaseModel):
     latitude: str
     longitude: str
+
 
 class EREvent(BaseModel):
     id: str

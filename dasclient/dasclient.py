@@ -11,15 +11,18 @@ from .version import __version__
 
 version_string = __version__
 
+
 def linkify(url, params):
-    p = ['='.join((str(x),str(y))) for x,y in params.items()]
+    p = ['='.join((str(x), str(y))) for x, y in params.items()]
     p = '&'.join(p)
     return '?'.join((url, p))
+
 
 def split_link(url):
     url, qs = url.split('?')
     params = dict([p.split('=') for p in qs.split('&')])
     return (url, params)
+
 
 class DasClient(object):
     """
@@ -33,6 +36,7 @@ class DasClient(object):
     June 6, 2017: Added methods to add a photo or document to an Event.
 
     """
+
     def __init__(self, **kwargs):
         """
         Initialize a DasClient instance.
@@ -107,7 +111,8 @@ class DasClient(object):
         if response.ok:
             self.auth = json.loads(response.text)
             expires_in = int(self.auth['expires_in']) - 5 * 60
-            self.auth_expires = pytz.utc.localize(datetime.utcnow()) + timedelta(seconds=expires_in)
+            self.auth_expires = pytz.utc.localize(
+                datetime.utcnow()) + timedelta(seconds=expires_in)
             return True
 
         self.auth = None
@@ -124,7 +129,8 @@ class DasClient(object):
         if(not path.startswith("http")):
             path = self._das_url(path)
 
-        response = requests.get(path, headers=headers, params=kwargs.get('params'), stream = stream)
+        response = requests.get(path, headers=headers,
+                                params=kwargs.get('params'), stream=stream)
 
         if response.ok:
             if kwargs.get('return_response', False):
@@ -146,8 +152,8 @@ class DasClient(object):
             raise DasClientPermissionDenied(reason)
 
         self.logger.debug("Fail: " + response.text)
-        raise DasClientException(f'Failed to call DAS web service. {response.status_code} {response.text}')
-
+        raise DasClientException(
+            f'Failed to call DAS web service. {response.status_code} {response.text}')
 
     def _call(self, path, payload, method):
         headers = {'Content-Type': 'application/json',
@@ -186,7 +192,8 @@ class DasClient(object):
 
         message = f"provider_key: {self.provider_key}, service: {self.service_root}, path: {path},\n\t {response.status_code} from ER. Message: {reason} {response.text}"
         self.logger.error(message)
-        raise DasClientException(f"Failed to {fn} to DAS web service. {message}")
+        raise DasClientException(
+            f"Failed to {fn} to DAS web service. {message}")
 
     def _post(self, path, payload):
         return self._call(path, payload, "POST")
@@ -201,10 +208,12 @@ class DasClient(object):
             'type': 'contains'
         }
 
-        result = self._post('activity/event/' + incident_id + '/relationships', params)
+        result = self._post('activity/event/' +
+                            incident_id + '/relationships', params)
 
-    def remove_event_from_incident(self, event_id, incident_id, relationship_type = 'contains'):
-        result = self._delete(f'activity/event/{incident_id}/relationship/{relationship_type}/{event_id}/')
+    def remove_event_from_incident(self, event_id, incident_id, relationship_type='contains'):
+        result = self._delete(
+            f'activity/event/{incident_id}/relationship/{relationship_type}/{event_id}/')
 
     def _delete(self, path):
 
@@ -238,7 +247,8 @@ class DasClient(object):
         headers.update(self.auth_headers())
 
         body = body or {}
-        response = requests.post(self._das_url(path), data=body, headers=headers, files=files)
+        response = requests.post(self._das_url(
+            path), data=body, headers=headers, files=files)
         if response and response.ok:
             return json.loads(response.text)['data']
 
@@ -254,7 +264,7 @@ class DasClient(object):
             raise DasClientPermissionDenied(reason)
 
         self.logger.error('provider_key: %s, path: %s\n\tBad result from das service. Message: %s',
-            self.provider_key, path, response.text)
+                          self.provider_key, path, response.text)
         raise DasClientException('Failed to post to DAS web service.')
 
     def post_event_photo(self, event_id, image):
@@ -287,7 +297,7 @@ class DasClient(object):
         created = []
 
         if(not isinstance(notes, list)):
-            notes = [notes,]
+            notes = [notes, ]
 
         for note in notes:
             notesRequest = {
@@ -295,7 +305,8 @@ class DasClient(object):
                 'text': note
             }
 
-            result = self._post('activity/event/' + event_id + '/notes', notesRequest)
+            result = self._post('activity/event/' +
+                                event_id + '/notes', notesRequest)
             created.append(result)
 
         return created
@@ -313,7 +324,8 @@ class DasClient(object):
         :param source:
         :return:
         '''
-        self.logger.debug('Posting source for manufacturer_id: %s', source.get('manufacturer_id'))
+        self.logger.debug('Posting source for manufacturer_id: %s',
+                          source.get('manufacturer_id'))
         return self._post('sources', payload=source)
 
     def _clean_observation(self, observation):
@@ -328,13 +340,15 @@ class DasClient(object):
         # Clean-up data before posting
         observation['recorded_at'] = observation['recorded_at'].isoformat()
         self.logger.debug('Posting observation: %s', observation)
-        result = self._post('sensors/dasradioagent/{}/status'.format(self.provider_key), payload=observation)
+        result = self._post(
+            'sensors/dasradioagent/{}/status'.format(self.provider_key), payload=observation)
         self.logger.debug('Result of post is: %s', result)
         return result
 
     def post_radio_heartbeat(self, data):
         self.logger.debug('Posting heartbeat: %s', data)
-        result = self._post('sensors/dasradioagent/{}/status'.format(self.provider_key), payload=data)
+        result = self._post(
+            'sensors/dasradioagent/{}/status'.format(self.provider_key), payload=data)
         self.logger.debug('Result of heartbeat post is: %s', result)
 
     def post_observation(self, observation):
@@ -359,7 +373,8 @@ class DasClient(object):
             payload = self._clean_observation(observation)
 
         self.logger.debug('Posting observation: %s', observation)
-        result = self._post('sensors/{}/{}/status'.format(sensor_type, self.provider_key), payload=observation)
+        result = self._post(
+            'sensors/{}/{}/status'.format(sensor_type, self.provider_key), payload=observation)
         self.logger.debug('Result of post is: %s', result)
         return result
 
@@ -372,7 +387,8 @@ class DasClient(object):
 
     def patch_event_type(self, event_type):
         self.logger.debug('Patching event type: %s', event_type)
-        result = self._patch(f"activity/events/eventtypes/{event_type['id']}", payload=event_type)
+        result = self._patch(
+            f"activity/events/eventtypes/{event_type['id']}", payload=event_type)
         self.logger.debug('Result of event type patch is: %s', result)
         return result
 
@@ -397,7 +413,8 @@ class DasClient(object):
 
     def patch_event_category(self, data):
         self.logger.debug('Patching event category: %s', data)
-        result = self._patch(f'activity/events/categories/{data["id"]}', payload=data)
+        result = self._patch(
+            f'activity/events/categories/{data["id"]}', payload=data)
         self.logger.debug('Result of report category patch is: %s', result)
         return result
 
@@ -416,7 +433,8 @@ class DasClient(object):
                 ]
             }
 
-            result = self._patch(f"activity/event/{event['id']}", payload=payload)
+            result = self._patch(
+                f"activity/event/{event['id']}", payload=payload)
 
     def patch_event(self, event_id, payload):
         self.logger.debug('Patching event: %s', payload)
@@ -425,7 +443,7 @@ class DasClient(object):
         return result
 
     def get_file(self, url):
-        return self._get(url, stream = True, return_response = True)
+        return self._get(url, stream=True, return_response=True)
 
     def get_event_type(self, event_type_name):
         return self._get(f'activity/events/schema/eventtype/{event_type_name}')
@@ -436,15 +454,14 @@ class DasClient(object):
     def get_event_types(self):
         return self._get('activity/events/eventtypes')
 
-
     def get_event_schema(self, event_type):
         return self._get(f'activity/events/schema/eventtype/{event_type}')
 
     def get_events(self, **kwargs):
         params = dict((k, v) for k, v in kwargs.items() if k in
-            ('state', 'page_size', 'page', 'event_type', 'filter', 'include_notes',
-            'include_related_events','include_files', 'include_details',
-            'include_updates', 'max_results', 'oldest_update_date'))
+                      ('state', 'page_size', 'page', 'event_type', 'filter', 'include_notes',
+                       'include_related_events', 'include_files', 'include_details',
+                       'include_updates', 'max_results', 'oldest_update_date'))
         self.logger.debug('Getting events: ', params)
         events = self._get('activity/events', params=params)
 
@@ -461,7 +478,8 @@ class DasClient(object):
                         return
             if events['next']:
                 url = events['next']
-                url = re.sub('.*activity/events?','activity/events', events['next'])
+                url = re.sub('.*activity/events?',
+                             'activity/events', events['next'])
                 self.logger.debug('Getting more events: ' + url)
                 events = self._get(url)
             else:
@@ -469,7 +487,7 @@ class DasClient(object):
 
     def get_patrols(self, **kwargs):
         params = dict((k, v) for k, v in kwargs.items() if k in
-            ('state', 'page_size', 'page', 'event_type', 'filter'))
+                      ('state', 'page_size', 'page', 'event_type', 'filter'))
         self.logger.debug('Getting patrols: ', params)
         patrols = self._get('activity/patrols', params=params)
 
@@ -479,7 +497,8 @@ class DasClient(object):
                     yield result
             if patrols['next']:
                 url = patrols['next']
-                url = re.sub('.*activity/patrols?','activity/patrols', patrols['next'])
+                url = re.sub('.*activity/patrols?',
+                             'activity/patrols', patrols['next'])
                 self.logger.debug('Getting more patrols: ' + url)
                 patrols = self._get(url)
             else:
@@ -491,7 +510,8 @@ class DasClient(object):
             params = {
                 'filter': filter}
 
-        response = self._get('activity/events/export/', params=params, return_response=True)
+        response = self._get('activity/events/export/',
+                             params=params, return_response=True)
         return response
 
     def pulse(self, message=None):
@@ -555,15 +575,15 @@ class DasClient(object):
     def get_subject_observations(self, subject_id, start=None, end=None,
                                  filter_flag=0, include_details=True, page_size=10000):
         return self._get_observations(subject_id=subject_id, start=start, end=end,
-            filter_flag=filter_flag, include_details=include_details, page_size=page_size)
+                                      filter_flag=filter_flag, include_details=include_details, page_size=page_size)
 
     def get_source_observations(self, source_id, start=None, end=None,
-                                 filter_flag=0, include_details=True, page_size=10000):
+                                filter_flag=0, include_details=True, page_size=10000):
         return self._get_observations(source_id=source_id, start=start, end=end,
-            filter_flag=filter_flag, include_details=include_details, page_size=page_size)
+                                      filter_flag=filter_flag, include_details=include_details, page_size=page_size)
 
     def _get_observations(self, subject_id=None, source_id=None, start=None, end=None,
-                                 filter_flag=0, include_details=True, page_size=10000):
+                          filter_flag=0, include_details=True, page_size=10000):
         p = {}
         if start is not None and isinstance(start, datetime):
             p['since'] = start.isoformat()
@@ -599,7 +619,7 @@ class DasClient(object):
         :return:
         """
         params = dict((k, v) for k, v in kwargs.items() if k in
-            ('subject_group', 'include_inactive'))
+                      ('subject_group', 'include_inactive'))
 
         return self._get('subjects', params=params)
 
