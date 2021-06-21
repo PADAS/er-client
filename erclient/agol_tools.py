@@ -138,7 +138,12 @@ class AgolTools(object):
         if(er_subject_id != None):
             query += f" and ER_SUBJECT_ID = '{er_subject_id}'"
 
-        existing = points_layer.query(where=query)
+        try:
+            existing = points_layer.query(where=query)
+        except Exception as e:
+            print(f'Error when running query {query}: {e}')
+            raise e
+
         existing_ids = {}
         for event in existing:
             existing_ids[str(event.attributes['ER_OBSERVATION_ID'])] = [
@@ -162,6 +167,7 @@ class AgolTools(object):
         try:
             existing = events_layer.query(where=query)
         except Exception as e:
+            print(f'Error when running query {query}: {e}')
             if("'Invalid field: ER_REPORT_NUMBER' parameter is invalid" in str(e)):
                 return {}
             raise e
@@ -242,7 +248,7 @@ class AgolTools(object):
             field_defs[prop_name] = prop
             if('key' in prop):
                 field_defs[prop_name]['value_map'] = self.__get_value_map_from_prop_def(
-                    schema['definition'], prop['key'])
+                    schema['definition'], prop_name)
             elif('enumNames' in field_defs[prop_name]):
                 field_defs[prop_name]['value_map'] = field_defs[prop_name].pop(
                     'enumNames')
@@ -424,7 +430,7 @@ class AgolTools(object):
 
                 if(last_position_date < cutoff):
                     self.logger.info(
-                        f"Subject {subject['name']} not recently updated... Skipping.")
+                        f"Subject {subject['name']} not updated since {cutoff}... Skipping.")
                     continue
 
             results = self.das_client.get_subject_tracks(
