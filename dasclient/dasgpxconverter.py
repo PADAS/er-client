@@ -1,9 +1,9 @@
 import logging
-import html
 import gpxpy
 import json
 import dateparser
 import pytz
+from xml.sax.saxutils import escape
 from .schemas import EREvent, ERLocation
 
 
@@ -47,13 +47,17 @@ class DasGpxConverter(object):
                     (event.title if event.title else type)
                 point.type = type
 
-                descstr = f"Priority: {event.priority_label}"
+                descstr = f""
 
-                for k, v in event.event_details.items():
-                    if((not event_details) or (k in event_details)):
-                        descstr += "\n" + str(k) + ": " + str(v)
-                point.description = html.escape(descstr, quote=True)
+                for k in event_details:
+                    if(k in event.event_details):
+                        field_name, field_value = self.process_field(k, event.event_details[k])
+                        descstr += str(field_name) + ": " + str(field_value) + "\n"
+                point.description = escape(descstr)
                 gpx.waypoints.append(point)
+
+    def process_field(self, field_name, field_value):
+        return (field_name, field_value)
 
     @staticmethod
     def _convert_array_to_gpx(points, times):
