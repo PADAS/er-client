@@ -6,6 +6,7 @@ import pytz
 from xml.sax.saxutils import escape
 from .schemas import EREvent, ERLocation
 
+logger = logging.getLogger(__name__)
 
 class DasGpxConverter(object):
 
@@ -13,6 +14,7 @@ class DasGpxConverter(object):
 
     def __init__(self, dasclient):
         self.dasclient = dasclient
+        self.gpx = gpxpy.gpx.GPX()
         return
 
     def _get_event_type_name(self, type):
@@ -25,15 +27,7 @@ class DasGpxConverter(object):
 
         return type
 
-    def _add_events(self, gpx, filter, event_details=[]):
-
-        events = self.dasclient.get_events(filter=json.dumps(filter) if filter else None,
-                                           include_notes=False,
-                                           include_related_events=False,
-                                           include_files=False,
-                                           include_details=True,
-                                           include_updates=False,
-                                           page_size=100)
+    def add_events(self, events, event_details, symbols):
 
         for eventdict in events:
             event = EREvent(**eventdict)
@@ -49,12 +43,27 @@ class DasGpxConverter(object):
 
                 descstr = f""
 
+                if(event.event_type in symbols.keys()):
+                    point.symbol = symbols[event.event_type]
+
                 for k in event_details:
                     if(k in event.event_details):
                         field_name, field_value = self.process_field(k, event.event_details[k])
                         descstr += str(field_name) + ": " + str(field_value) + "\n"
                 point.description = escape(descstr)
-                gpx.waypoints.append(point)
+                self.gpx.waypoints.append(point)
+
+    def add_events_from_er(self, filter, event_details=[], symbols = {}):
+
+        events = self.dasclient.get_events(filter=json.dumps(filter) if filter else None,
+                                           include_notes=False,
+                                           include_related_events=False,
+                                           include_files=False,
+                                           include_details=True,
+                                           include_updates=False,
+                                           page_size=100)
+
+        self._add_events(events, event_details, symbols)
 
     def process_field(self, field_name, field_value):
         return (field_name, field_value)
@@ -75,25 +84,13 @@ class DasGpxConverter(object):
         gpx_segments.append(gpx_segment)
         return(gpx_segments)
 
-    def _add_paths(self, gpx, filter):
+    def add_paths(self, lower=None, upper=None, subject_group_id=None):
 
-        lower = None
-        upper = None
-
-        if(filter):
-            try:
-                lower = dateparser.parse(filter['date_range']['lower'])
-                upper = dateparser.parse(filter['date_range']['upper'])
-            except KeyError as e:
-                pass
-
-        subjects = self.dasclient.get_subjects()
+        logger.info(f"Getting subject list")
+        subjects = self.dasclient.get_subjects(subject_group=subject_group_id)
 
         for subject in subjects:
-            if((subject['tracks_available'] != True) or (lower and
-                                                         (dateparser.parse(subject['last_position_date']).astimezone(pytz.utc) < lower.astimezone(pytz.utc)))):
-                continue
-
+            logger.info(f"Getting data points for {subject['name']}")
             track = self.dasclient.get_subject_tracks(
                 subject['id'], lower, upper)
             gpx_track = gpxpy.gpx.GPXTrack()
@@ -103,14 +100,10 @@ class DasGpxConverter(object):
                     segments = self._convert_array_to_gpx(
                         path['geometry']['coordinates'], path['properties']['coordinateProperties']['times'])
                     gpx_track.segments += segments
-            gpx.tracks.append(gpx_track)
+            self.gpx.tracks.append(gpx_track)
 
-    def convert_to_gpx(self, filter=None, event_details=[]):
-        gpx = gpxpy.gpx.GPX()
-        self._add_events(gpx, filter, event_details)
-        self._add_paths(gpx, filter)
-        return gpx.to_xml()
-
+    def export_to_xml(self):
+        return self.gpx.to_xml()
 
 if __name__ == '__main__':
 
@@ -130,10 +123,14 @@ if __name__ == '__main__':
     start_time = datetime.now()
     start_time -= timedelta(hours=HOURS)
     converter = dasgpxconverter.DasGpxConverter(das_client)
+
     filter = {'date_range': {
         'lower': start_time.strftime("%Y-%m-%dT%H:%M:%S")}}
 
-    result = converter.convert_to_gpx(json.dumps(filter))
+    converter.add_events_from_er(filter)
+    converter.add_paths(subject_group_id='<your_subject_group_id>')
+
+    result = converter.export_to_xml()
 
     f = open(FILENAME, "w")
     f.write(result)
