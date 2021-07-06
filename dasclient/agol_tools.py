@@ -504,6 +504,8 @@ class AgolTools(object):
                 'type': 'esriFieldTypeString'},
             {'name': 'REPORTED_BY', 'alias': 'Reported By',
                 'type': 'esriFieldTypeString'},
+            {'name': 'NOTES', 'alias': 'Notes',
+                'type': 'esriFieldTypeString'},
             {'name': 'LATITUDE', 'alias': 'Latitude',
                 'type': 'esriFieldTypeDouble'},
             {'name': 'LONGITUDE', 'alias': 'Longitude', 'type': 'esriFieldTypeDouble'}]
@@ -633,6 +635,12 @@ class AgolTools(object):
                         'url': file['url'],
                         'filename': file['filename']
                     })
+
+            if(event['notes']):
+                note_vals = []
+                for note in event['notes']:
+                    note_vals.append(note['text'])
+                feature['attributes']['NOTES'] = "; ".join(note_vals)
 
         self.logger.info(f"Processed {event_count} events from ER")
         if(not fields_to_add):
