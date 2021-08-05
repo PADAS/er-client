@@ -21,7 +21,7 @@ setup(
     license='MIT',
     packages=['dasclient'],
     platforms=u'Posix; MacOS X; Windows',
-    install_requires=['requests', ],
+    install_requires=['requests', 'dateparser'],
     zip_safe=False,
     classifiers=[
         'License :: OSI Approved :: MIT License',
