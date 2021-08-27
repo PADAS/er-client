@@ -686,8 +686,22 @@ class DasClient(object):
 
         return self._get('subjectgroups', params=p)
 
-    def get_sources(self):
-        return self._get('sources')
+    def get_sources(self, page_size=100):
+        """Return all sources"""
+        params = dict(page_size=page_size)
+        results = self._get(path='sources', params=params)
+
+        while True:
+            if results and results.get('results'):
+                for r in results['results']:
+                    yield r
+
+            if results and results['next']:
+                _, qparam = split_link(results['next'])
+                params['page'] = qparam['page']
+                results = self._get(path='observations', params=params)
+            else:
+                break
 
     def get_users(self):
         return self._get('users')
