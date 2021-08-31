@@ -689,7 +689,8 @@ class DasClient(object):
     def get_sources(self, page_size=100):
         """Return all sources"""
         params = dict(page_size=page_size)
-        results = self._get(path='sources', params=params)
+        sources = 'sources'
+        results = self._get(path=sources, params=params)
 
         while True:
             if results and results.get('results'):
@@ -699,7 +700,7 @@ class DasClient(object):
             if results and results['next']:
                 _, qparam = split_link(results['next'])
                 params['page'] = qparam['page']
-                results = self._get(path='observations', params=params)
+                results = self._get(path=sources, params=params)
             else:
                 break
 
