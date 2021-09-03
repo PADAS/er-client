@@ -276,14 +276,18 @@ class DasClient(object):
             files = {'image': image_file}
             return self._post_form(photos_path, files=files)
 
-    def post_camera_trap_report(self, camera_trap_payload):
+    def post_camera_trap_report(self, camera_trap_payload, file=None):
 
         camera_trap_report_path = f'sensors/camera-trap/' + self.provider_key + '/status/'
 
-        file = camera_trap_payload.get('file')
+        if file:
+            files = {'filecontent.file': file}
+            return self._post_form(camera_trap_report_path, body=camera_trap_payload, files=files)
+        else:
+            file_path = camera_trap_payload.get('file')
 
-        with open(file, "rb") as f:
-            files = {'filecontent.file': f}
+            with open(file_path, "rb") as f:
+                files = {'filecontent.file': f}
             return self._post_form(camera_trap_report_path, body=camera_trap_payload, files=files)
 
     def delete_event_file(self, event_id, file_id):
