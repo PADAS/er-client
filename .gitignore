@@ -6,3 +6,4 @@ dist
 .venv
 .idea
 wheelhouse
+venv/
