@@ -276,14 +276,18 @@ class DasClient(object):
             files = {'image': image_file}
             return self._post_form(photos_path, files=files)
 
-    def post_camera_trap_report(self, camera_trap_payload):
+    def post_camera_trap_report(self, camera_trap_payload, file=None):
 
         camera_trap_report_path = f'sensors/camera-trap/' + self.provider_key + '/status/'
 
-        file = camera_trap_payload.get('file')
+        if file:
+            files = {'filecontent.file': file}
+            return self._post_form(camera_trap_report_path, body=camera_trap_payload, files=files)
+        else:
+            file_path = camera_trap_payload.get('file')
 
-        with open(file, "rb") as f:
-            files = {'filecontent.file': f}
+            with open(file_path, "rb") as f:
+                files = {'filecontent.file': f}
             return self._post_form(camera_trap_report_path, body=camera_trap_payload, files=files)
 
     def delete_event_file(self, event_id, file_id):
@@ -682,8 +686,23 @@ class DasClient(object):
 
         return self._get('subjectgroups', params=p)
 
-    def get_sources(self):
-        return self._get('sources')
+    def get_sources(self, page_size=100):
+        """Return all sources"""
+        params = dict(page_size=page_size)
+        sources = 'sources'
+        results = self._get(path=sources, params=params)
+
+        while True:
+            if results and results.get('results'):
+                for r in results['results']:
+                    yield r
+
+            if results and results['next']:
+                _, qparam = split_link(results['next'])
+                params['page'] = qparam['page']
+                results = self._get(path=sources, params=params)
+            else:
+                break
 
     def get_users(self):
         return self._get('users')
