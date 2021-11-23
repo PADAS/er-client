@@ -10,7 +10,6 @@ from .dasclient import DasClient
 from .version import __version__
 from .schemas import EREvent, ERLocation
 
-
 class AgolTools(object):
 
     UPDATE_TIME_PADDING = 24*60  # minutes
@@ -95,10 +94,10 @@ class AgolTools(object):
         :return: Whether or not the field name is already in either AGO or the passed-in list
         """
         for esri_field in esri_layer.properties.fields:
-            if(esri_field.name == field):
+            if(esri_field.name.lower() == field.lower()):
                 return True
         for new_field in additional_fields:
-            if(new_field[0] == field):
+            if(new_field[0].lower() == field.lower()):
                 return True
         return False
 
@@ -141,7 +140,7 @@ class AgolTools(object):
         try:
             existing = points_layer.query(where=query)
         except Exception as e:
-            print(f'Error when running query {query}: {e}')
+            logger.error(f'Error when running query {query}: {e}')
             raise e
 
         existing_ids = {}
@@ -167,7 +166,7 @@ class AgolTools(object):
         try:
             existing = events_layer.query(where=query)
         except Exception as e:
-            print(f'Error when running query {query}: {e}')
+            logger.error(f'Error when running query {query}: {e}')
             if("'Invalid field: ER_REPORT_NUMBER' parameter is invalid" in str(e)):
                 return {}
             raise e
@@ -264,7 +263,6 @@ class AgolTools(object):
         :param fields: List of field names descriptors.  Each is a 3-element array of field name, Esri field type and (optionally) field alias
         :return: None
         """
-
         new_fields = []
         for field in fields:
             new_field = {'name': self._clean_field_name(
@@ -274,6 +272,7 @@ class AgolTools(object):
                 new_field['alias'] = self._clean_field_alias(field[2])
 
             new_fields.append(new_field)
+
         result = esri_layer.manager.add_to_definition({'fields': new_fields})
         if(result['success'] != True):
             raise Exception(f"Error when creating fields: {result}")
@@ -369,8 +368,7 @@ class AgolTools(object):
 
         for event in event_files.keys():
             esri_object_id = existing_events[event][0]
-            existing_attachments = esri_layer.attachments.get_list(
-                esri_object_id)
+            existing_attachments = esri_layer.attachments.get_list(esri_object_id)
 
             for existing_file in existing_attachments:
                 self.logger.info(
@@ -379,8 +377,9 @@ class AgolTools(object):
                     esri_object_id, existing_file['id'])
 
             for file in event_files[event]:
-                self.logger.info(
-                    f"Adding attachment {file['filename']} from ER event {event} to Esri feature {esri_object_id}")
+                if(file['filename'][-4:] == 'jfif'):
+                    return
+                self.logger.info(f"Adding attachment {file['filename']} from ER event {event} to Esri feature {esri_object_id}")
                 tmppath = tmpdir.name + "/" + file['filename']
                 result = self.das_client.get_file(file['url'])
                 open(tmppath, 'wb').write(result.content)
@@ -606,14 +605,29 @@ class AgolTools(object):
                 if(type(field_value) != list):
                     field_value = [field_value]
 
+                replaced_value = False
+                raw_values = []
                 if('value_map' in field_def.keys()):
                     for i in range(0, len(field_value)):
+                        raw_values.append(field_value[i])
                         field_value[i] = field_def['value_map'].get(
                             field_value[i], field_value[i])
+                        replaced_value = True
+
                 for i in range(0, len(field_value)):
                     field_value[i] = self._clean_field_value(
                         str(field_value[i]))
                 feature['attributes'][field_name] = ",".join(field_value)
+
+                if(replaced_value):
+                    value_field = field_name + "_key"
+                    if not(self._field_already_exists(value_field, esri_layer, fields_to_add)):
+                        fields_to_add.append(
+                            [value_field, "esriFieldTypeString", field_def.get('title', field) + "_key"])
+
+                    for i in range(0, len(raw_values)):
+                        raw_values[i] = self._clean_field_value(str(raw_values[i]))
+                    feature['attributes'][value_field] = ",".join(raw_values)
 
             if(include_incidents):
                 for potential_parent in event.get('is_contained_in'):
@@ -695,6 +709,7 @@ class AgolTools(object):
             oldest_date = datetime.now(tz=timezone.utc) - timedelta(days=30)
 
         subjects = self.das_client.get_subjects()
+        self.logger.info(f"Loaded {len(subjects)} subjects to process.")
 
         for subject in subjects:
             if(not subject.get('tracks_available')):
@@ -714,7 +729,7 @@ class AgolTools(object):
             existing_points = self._get_existing_esri_points(
                 esri_layer, oldest_date, subject['id'])
             self.logger.info(
-                f"Loaded {len(existing_points)} existing points from Esri for subject {subject['name']}")
+                f"Loaded {len(existing_points)} existing points from Esri for subject {subject['name']} (ER ID {subject['id']})")
 
             features_to_add = []
             point_count = 0
