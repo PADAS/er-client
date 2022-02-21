@@ -825,7 +825,7 @@ class AgolTools(object):
                     feature['attributes'][k] = v
                     col_name = "additional." + k
                     if(col_name not in attr_columns.keys()):
-                        attr_columns[k] = {
+                        attr_columns[col_name] = {
                             'name': col_name,
                             'alias': k,
                             'type': 'esriFieldTypeString'}
