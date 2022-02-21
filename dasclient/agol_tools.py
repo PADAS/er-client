@@ -820,16 +820,16 @@ class AgolTools(object):
                     feature['attributes']['LONGITUDE'] = str(
                         point['location']['longitude'])
 
-                details = point.get("observation_details")
-                for k,v in details.values():
-                    feature['attributes'][k] = v
-                    if(k not in attr_columns.keys()):
-                        attr_columns[k] = {
-                            'name': "additional." + k,
-                            'alias': k,
-                            'type': 'esriFieldTypeString'}
+                    details = point.get("observation_details")
+                    for k,v in details.values():
+                        feature['attributes'][k] = v
+                        if(k not in attr_columns.keys()):
+                            attr_columns[k] = {
+                                'name': "additional." + k,
+                                'alias': k,
+                                'type': 'esriFieldTypeString'}
 
-                features_to_add.append(feature)
+                    features_to_add.append(feature)
 
             self.logger.info(f"Processed {point_count} track points from ER")
             if(len(features_to_add) > 0):
