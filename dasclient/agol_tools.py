@@ -387,7 +387,7 @@ class AgolTools(object):
             for file in event_files[event]:
                 if(file['filename'][-4:] == 'jfif'):
                     return
-                self.logger.info(f"Adding attachment {file['filename']} from ER event {event} to Esri feature {esri_object_id}.  Processing event {i} of {len(event_files.keys())}.")
+                self.logger.info(f"Adding attachment {file['filename']} from ER event {event} to Esri feature {esri_object_id}.  Processing event {i} of {len(event_files)}.")
                 tmppath = tmpdir.name + "/" + file['filename']
                 result = self.das_client.get_file(file['url'])
                 open(tmppath, 'wb').write(result.content)
