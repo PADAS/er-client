@@ -387,7 +387,7 @@ class AgolTools(object):
             for file in event_files[event]:
                 if(file['filename'][-4:] == 'jfif'):
                     return
-                self.logger.info(f"Adding attachment {file['filename']} from ER event {event} to Esri feature {esri_object_id}.  Processing event {i} of {len(event_files)}.")
+                self.logger.info(f"Processing event {i} of {len(event_files)}. Adding attachment {file['filename']} from ER event {event} to Esri feature {esri_object_id}.")
                 tmppath = tmpdir.name + "/" + file['filename']
                 result = self.das_client.get_file(file['url'])
                 open(tmppath, 'wb').write(result.content)
@@ -823,9 +823,10 @@ class AgolTools(object):
                 details = point.get("observation_details")
                 for k,v in details.items():
                     feature['attributes'][k] = v
-                    if(k not in attr_columns.keys()):
+                    col_name = "additional." + k
+                    if(col_name not in attr_columns.keys()):
                         attr_columns[k] = {
-                            'name': "additional." + k,
+                            'name': col_name,
                             'alias': k,
                             'type': 'esriFieldTypeString'}
 
