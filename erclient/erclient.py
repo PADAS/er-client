@@ -141,6 +141,7 @@ class DasClient(object):
             return data['data']
 
         if response.status_code == 404:  # not found
+            self.logger.error(f"404 when calling {path}")
             raise DasClientNotFound()
 
         if response.status_code == 403:  # forbidden
@@ -538,6 +539,9 @@ class DasClient(object):
 
     def get_subject_sources(self, subject_id):
         return self._get(path=f'subject/{subject_id}/sources')
+
+    def get_subjectsources(self, subject_id):
+        return self._get(path=f'subject/{subject_id}/subjectsources')
 
     def get_source_provider(self, provider_key):
         providers = self._get('sourceproviders')
