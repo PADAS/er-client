@@ -544,12 +544,19 @@ class DasClient(object):
         return self._get(path=f'subject/{subject_id}/subjectsources')
 
     def get_source_provider(self, provider_key):
-        providers = self._get('sourceproviders')
+        results = self._get('sourceproviders')
 
-        if providers and providers.get('results'):
-            for provider in providers['results']:
-                if(provider['provider_key'] == provider_key):
-                    return provider
+        while True:
+            if results and results.get('results'):
+                for r in results['results']:
+                    if(r.get('provider_key') == provider_key):
+                        return r
+
+            if results and results['next']:
+                url, params = split_link(results['next'])
+                results = self._get(path='sourceproviders', params = params)
+            else:
+                break
 
         return None
 
