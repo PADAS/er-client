@@ -823,7 +823,7 @@ class AgolTools(object):
                 details = point.get("observation_details")
                 for k,v in details.items():
                     feature['attributes'][k] = v
-                    col_name = "additional." + k
+                    col_name = "additional_" + k
                     if(col_name not in attr_columns.keys()):
                         attr_columns[col_name] = {
                             'name': col_name,
