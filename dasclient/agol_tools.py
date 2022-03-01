@@ -1,6 +1,7 @@
 import logging
 import urllib
 import tempfile
+import copy
 from datetime import datetime, timedelta, timezone
 import dateparser
 from arcgis.gis import GIS
@@ -81,6 +82,8 @@ class AgolTools(object):
         :return: Clean field name
         """
         field = field.replace("-", "_")
+        field = field.replace(".", "_")
+        field = field.replace(":", "_")
         return field
 
     def _field_already_exists(self, field, esri_layer, additional_fields):
@@ -112,8 +115,12 @@ class AgolTools(object):
         """
         new_fields = []
         for field in fields:
-            if(not(self._field_already_exists(field['name'], esri_layer, []))):
-                new_fields.append(field)
+            field_name = self._clean_field_name(field['name'])
+            if(not(self._field_already_exists(field_name, esri_layer, new_fields))):
+                new_field = copy.deepcopy(field)
+                new_field['name'] = field_name
+                new_fields.append(new_field)
+                self.logger.info(f"Adding field: {new_field['name']}")
 
         if(not new_fields):
             self.logger.info("Fields already exist in layer")
@@ -772,7 +779,9 @@ class AgolTools(object):
         subjects = self.das_client.get_subjects()
         self.logger.info(f"Loaded {len(subjects)} subjects to process.")
 
+        i = 0
         for subject in subjects:
+            i += 1
             if(not subject.get('tracks_available')):
                 continue
 
@@ -790,7 +799,7 @@ class AgolTools(object):
             existing_points = self._get_existing_esri_points(
                 esri_layer, oldest_date, subject['id'])
             self.logger.info(
-                f"Loaded {len(existing_points)} existing points from Esri for subject {subject['name']} (ER ID {subject['id']})")
+                f"Loaded {len(existing_points)} existing points from Esri for subject {subject['name']} ({i}/{len(subjects)}) (ER ID {subject['id']})")
 
             features_to_add = []
             attr_columns = {}
@@ -839,7 +848,7 @@ class AgolTools(object):
                     self._ensure_attributes_in_layer(esri_layer, attr_columns.values())
 
                 (added, updated) = self._upsert_features(
-                    features_to_add, [], esri_layer, 100)
+                    features_to_add, [], esri_layer, 250)
                 self.logger.info(f"Created {added} point features in Esri")
 
 
