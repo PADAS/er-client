@@ -343,6 +343,16 @@ class DasClient(object):
                           source.get('manufacturer_id'))
         return self._post('sources', payload=source)
 
+    def post_subject(self, subject):
+        '''
+        Post a subject payload to create a new source.
+        :param subject:
+        :return:
+        '''
+        self.logger.debug('Posting subject with name: %s',
+                          subject.get('name'))
+        return self._post('subjects', payload=subject)
+
     def _clean_observation(self, observation):
         if hasattr(observation['recorded_at'], 'isoformat'):
             observation['recorded_at'] = observation['recorded_at'].isoformat()
