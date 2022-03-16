@@ -4,6 +4,8 @@ import pytz
 import logging
 import re
 import dateparser
+import concurrent.futures
+import math
 import requests
 import io
 import json
@@ -237,10 +239,23 @@ class DasClient(object):
                 reason = 'unknown reason'
             raise DasClientPermissionDenied(reason)
 
-        raise DasClientException('Failed to delete event.')
+        raise DasClientException(
+            f'Failed to delete: {response.status_code} {response.text}')
 
     def delete_event(self, event_id):
         self._delete('activity/event/' + event_id + '/')
+
+    def delete_source(self, source_id):
+        self._delete('source/' + source_id + '/')
+
+    def delete_subject(self, subject_id):
+        self._delete('subject/' + subject_id + '/')
+
+    def delete_message(self, message_id):
+        self._delete('messages/' + message_id + '/')
+
+    def delete_patrol(self, patrol_id):
+        self._delete('activity/patrols/' + patrol_id + '/')
 
     def _post_form(self, path, body=None, files=None):
 
@@ -332,6 +347,16 @@ class DasClient(object):
         :return:
         """
         return self._get('user/me')
+
+    def post_subject(self, subject):
+        '''
+        Post a subject payload to create a new subject.
+        :param subject:
+        :return:
+        '''
+        self.logger.debug(f"Posting subject {subject.get('name')}")
+        return self._post('subjects', payload=subject)
+
 
     def post_source(self, source):
         '''
@@ -476,17 +501,63 @@ class DasClient(object):
     def get_event_categories(self):
         return self._get(f'activity/events/categories')
 
+    def get_messages(self):
+
+        results = self._get(path='messages')
+
+        while True:
+            if results and results.get('results'):
+                for r in results['results']:
+                    yield r
+
+            if results and results['next']:
+                url, params = split_link(results['next'])
+                p['page'] = params['page']
+                results = self._get(path='messages')
+            else:
+                break
+
     def get_event_types(self):
         return self._get('activity/events/eventtypes')
 
     def get_event_schema(self, event_type):
         return self._get(f'activity/events/schema/eventtype/{event_type}')
 
+    def _get_events_page(self, params, page):
+        params["page"] = page
+        result = self._get('activity/events', params=params)
+        return result.get('results')
+
+    def _get_events_count(self, params):
+        params["page"] = 1
+        events = self._get('activity/events', params=params)
+        if events and events.get('count'):
+            return events['count']
+        return 0
+
+    def get_events_multithreaded(self, **kwargs):
+        threads = kwargs.get("threads", 10)
+        params = dict((k, v) for k, v in kwargs.items() if k in
+                      ('state', 'page_size', 'event_type', 'filter', 'include_notes',
+                       'include_related_events', 'include_files', 'include_details', 'updated_since',
+                       'include_updates'))
+
+        if(not params.get('page_size')):
+            params['page_size'] = 100
+
+        count = self._get_events_count(params)
+        with concurrent.futures.ThreadPoolExecutor(max_workers = threads) as executor:
+            args = ((params, i) for i in range(1,math.ceil(count/params['page_size'])+1))
+            for result in executor.map(lambda f: self._get_events_page(*f), args):
+                for e in result:
+                    yield(e)
+
     def get_events(self, **kwargs):
         params = dict((k, v) for k, v in kwargs.items() if k in
                       ('state', 'page_size', 'page', 'event_type', 'filter', 'include_notes',
-                       'include_related_events', 'include_files', 'include_details',
+                       'include_related_events', 'include_files', 'include_details', 'updated_since',
                        'include_updates', 'max_results', 'oldest_update_date'))
+
         self.logger.debug('Getting events: ', params)
         events = self._get('activity/events', params=params)
 
@@ -609,15 +680,15 @@ class DasClient(object):
 
     def get_subject_observations(self, subject_id, start=None, end=None,
                                  filter_flag=0, include_details=True, page_size=10000):
-        return self._get_observations(subject_id=subject_id, start=start, end=end,
+        return self.get_observations(subject_id=subject_id, start=start, end=end,
                                       filter_flag=filter_flag, include_details=include_details, page_size=page_size)
 
     def get_source_observations(self, source_id, start=None, end=None,
                                 filter_flag=0, include_details=True, page_size=10000):
-        return self._get_observations(source_id=source_id, start=start, end=end,
+        return self.get_observations(source_id=source_id, start=start, end=end,
                                       filter_flag=filter_flag, include_details=include_details, page_size=page_size)
 
-    def _get_observations(self, subject_id=None, source_id=None, start=None, end=None,
+    def get_observations(self, subject_id=None, source_id=None, start=None, end=None,
                           filter_flag=0, include_details=True, page_size=10000):
         p = {}
         if start is not None and isinstance(start, datetime):
@@ -628,8 +699,7 @@ class DasClient(object):
             p['subject_id'] = subject_id
         elif source_id:
             p['source_id'] = source_id
-        else:
-            raise ValueError('subject_id or source_id missing')
+
         p['filter'] = 'null' if filter_flag is None else filter_flag
         p['include_details'] = include_details
         p['page_size'] = page_size  # current limit
