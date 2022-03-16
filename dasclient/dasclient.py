@@ -348,16 +348,6 @@ class DasClient(object):
         """
         return self._get('user/me')
 
-    def post_subject(self, subject):
-        '''
-        Post a subject payload to create a new subject.
-        :param subject:
-        :return:
-        '''
-        self.logger.debug(f"Posting subject {subject.get('name')}")
-        return self._post('subjects', payload=subject)
-
-
     def post_source(self, source):
         '''
         Post a source payload to create a new source.
@@ -374,8 +364,7 @@ class DasClient(object):
         :param subject:
         :return:
         '''
-        self.logger.debug('Posting subject with name: %s',
-                          subject.get('name'))
+        self.logger.debug('Posting subject with name: %s', subject.get('name'))
         return self._post('subjects', payload=subject)
 
     def _clean_observation(self, observation):
