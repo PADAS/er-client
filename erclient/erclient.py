@@ -544,7 +544,7 @@ class DasClient(object):
     def get_events(self, **kwargs):
         params = dict((k, v) for k, v in kwargs.items() if k in
                       ('state', 'page_size', 'page', 'event_type', 'filter', 'include_notes',
-                       'include_related_events', 'include_files', 'include_details',
+                       'include_related_events', 'include_files', 'include_details', 'updated_since',
                        'include_updates', 'max_results', 'oldest_update_date', 'event_ids'))
 
         self.logger.debug('Getting events: ', params)
