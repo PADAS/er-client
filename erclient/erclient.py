@@ -506,8 +506,8 @@ class DasClient(object):
             else:
                 break
 
-    def get_event_types(self):
-        return self._get('activity/events/eventtypes')
+    def get_event_types(self, params):
+        return self._get('activity/events/eventtypes', params=params)
 
     def get_event_schema(self, event_type):
         return self._get(f'activity/events/schema/eventtype/{event_type}')
@@ -545,7 +545,7 @@ class DasClient(object):
         params = dict((k, v) for k, v in kwargs.items() if k in
                       ('state', 'page_size', 'page', 'event_type', 'filter', 'include_notes',
                        'include_related_events', 'include_files', 'include_details', 'updated_since',
-                       'include_updates', 'max_results', 'oldest_update_date'))
+                       'include_updates', 'max_results', 'oldest_update_date', 'event_ids'))
 
         self.logger.debug('Getting events: ', params)
         events = self._get('activity/events', params=params)
