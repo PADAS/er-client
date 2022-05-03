@@ -194,6 +194,11 @@ class DasClient(object):
             raise DasClientPermissionDenied(reason)
 
         message = f"provider_key: {self.provider_key}, service: {self.service_root}, path: {path},\n\t {response.status_code} from ER. Message: {reason} {response.text}"
+
+        if response.status_code == 504:  # gateway timeout
+            self.logger.error(f"{message}")
+            raise DasClientGatewayTimeout(f"Failed to {fn} to DAS web service. {message}")
+        
         self.logger.error(message)
         raise DasClientException(
             f"Failed to {fn} to DAS web service. {message}")
@@ -793,6 +798,10 @@ class DasClientException(Exception):
 
 
 class DasClientPermissionDenied(DasClientException):
+    pass
+
+
+class DasClientGatewayTimeout(DasClientException):
     pass
 
 
