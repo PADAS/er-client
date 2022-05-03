@@ -193,13 +193,22 @@ class DasClient(object):
         if response.status_code == 403:  # forbidden
             raise DasClientPermissionDenied(reason)
 
-        message = f"provider_key: {self.provider_key}, service: {self.service_root}, path: {path},\n\t {response.status_code} from ER. Message: {reason} {response.text}"
-
         if response.status_code == 504:  # gateway timeout
-            self.logger.error(f"{message}")
-            raise DasClientGatewayTimeout(f"Failed to {fn} to DAS web service. {message}")
+            self.logger.error(f"ER returned code 504 GatewayTimeout", extra=dict(provider_key=self.provider_key,
+                                                                                 service=self.service_root,
+                                                                                 path=path,
+                                                                                 status_code=response.status_code,
+                                                                                 reason=reason,
+                                                                                 text=response.text))
+            raise DasClientGatewayTimeout(f"ER returned code 504 GatewayTimeout")
 
-        self.logger.error(message)
+        self.logger.error(f"ER returned bad response", extra=dict(provider_key=self.provider_key,
+                                                                  service=self.service_root,
+                                                                  path=path,
+                                                                  status_code=response.status_code,
+                                                                  reason=reason,
+                                                                  text=response.text))
+        message = f"provider_key: {self.provider_key}, service: {self.service_root}, path: {path},\n\t {response.status_code} from ER. Message: {reason} {response.text}"
         raise DasClientException(
             f"Failed to {fn} to DAS web service. {message}")
 
