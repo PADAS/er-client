@@ -198,7 +198,7 @@ class DasClient(object):
         if response.status_code == 504:  # gateway timeout
             self.logger.error(f"{message}")
             raise DasClientGatewayTimeout(f"Failed to {fn} to DAS web service. {message}")
-        
+
         self.logger.error(message)
         raise DasClientException(
             f"Failed to {fn} to DAS web service. {message}")
