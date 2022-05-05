@@ -193,14 +193,14 @@ class DasClient(object):
         if response.status_code == 403:  # forbidden
             raise DasClientPermissionDenied(reason)
 
-        if response.status_code == 504:  # gateway timeout
-            self.logger.error(f"ER returned code 504 GatewayTimeout", extra=dict(provider_key=self.provider_key,
-                                                                                 service=self.service_root,
-                                                                                 path=path,
-                                                                                 status_code=response.status_code,
-                                                                                 reason=reason,
-                                                                                 text=response.text))
-            raise DasClientGatewayTimeout(f"ER returned code 504 GatewayTimeout")
+        if response.status_code == 504 or response.status_code == 502:  # gateway timeout or bad gateway
+            self.logger.error(f"ER service unavailable", extra=dict(provider_key=self.provider_key,
+                                                                    service=self.service_root,
+                                                                    path=path,
+                                                                    status_code=response.status_code,
+                                                                    reason=reason,
+                                                                    text=response.text))
+            raise DasClientServiceUnavailable(f"ER service unavailable")
 
         self.logger.error(f"ER returned bad response", extra=dict(provider_key=self.provider_key,
                                                                   service=self.service_root,
@@ -810,7 +810,7 @@ class DasClientPermissionDenied(DasClientException):
     pass
 
 
-class DasClientGatewayTimeout(DasClientException):
+class DasClientServiceUnavailable(DasClientException):
     pass
 
 
