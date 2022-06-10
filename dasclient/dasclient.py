@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import urllib.parse
+from urllib3.util.retry import Retry
 import pytz
 import logging
 import re
@@ -7,6 +8,7 @@ import dateparser
 import concurrent.futures
 import math
 import requests
+from requests.adapters import HTTPAdapter
 import io
 import json
 from .version import __version__
@@ -53,6 +55,8 @@ class DasClient(object):
 
         self.auth = None
         self.auth_expires = pytz.utc.localize(datetime.min)
+        self._http_session = None
+        self.max_retries = kwargs.get('max_http_retries', 5)
 
         self.service_root = kwargs.get('service_root')
         self.client_id = kwargs.get('client_id')
@@ -72,6 +76,12 @@ class DasClient(object):
         self.user_agent = 'das-client/{}'.format(version_string)
 
         self.logger = logging.getLogger(self.__class__.__name__)
+
+        self._http_session = requests.Session()
+        retries = Retry(total = 5, backoff_factor=1.5, status_forcelist=[502])
+        self._http_session.mount("http", HTTPAdapter(max_retries=retries))
+        self._http_session.mount("https", HTTPAdapter(max_retries=retries))
+
 
     def _auth_is_valid(self):
         return self.auth_expires > pytz.utc.localize(datetime.utcnow())
@@ -131,7 +141,12 @@ class DasClient(object):
         if(not path.startswith("http")):
             path = self._das_url(path)
 
-        response = requests.get(path, headers=headers,
+        response = None
+        if(self._http_session):
+            response = self._http_session.get(path, headers=headers,
+                                params=kwargs.get('params'), stream=stream)
+        else:
+            response = requests.get(path, headers=headers,
                                 params=kwargs.get('params'), stream=stream)
 
         if response.ok:
@@ -158,7 +173,7 @@ class DasClient(object):
         raise DasClientException(
             f'Failed to call DAS web service. {response.status_code} {response.text}')
 
-    def _call(self, path, payload, method):
+    def _call(self, path, payload, method, params=None):
         headers = {'Content-Type': 'application/json',
                    'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
@@ -169,16 +184,24 @@ class DasClient(object):
 
         body = json.dumps(payload, default=time_converter)
 
-        fmap = {'POST': requests.post, 'PATCH': requests.patch}
+        fmap = None
+        if(self._http_session):
+            fmap = {'POST': self._http_session.post, 'PATCH': self._http_session.patch}
+        else:
+            fmap = {'POST': requests.post, 'PATCH': requests.patch}
         try:
             fn = fmap[method]
         except KeyError:
             self.logger.error('method must be one of...')
         else:
-            response = fn(self._das_url(path), data=body, headers=headers)
+            response = fn(self._das_url(path), data=body, headers=headers, params=params)
 
         if response and response.ok:
-            return response.json()['data']
+            res_json = response.json()
+            if('data' in res_json):
+                return res_json['data']
+            else:
+                return res_json
 
         if response.status_code == 404:  # not found
             self.logger.error(f"Could not load {path}")
@@ -212,11 +235,11 @@ class DasClient(object):
         raise DasClientException(
             f"Failed to {fn} to DAS web service. {message}")
 
-    def _post(self, path, payload):
-        return self._call(path, payload, "POST")
+    def _post(self, path, payload, params={}):
+        return self._call(path, payload, "POST", params)
 
-    def _patch(self, path, payload):
-        return self._call(path, payload, "PATCH")
+    def _patch(self, path, payload, params={}):
+        return self._call(path, payload, "PATCH", params)
 
     def add_event_to_incident(self, event_id, incident_id):
 
@@ -237,7 +260,11 @@ class DasClient(object):
         headers = {'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
 
-        response = requests.delete(self._das_url(path), headers=headers)
+        resonse = None
+        if(self._http_session):
+            response = self._http_session.delete(self._das_url(path), headers=headers)
+        else:
+            response = requests.delete(self._das_url(path), headers=headers)
         if response.ok:
             return True
 
@@ -362,6 +389,16 @@ class DasClient(object):
         """
         return self._get('user/me')
 
+    def post_subject(self, subject):
+        '''
+        Post a subject payload to create a new subject.
+        :param subject:
+        :return:
+        '''
+        self.logger.debug(f"Posting subject {subject.get('name')}")
+        return self._post('subjects', payload=subject)
+
+
     def post_source(self, source):
         '''
         Post a source payload to create a new source.
@@ -371,15 +408,6 @@ class DasClient(object):
         self.logger.debug('Posting source for manufacturer_id: %s',
                           source.get('manufacturer_id'))
         return self._post('sources', payload=source)
-
-    def post_subject(self, subject):
-        '''
-        Post a subject payload to create a new source.
-        :param subject:
-        :return:
-        '''
-        self.logger.debug('Posting subject with name: %s', subject.get('name'))
-        return self._post('subjects', payload=subject)
 
     def _clean_observation(self, observation):
         if hasattr(observation['recorded_at'], 'isoformat'):
@@ -501,8 +529,8 @@ class DasClient(object):
     def get_event_type(self, event_type_name):
         return self._get(f'activity/events/schema/eventtype/{event_type_name}')
 
-    def get_event_categories(self):
-        return self._get(f'activity/events/categories')
+    def get_event_categories(self, include_inactive=False):
+        return self._get(f'activity/events/categories', params={"include_inactive": include_inactive})
 
     def get_messages(self):
 
@@ -520,40 +548,85 @@ class DasClient(object):
             else:
                 break
 
-    def get_event_types(self, params):
+    def get_event_types(self, **params):
         return self._get('activity/events/eventtypes', params=params)
 
     def get_event_schema(self, event_type):
         return self._get(f'activity/events/schema/eventtype/{event_type}')
 
-    def _get_events_page(self, params, page):
-        params["page"] = page
-        result = self._get('activity/events', params=params)
-        return result.get('results')
-
-    def _get_events_count(self, params):
+    def _get_objects_count(self, params):
+        params = params.copy()
         params["page"] = 1
-        events = self._get('activity/events', params=params)
+        params["page_size"] = 1
+        events = self._get(params['object'], params=params)
         if events and events.get('count'):
             return events['count']
         return 0
 
-    def get_events_multithreaded(self, **kwargs):
-        threads = kwargs.get("threads", 10)
-        params = dict((k, v) for k, v in kwargs.items() if k in
-                      ('state', 'page_size', 'event_type', 'filter', 'include_notes',
-                       'include_related_events', 'include_files', 'include_details', 'updated_since',
-                       'include_updates'))
+    def get_objects(self, **kwargs):
+        params = dict((k, v) for k, v in kwargs.items() if k not in ('page'))
+        if(not params.get('object')):
+            raise ValueError("Must specify object URL")
+
+        result = self._get(params['object'], params=params)
+        for o in result:
+            yield o
+
+        self.logger.debug(f"Getting {params['object']}: ", params)
+
+        count = 0
+        results = self._get(params['object'], params=params)
+
+        while True:
+            if(not results):
+                break
+
+            if('results' in results):
+                for result in results['results']:
+                    yield result
+                    count += 1
+                    if(('max_results' in params) and (count >= params['max_results'])):
+                        return
+                next = results.get('next')
+                if (next and ('page' not in params)):
+                    url = re.sub(f".*{params['object']}?", params['object'], next)
+                    self.logger.debug('Getting more events: ' + url)
+                    results = self._get(url)
+
+                else:
+                    break
+            else:
+                for o in result:
+                    yield o
+                break
+
+
+    def get_objects_multithreaded(self, **kwargs):
+        threads = kwargs.get("threads", 5)
+        params = dict((k, v) for k, v in kwargs.items() if k not in ('page'))
+        if(not params.get('object')):
+            raise ValueError("Must specify object URL")
 
         if(not params.get('page_size')):
             params['page_size'] = 100
 
-        count = self._get_events_count(params)
+        count = self._get_objects_count(params)
+
+        self.logger.debug(f"Loading {count} {params['object']} from ER with page size {params['page_size']} and {threads} threads")
         with concurrent.futures.ThreadPoolExecutor(max_workers = threads) as executor:
-            args = ((params, i) for i in range(1,math.ceil(count/params['page_size'])+1))
-            for result in executor.map(lambda f: self._get_events_page(*f), args):
-                for e in result:
-                    yield(e)
+            futures = []
+            for page in range(1,math.ceil(count/params['page_size'])+1):
+                temp_params = params.copy()
+                temp_params["page"] = page
+                futures.append(executor.submit(self._get, params['object'], params=temp_params))
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    result = future.result()
+                    for e in result['results']:
+                        yield e
+                except Exception as e:
+                    logging.error(f"Error occurred loading events: {e}")
+                    raise e
 
     def get_events(self, **kwargs):
         params = dict((k, v) for k, v in kwargs.items() if k in
@@ -568,14 +641,11 @@ class DasClient(object):
         while True:
             if events and events.get('results'):
                 for result in events['results']:
-                    if 'oldest_update_date' in params:
-                        if(dateparser.parse(result['updated_at']) < params['oldest_update_date']):
-                            return
                     yield result
                     count += 1
                     if(('max_results' in params) and (count >= params['max_results'])):
                         return
-            if events['next']:
+            if events['next'] and ('page' not in params):
                 url = events['next']
                 url = re.sub('.*activity/events?',
                              'activity/events', events['next'])
