@@ -86,11 +86,11 @@ class DasGpxConverter(object):
 
     def add_paths(self, lower=None, upper=None, subject_group_id=None):
 
-        logger.info(f"Getting subject list")
+        logger.info(f"Loading subject data")
         subjects = self.dasclient.get_subjects(subject_group=subject_group_id)
 
         for subject in subjects:
-            logger.info(f"Getting data points for {subject['name']}")
+            logger.debug(f"Getting data points for {subject['name']}")
             track = self.dasclient.get_subject_tracks(
                 subject['id'], lower, upper)
             gpx_track = gpxpy.gpx.GPXTrack()
