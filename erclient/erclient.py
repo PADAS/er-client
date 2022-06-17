@@ -29,27 +29,31 @@ def split_link(url):
 
 class ERClient(object):
     """
-    ERClient provides basic access to a DAS API. It requires the coordinates of a DAS API service as well
-    as valid credentials for a user.
+    ERClient provides basic access to the EarthRanger server API. You will need the server hostname as well as credentials in the form of a username/password or access token.
 
     The boiler-plate code handles authentication, so you don't have to think about Oauth2 or refresh tokens.
-
-    As of May 12, 2017 it includes just a basic set of functions to access Subject data and to post observations.
-
-    June 6, 2017: Added methods to add a photo or document to an Event.
-
     """
 
     def __init__(self, **kwargs):
         """
-        Initialize a ERClient instance.
+        Initialize an ERClient instance.
 
-        :param username: DAS username
-        :param password: DAS password
-        :param service_root: The root of the DAS API (Ex. https://demo.pamdas.org/api/v1.0)
-        :param token_url: The auth token url for DAS (Ex. https://demo.pamdas.org/oauth2/token)
-        :param provider_key: provider-key for posting observation data (Ex. xyz_provider)
+        :param service_root: The root of the ER API (Ex. https://sandbox.pamdas.org/api/v1.0)
+
+        :param username: username
+        :param password: password
         :param client_id: Auth client ID (Ex. das_web_client)
+        :param token_url: The auth token url for DAS (Ex. https://sandbox.pamdas.org/oauth2/token)
+
+        or
+
+        :param token: authorization token
+
+        If posting to the sensors API, the default provider key
+        :param provider_key: provider-key for posting observation data (Ex. xyz_provider)
+
+        :param max_http_retries: number of retries, default is 5
+
         """
 
         self.auth = None

@@ -6,9 +6,9 @@
 python3.7 -m venv .venv
 source .venv/bin/activate
 ~~~~
-2. Optionally update requirements, the use pip-tools to update TBD
+2. Optionally update requirements. Requirements are defined in setup.cfg, then we use pip-tools to create our pinned requirements.txt file.
 ~~~
-pip-compile pyproject.toml
+pip-compile setup.cfg
 ~~~
 1. Use pre-commit to enforce our coding style
     Install pre-commit libraries and establish the git hooks.
