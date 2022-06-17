@@ -1,17 +1,21 @@
-import dateparser
-import datetime
 import csv
+import datetime
 import logging
+
+import dateparser
 
 logger = logging.getLogger(__name__)
 
+
 class DasCSVLoader(object):
 
-    REQ_COLS = ["source_provider", "manufacturer_id", "recorded_at", "lat", "lon"]
-    OPTIONAL_COLS = ["subject_name", "subject_type", "subject_subtype", "model_name", "source_type"]
+    REQ_COLS = ["source_provider", "manufacturer_id",
+                "recorded_at", "lat", "lon"]
+    OPTIONAL_COLS = ["subject_name", "subject_type",
+                     "subject_subtype", "model_name", "source_type"]
 
-    def __init__(self, dasclient):
-        self.dasclient = dasclient
+    def __init__(self, er_client):
+        self.er_client = er_client
         return
 
     def parse_observation_csv(self, filename):
@@ -56,6 +60,7 @@ class DasCSVLoader(object):
                 point["additional"][col] = row[col]
 
         return point
+
 
 class DataFormatException(Exception):
     pass

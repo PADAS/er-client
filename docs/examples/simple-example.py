@@ -1,21 +1,22 @@
-from dasclient import dasclient
-from datetime import datetime, timedelta
 import json
+from datetime import datetime, timedelta
+
+from erclient import ERClient
 
 if __name__ == '__main__':
     MY_SERVICE_ROOT = 'https://<your_site>.pamdas.org/api/v1.0'
     MY_TOKEN = 'https://<your_site>.pamdas.org/oauth2/token'
 
-    das_client = dasclient.DasClient(service_root=MY_SERVICE_ROOT,
-                                     token=MY_TOKEN)
+    er_client = ERClient(service_root=MY_SERVICE_ROOT,
+                         token=MY_TOKEN)
 
     # Example 1: use the pulse() function be sure you can reach the API.
     print("Example 1 - Check status\n########")
-    print(das_client.pulse())
+    print(er_client.pulse())
 
     # Example 2: Use the get_subjects() function to fetch a list of Subjects that the user may see.
     print("\n\nExample 2 - Get Subjects\n########")
-    subjects = das_client.get_subjects()
+    subjects = er_client.get_subjects()
     print(subjects)
 
     # Example 3: Take a Subject ID from the results of the last call, and fetch tracks.
@@ -24,7 +25,7 @@ if __name__ == '__main__':
         print(sub)
         if sub.get('tracks_available', False):
             print('Getting tracks for %s' % (sub['name']))
-            tracks = das_client.get_subject_tracks(sub['id'])
+            tracks = er_client.get_subject_tracks(sub['id'])
             print(tracks)
 
     # Example 4: Create an Event
@@ -45,12 +46,12 @@ if __name__ == '__main__':
         }
     }
 
-    new_event = das_client.post_event(event_data)
+    new_event = er_client.post_event(event_data)
     print(new_event)
 
     # Example 5: Attach a photo to the event
     print("\n\nExample 5 - Attach file\n########")
-    response = das_client.post_event_file(
+    response = er_client.post_event_file(
         new_event['id'], 'LogoEarthRanger.png', comment='This is my photo.')
     print(response)
 
@@ -66,6 +67,6 @@ if __name__ == '__main__':
         'text': 'new event'
     }
 
-    result = das_client.get_events(filter=json.dumps(filter))
+    result = er_client.get_events(filter=json.dumps(filter))
     for event in result:
         print(event)

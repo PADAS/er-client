@@ -1,4 +1,4 @@
-# DAS Client
+# EarthRanger Client
 ## Create a new release
 1. increment version as appropriate in version.py
 2. install venv
@@ -6,7 +6,11 @@
 python3.7 -m venv .venv
 source .venv/bin/activate
 ~~~~
-3. Use pre-commit to enforce our coding style
+2. Optionally update requirements, the use pip-tools to update TBD
+~~~
+pip-compile pyproject.toml
+~~~
+1. Use pre-commit to enforce our coding style
     Install pre-commit libraries and establish the git hooks.
     ~~~
     pip install pre-commit
@@ -21,13 +25,13 @@ source .venv/bin/activate
     pre-commit autoupdate
     ~~~
     See the following for more information and a library of hooks: http://pre-commit.com/
-4. install wheel and upgrade pip libraries
+2. install wheel and upgrade pip libraries
 ~~~~
 pip install pip setuptools wheel --upgrade
 ~~~~
 5. build wheel
 ~~~~
-python setup.py bdist_wheel
+python -m build
 ~~~~
-6. publish new wheel to project in github.
+6. publish new wheel to project in github and pypi
 6. Tell your friends

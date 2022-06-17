@@ -1,16 +1,15 @@
-from datetime import datetime, timedelta
-import urllib.parse
-from urllib3.util.retry import Retry
-import pytz
-import logging
-import re
-import dateparser
 import concurrent.futures
+import json
+import logging
 import math
+import re
+from datetime import datetime, timedelta
+
+import pytz
 import requests
 from requests.adapters import HTTPAdapter
-import io
-import json
+from urllib3.util.retry import Retry
+
 from .version import __version__
 
 version_string = __version__
@@ -28,9 +27,9 @@ def split_link(url):
     return (url, params)
 
 
-class DasClient(object):
+class ERClient(object):
     """
-    DasClient provides basic access to a DAS API. It requires the coordinates of a DAS API service as well
+    ERClient provides basic access to a DAS API. It requires the coordinates of a DAS API service as well
     as valid credentials for a user.
 
     The boiler-plate code handles authentication, so you don't have to think about Oauth2 or refresh tokens.
@@ -43,7 +42,7 @@ class DasClient(object):
 
     def __init__(self, **kwargs):
         """
-        Initialize a DasClient instance.
+        Initialize a ERClient instance.
 
         :param username: DAS username
         :param password: DAS password
@@ -78,10 +77,9 @@ class DasClient(object):
         self.logger = logging.getLogger(self.__class__.__name__)
 
         self._http_session = requests.Session()
-        retries = Retry(total = 5, backoff_factor=1.5, status_forcelist=[502])
+        retries = Retry(total=5, backoff_factor=1.5, status_forcelist=[502])
         self._http_session.mount("http", HTTPAdapter(max_retries=retries))
         self._http_session.mount("https", HTTPAdapter(max_retries=retries))
-
 
     def _auth_is_valid(self):
         return self.auth_expires > pytz.utc.localize(datetime.utcnow())
@@ -92,10 +90,10 @@ class DasClient(object):
             if not self._auth_is_valid():
                 if not self.refresh_token():
                     if not self.login():
-                        raise DasClientException('Login failed.')
+                        raise ERClientException('Login failed.')
         else:
             if not self.login():
-                raise DasClientException('Login failed.')
+                raise ERClientException('Login failed.')
 
         return {'Authorization': '{} {}'.format(self.auth['token_type'],
                                                 self.auth['access_token']),
@@ -144,10 +142,10 @@ class DasClient(object):
         response = None
         if(self._http_session):
             response = self._http_session.get(path, headers=headers,
-                                params=kwargs.get('params'), stream=stream)
+                                              params=kwargs.get('params'), stream=stream)
         else:
             response = requests.get(path, headers=headers,
-                                params=kwargs.get('params'), stream=stream)
+                                    params=kwargs.get('params'), stream=stream)
 
         if response.ok:
             if kwargs.get('return_response', False):
@@ -159,7 +157,7 @@ class DasClient(object):
 
         if response.status_code == 404:  # not found
             self.logger.error(f"404 when calling {path}")
-            raise DasClientNotFound()
+            raise ERClientNotFound()
 
         if response.status_code == 403:  # forbidden
             try:
@@ -167,10 +165,10 @@ class DasClient(object):
                 reason = _['status']['detail']
             except:
                 reason = 'unknown reason'
-            raise DasClientPermissionDenied(reason)
+            raise ERClientPermissionDenied(reason)
 
         self.logger.debug("Fail: " + response.text)
-        raise DasClientException(
+        raise ERClientException(
             f'Failed to call DAS web service. {response.status_code} {response.text}')
 
     def _call(self, path, payload, method, params=None):
@@ -186,7 +184,8 @@ class DasClient(object):
 
         fmap = None
         if(self._http_session):
-            fmap = {'POST': self._http_session.post, 'PATCH': self._http_session.patch}
+            fmap = {'POST': self._http_session.post,
+                    'PATCH': self._http_session.patch}
         else:
             fmap = {'POST': requests.post, 'PATCH': requests.patch}
         try:
@@ -194,7 +193,8 @@ class DasClient(object):
         except KeyError:
             self.logger.error('method must be one of...')
         else:
-            response = fn(self._das_url(path), data=body, headers=headers, params=params)
+            response = fn(self._das_url(path), data=body,
+                          headers=headers, params=params)
 
         if response and response.ok:
             res_json = response.json()
@@ -205,7 +205,7 @@ class DasClient(object):
 
         if response.status_code == 404:  # not found
             self.logger.error(f"Could not load {path}")
-            raise DasClientNotFound()
+            raise ERClientNotFound()
 
         try:
             _ = json.loads(response.text)
@@ -214,7 +214,7 @@ class DasClient(object):
             reason = 'unknown reason'
 
         if response.status_code == 403:  # forbidden
-            raise DasClientPermissionDenied(reason)
+            raise ERClientPermissionDenied(reason)
 
         if response.status_code == 504 or response.status_code == 502:  # gateway timeout or bad gateway
             self.logger.error(f"ER service unavailable", extra=dict(provider_key=self.provider_key,
@@ -223,7 +223,7 @@ class DasClient(object):
                                                                     status_code=response.status_code,
                                                                     reason=reason,
                                                                     text=response.text))
-            raise DasClientServiceUnavailable(f"ER service unavailable")
+            raise ERClientServiceUnavailable(f"ER service unavailable")
 
         self.logger.error(f"ER returned bad response", extra=dict(provider_key=self.provider_key,
                                                                   service=self.service_root,
@@ -232,7 +232,7 @@ class DasClient(object):
                                                                   reason=reason,
                                                                   text=response.text))
         message = f"provider_key: {self.provider_key}, service: {self.service_root}, path: {path},\n\t {response.status_code} from ER. Message: {reason} {response.text}"
-        raise DasClientException(
+        raise ERClientException(
             f"Failed to {fn} to DAS web service. {message}")
 
     def _post(self, path, payload, params={}):
@@ -260,9 +260,9 @@ class DasClient(object):
         headers = {'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
 
-        resonse = None
         if(self._http_session):
-            response = self._http_session.delete(self._das_url(path), headers=headers)
+            response = self._http_session.delete(
+                self._das_url(path), headers=headers)
         else:
             response = requests.delete(self._das_url(path), headers=headers)
         if response.ok:
@@ -270,7 +270,7 @@ class DasClient(object):
 
         if response.status_code == 404:  # not found
             self.logger.error(f"404 when calling {path}")
-            raise DasClientNotFound()
+            raise ERClientNotFound()
 
         if response.status_code == 403:  # forbidden
             try:
@@ -278,9 +278,9 @@ class DasClient(object):
                 reason = _['status']['detail']
             except:
                 reason = 'unknown reason'
-            raise DasClientPermissionDenied(reason)
+            raise ERClientPermissionDenied(reason)
 
-        raise DasClientException(
+        raise ERClientException(
             f'Failed to delete: {response.status_code} {response.text}')
 
     def delete_event(self, event_id):
@@ -310,7 +310,7 @@ class DasClient(object):
             return json.loads(response.text)['data']
 
         if response.status_code == 404:  # not found
-            raise DasClientNotFound()
+            raise ERClientNotFound()
 
         if response.status_code == 403:  # forbidden
             try:
@@ -318,11 +318,11 @@ class DasClient(object):
                 reason = _['status']['detail']
             except:
                 reason = 'unknown reason'
-            raise DasClientPermissionDenied(reason)
+            raise ERClientPermissionDenied(reason)
 
         self.logger.error('provider_key: %s, path: %s\n\tBad result from das service. Message: %s',
                           self.provider_key, path, response.text)
-        raise DasClientException('Failed to post to DAS web service.')
+        raise ERClientException('Failed to post to DAS web service.')
 
     def post_event_photo(self, event_id, image):
 
@@ -398,7 +398,6 @@ class DasClient(object):
         self.logger.debug(f"Posting subject {subject.get('name')}")
         return self._post('subjects', payload=subject)
 
-
     def post_source(self, source):
         '''
         Post a source payload to create a new source.
@@ -449,9 +448,9 @@ class DasClient(object):
         Post a new observation, or a list of observations.
         """
         if isinstance(observation, (list, set)):
-            payload = [self._clean_observation(o) for o in observation]
+            [self._clean_observation(o) for o in observation]
         else:
-            payload = self._clean_observation(observation)
+            self._clean_observation(observation)
 
         self.logger.debug('Posting observation: %s', observation)
         result = self._post(
@@ -589,7 +588,8 @@ class DasClient(object):
                         return
                 next = results.get('next')
                 if (next and ('page' not in params)):
-                    url = re.sub(f".*{params['object']}?", params['object'], next)
+                    url = re.sub(f".*{params['object']}?",
+                                 params['object'], next)
                     self.logger.debug('Getting more events: ' + url)
                     results = self._get(url)
 
@@ -599,7 +599,6 @@ class DasClient(object):
                 for o in result:
                     yield o
                 break
-
 
     def get_objects_multithreaded(self, **kwargs):
         threads = kwargs.get("threads", 5)
@@ -612,13 +611,15 @@ class DasClient(object):
 
         count = self._get_objects_count(params)
 
-        self.logger.debug(f"Loading {count} {params['object']} from ER with page size {params['page_size']} and {threads} threads")
-        with concurrent.futures.ThreadPoolExecutor(max_workers = threads) as executor:
+        self.logger.debug(
+            f"Loading {count} {params['object']} from ER with page size {params['page_size']} and {threads} threads")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
             futures = []
-            for page in range(1,math.ceil(count/params['page_size'])+1):
+            for page in range(1, math.ceil(count/params['page_size'])+1):
                 temp_params = params.copy()
                 temp_params["page"] = page
-                futures.append(executor.submit(self._get, params['object'], params=temp_params))
+                futures.append(executor.submit(
+                    self._get, params['object'], params=temp_params))
             for future in concurrent.futures.as_completed(futures):
                 try:
                     result = future.result()
@@ -708,7 +709,7 @@ class DasClient(object):
 
             if results and results['next']:
                 url, params = split_link(results['next'])
-                results = self._get(path='sourceproviders', params = params)
+                results = self._get(path='sourceproviders', params=params)
             else:
                 break
 
@@ -754,15 +755,15 @@ class DasClient(object):
     def get_subject_observations(self, subject_id, start=None, end=None,
                                  filter_flag=0, include_details=True, page_size=10000):
         return self.get_observations(subject_id=subject_id, start=start, end=end,
-                                      filter_flag=filter_flag, include_details=include_details, page_size=page_size)
+                                     filter_flag=filter_flag, include_details=include_details, page_size=page_size)
 
     def get_source_observations(self, source_id, start=None, end=None,
                                 filter_flag=0, include_details=True, page_size=10000):
         return self.get_observations(source_id=source_id, start=start, end=end,
-                                      filter_flag=filter_flag, include_details=include_details, page_size=page_size)
+                                     filter_flag=filter_flag, include_details=include_details, page_size=page_size)
 
     def get_observations(self, subject_id=None, source_id=None, start=None, end=None,
-                          filter_flag=0, include_details=True, page_size=10000):
+                         filter_flag=0, include_details=True, page_size=10000):
         p = {}
         if start is not None and isinstance(start, datetime):
             p['since'] = start.isoformat()
@@ -872,17 +873,17 @@ class DasClient(object):
         return self._get('users')
 
 
-class DasClientException(Exception):
+class ERClientException(Exception):
     pass
 
 
-class DasClientPermissionDenied(DasClientException):
+class ERClientPermissionDenied(ERClientException):
     pass
 
 
-class DasClientServiceUnavailable(DasClientException):
+class ERClientServiceUnavailable(ERClientException):
     pass
 
 
-class DasClientNotFound(DasClientException):
+class ERClientNotFound(ERClientException):
     pass

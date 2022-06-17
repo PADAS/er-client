@@ -1,17 +1,14 @@
-import logging
-import urllib
-import tempfile
-import json
-import copy
 import concurrent.futures
+import logging
+import tempfile
 from datetime import datetime, timedelta, timezone
+
 import dateparser
+from arcgis.geometry import Point
 from arcgis.gis import GIS
-from arcgis.features import FeatureLayer, Feature
-from arcgis.geometry import Point, Polyline
-from .dasclient import DasClient
-from .version import __version__
-from .schemas import EREvent, ERLocation
+
+from .erclient import ERClient
+
 
 class AgolTools(object):
 
@@ -42,7 +39,7 @@ class AgolTools(object):
 
         self.logger = logging.getLogger(self.__class__.__name__)
 
-        self.das_client = DasClient(
+        self.er_client = ERClient(
             token=er_token, service_root=er_service_root)
         self.logger.info(f"Logged in to ER: {er_service_root}")
 
@@ -117,7 +114,8 @@ class AgolTools(object):
         for field in fields:
             field_name = self._clean_field_name(field['name'])
             if(not(self._field_already_exists(field_name, esri_layer, new_fields))):
-                new_fields.append([field['name'], field['type'], field['alias']])
+                new_fields.append(
+                    [field['name'], field['type'], field['alias']])
 
         if(not new_fields):
             self.logger.info("Fields already exist in layer")
@@ -152,7 +150,7 @@ class AgolTools(object):
                 event.attributes['OBJECTID'], event.attributes['EditDate']]
         return existing_ids
 
-    def _get_existing_esri_events(self, events_layer, oldest_date, count_only = False):
+    def _get_existing_esri_events(self, events_layer, oldest_date, count_only=False):
         """
         Loads the existing EarthRanger reports contained within an AGO layer.
         EarthRanger reports are determined by the field ER_REPORT_NUMBER not
@@ -167,7 +165,8 @@ class AgolTools(object):
                 oldest_date.strftime("%Y-%m-%d %H:%M:%S") + "'"
 
         try:
-            existing = events_layer.query(where=query, return_count_only=count_only)
+            existing = events_layer.query(
+                where=query, return_count_only=count_only)
         except Exception as e:
             self.logger.error(f'Error when running query {query}: {e}')
             if("'Invalid field: ER_REPORT_NUMBER' parameter is invalid" in str(e)):
@@ -224,9 +223,9 @@ class AgolTools(object):
         Loads information about ER schemas into class variable event_schemas
         """
         self.event_schemas = {}
-        event_types = self.das_client.get_event_types(include_inactive = True)
+        event_types = self.er_client.get_event_types(include_inactive=True)
         for event_type in event_types:
-            schema = self.das_client.get_event_schema(event_type['value'])
+            schema = self.er_client.get_event_schema(event_type['value'])
             field_defs = {}
             props = schema['schema']['properties']
             for prop_name in props:
@@ -236,7 +235,8 @@ class AgolTools(object):
                     field_defs[prop_name]['value_map'] = self.__get_value_map_from_prop_def(
                         schema['definition'], prop_name)
                 elif('enumNames' in field_defs[prop_name]):
-                    field_defs[prop_name]['value_map'] = field_defs[prop_name].pop('enumNames')
+                    field_defs[prop_name]['value_map'] = field_defs[prop_name].pop(
+                        'enumNames')
 
             self.event_schemas[event_type['value']] = {
                 'name': event_type['display'],
@@ -303,7 +303,8 @@ class AgolTools(object):
         added = 0
         sent_count = 0
         for chunk in self._chunk(add_features, chunk_size):
-            self.logger.info(f"Sending features {sent_count+1}-{sent_count + len(chunk)} of {len(add_features)} to Esri")
+            self.logger.info(
+                f"Sending features {sent_count+1}-{sent_count + len(chunk)} of {len(add_features)} to Esri")
             sent_count += len(chunk)
             results = esri_layer.edit_features(adds=chunk)
             for result in results['addResults']:
@@ -328,7 +329,8 @@ class AgolTools(object):
         sent_count = 0
         updated = 0
         for chunk in self._chunk(update_features, chunk_size):
-            self.logger.info(f"Updating features {sent_count+1}-{sent_count + len(chunk)} of {len(update_features)} to Esri")
+            self.logger.info(
+                f"Updating features {sent_count+1}-{sent_count + len(chunk)} of {len(update_features)} to Esri")
             sent_count += len(chunk)
             results = esri_layer.edit_features(updates=chunk)
             for result in results['updateResults']:
@@ -365,13 +367,15 @@ class AgolTools(object):
                     allowed_extension = False
                     break
             if(not allowed_extension):
-                self.logger.warn(f"Filtering out file {file['filename']} - file type not allowed.")
+                self.logger.warn(
+                    f"Filtering out file {file['filename']} - file type not allowed.")
                 continue
 
-            self.logger.info(f"Adding attachment {file['filename']} from ER event {event} to Esri feature {esri_object_id}.")
+            self.logger.info(
+                f"Adding attachment {file['filename']} from ER event {event} to Esri feature {esri_object_id}.")
 
             tmppath = self.temp_dir.name + "/" + file['filename']
-            result = self.das_client.get_file(file['url'])
+            result = self.er_client.get_file(file['url'])
             open(tmppath, 'wb').write(result.content)
 
             tries = 0
@@ -382,12 +386,14 @@ class AgolTools(object):
                     break
                 except Exception as e:
                     if(tries == 3):
-                        self.logger.error(f"Error when attaching {file['filename']} from ER event {event} to Esri feature {esri_object_id}: {e}")
+                        self.logger.error(
+                            f"Error when attaching {file['filename']} from ER event {event} to Esri feature {esri_object_id}: {e}")
                         raise e
                     else:
-                        self.logger.warn(f'Error when processing attachment.  Retrying.')
+                        self.logger.warn(
+                            f'Error when processing attachment.  Retrying.')
 
-    def _replace_attachments(self, esri_layer, oldest_date, event_files, threads = 10):
+    def _replace_attachments(self, esri_layer, oldest_date, event_files, threads=10):
         """
         Replaces the attachments of Esri features with the attachments described
         by the event_files parameter.
@@ -405,16 +411,18 @@ class AgolTools(object):
             }
         :return: None
         """
-        existing_events = self._get_existing_esri_events(esri_layer, oldest_date)
+        existing_events = self._get_existing_esri_events(
+            esri_layer, oldest_date)
         self.temp_dir = tempfile.TemporaryDirectory()
 
-        futures = []
         i = 0
         for event in event_files.keys():
-            self._replace_attachments_for_event(esri_layer, existing_events[event][0], event, event_files[event])
+            self._replace_attachments_for_event(
+                esri_layer, existing_events[event][0], event, event_files[event])
             i += 1
             if(i % 10 == 0):
-                self.logger.info(f"{round(i/len(event_files) * 100)}% done with attachments")
+                self.logger.info(
+                    f"{round(i/len(event_files) * 100)}% done with attachments")
         self.logger.info(f"Attachment sync complete")
 
         self.temp_dir.cleanup()
@@ -430,7 +438,7 @@ class AgolTools(object):
         :return: Two lists of tracks to be added and updated, respectively
         """
         if(('last_position_date' not in subject) or (subject['last_position_date'] == None)):
-            return([],[])
+            return([], [])
 
         if(existing_track):
             last_position_date = dateparser.parse(
@@ -441,9 +449,9 @@ class AgolTools(object):
             if(last_position_date < cutoff):
                 self.logger.info(
                     f"Subject {subject['name']} not updated since {cutoff}... Skipping.")
-                return([],[])
+                return([], [])
 
-        results = self.das_client.get_subject_tracks(
+        results = self.er_client.get_subject_tracks(
             subject_id=subject['id'], start=since)
         self.logger.debug(
             f"Loaded {len(results['features'])} tracks from ER for subject {subject['name']}")
@@ -478,8 +486,7 @@ class AgolTools(object):
 
         return (features_to_add, features_to_update)
 
-
-    def upsert_tracks_from_er(self, esri_layer, since, threads = 10):
+    def upsert_tracks_from_er(self, esri_layer, since, threads=10):
         """
         Queries all EarthRanger subjects from the active ER connection, grabs
         their tracks, and creates or updates polylines in AGO to match.  The
@@ -500,7 +507,7 @@ class AgolTools(object):
                 'type': 'esriFieldTypeString'}
         ])
 
-        subjects = self.das_client.get_subjects()
+        subjects = self.er_client.get_subjects()
         existing_tracks = self._get_existing_esri_tracks(esri_layer)
         features_to_add = []
         features_to_update = []
@@ -508,10 +515,11 @@ class AgolTools(object):
         if(since == None):
             since = datetime.now(tz=timezone.utc) - timedelta(days=30)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers = threads) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
             futures = []
             for subject in subjects:
-                futures.append(executor.submit(self._get_tracks_to_send_for_subject, since, subject, existing_tracks.get(subject['id'])))
+                futures.append(executor.submit(self._get_tracks_to_send_for_subject,
+                               since, subject, existing_tracks.get(subject['id'])))
             for future in concurrent.futures.as_completed(futures):
                 (subject_features_to_add, subject_features_to_update) = future.result()
                 features_to_add.extend(subject_features_to_add)
@@ -599,19 +607,22 @@ class AgolTools(object):
             oldest_date = datetime.now(tz=timezone.utc) - timedelta(days=30)
 
         self.logger.info(f"Loading events from ER")
-        er_events = self.das_client.get_objects_multithreaded(object="activity/events", include_notes=True,
-                                               include_related_events=include_incidents, include_files=True,
-                                               include_updates=False, updated_since=oldest_date)
+        er_events = self.er_client.get_objects_multithreaded(object="activity/events", include_notes=True,
+                                                             include_related_events=include_incidents, include_files=True,
+                                                             include_updates=False, updated_since=oldest_date)
 
         self.logger.info("Loading ER event schemas")
         self._get_er_field_definitions()
 
-        existing_events = self._get_existing_esri_events(esri_layer, oldest_date)
-        self.logger.info(f"Loaded {len(existing_events)} existing events from Esri since {oldest_date}")
+        existing_events = self._get_existing_esri_events(
+            esri_layer, oldest_date)
+        self.logger.info(
+            f"Loaded {len(existing_events)} existing events from Esri since {oldest_date}")
 
         empty_layer = False
         if(len(existing_events) == 0):
-            event_count = self._get_existing_esri_events(esri_layer, None, True)
+            event_count = self._get_existing_esri_events(
+                esri_layer, None, True)
             self.logger.info(f"{event_count} events exist in total.")
             if(event_count == 0):
                 empty_layer = True
@@ -625,7 +636,8 @@ class AgolTools(object):
             event_count += 1
 
             if(event['event_type'] not in self.event_schemas):
-                self.logger.warn(f"Event {event['serial_number']} is of type {event['event_type']}, which is not contained in schema downloaded from ER.  That event type might be part of a disabled event category.")
+                self.logger.warn(
+                    f"Event {event['serial_number']} is of type {event['event_type']}, which is not contained in schema downloaded from ER.  That event type might be part of a disabled event category.")
                 continue
 
             if(str(event['serial_number']) in existing_events.keys()):
@@ -644,12 +656,15 @@ class AgolTools(object):
                 er_create_time = dateparser.parse(event['created_at'])
                 if(er_create_time < oldest_date):
                     # If the event was created before the load time, specifically look for it in Esri
-                    additional_events = self._get_existing_esri_event_from_er_event(esri_layer, str(event['serial_number']))
+                    additional_events = self._get_existing_esri_event_from_er_event(
+                        esri_layer, str(event['serial_number']))
                     if(additional_events):
-                        self.logger.debug(f"ER event {event['serial_number']} was created before the date threshold and explicitly loaded from AGOL.")
+                        self.logger.debug(
+                            f"ER event {event['serial_number']} was created before the date threshold and explicitly loaded from AGOL.")
                         existing_events.update(additional_events)
                     else:
-                        self.logger.debug(f"ER event {event['serial_number']} was created before the date threshold but not found in AGOL.")
+                        self.logger.debug(
+                            f"ER event {event['serial_number']} was created before the date threshold but not found in AGOL.")
 
             if(not include_incidents and event.get('is_collection')):
                 continue
@@ -675,7 +690,8 @@ class AgolTools(object):
                 feature['attributes']['REPORTED_BY'] = str(
                     event['reported_by'].get('name', ''))
 
-            feature['attributes']['ER_REPORT_TYPE'] = self._clean_field_value(self.event_schemas[event['event_type']]['name'])
+            feature['attributes']['ER_REPORT_TYPE'] = self._clean_field_value(
+                self.event_schemas[event['event_type']]['name'])
 
             if(event['title'] == None):
                 feature['attributes']['ER_REPORT_TITLE'] = self._clean_field_value(
@@ -691,7 +707,8 @@ class AgolTools(object):
                         f"Additional data entry field {field} for event {event['serial_number']} not in event type model - skipping")
                     continue
 
-                field_def = self.event_schemas[event['event_type']]['schema'][field]
+                field_def = self.event_schemas[event['event_type']
+                                               ]['schema'][field]
                 field_type = field_def.get('type', 'string')
                 esri_type = self.ER_TO_ESRI_FIELD_TYPE.get(
                     field_type, self.ER_TO_ESRI_FIELD_TYPE['default'])
@@ -730,10 +747,12 @@ class AgolTools(object):
                         new_field_name = field_def.get('title', field)
                         if(include_display_version_of_choices):
                             new_field_name += "_key"
-                        fields_to_add.append([value_field, "esriFieldTypeString", new_field_name])
+                        fields_to_add.append(
+                            [value_field, "esriFieldTypeString", new_field_name])
 
                     for i in range(0, len(raw_values)):
-                        raw_values[i] = self._clean_field_value(str(raw_values[i]))
+                        raw_values[i] = self._clean_field_value(
+                            str(raw_values[i]))
                     feature['attributes'][value_field] = ",".join(raw_values)
 
             if(include_incidents):
@@ -751,13 +770,12 @@ class AgolTools(object):
 
             if(event['files']):
 
-
                 er_event_files[str(event['serial_number'])] = []
                 for file in event['files']:
 
                     url = None
                     if(image_version and file.get('file_type') == 'image'):
-                            url = file['images'].get(image_version)
+                        url = file['images'].get(image_version)
 
                     if(not url):
                         url = file['url']
@@ -777,7 +795,7 @@ class AgolTools(object):
         if(not fields_to_add):
             self.logger.info(f"No new fields to add to the Esri layer.")
         else:
-            new_fields = self._add_fields_to_layer(fields_to_add, esri_layer)
+            self._add_fields_to_layer(fields_to_add, esri_layer)
             self.logger.info(
                 f"Added {len(fields_to_add)} new fields to the Esri layer")
 
@@ -807,18 +825,19 @@ class AgolTools(object):
             contains attribute columns to ensure exist in Esri before sending the data
         """
         if(not subject.get('tracks_available')):
-            return([],[])
+            return([], [])
 
         last_position_date = subject.get('last_position_date')
         if(not last_position_date):
-            return([],[])
+            return([], [])
 
         last_position_datetime = dateparser.parse(last_position_date)
         if(last_position_datetime < oldest_date):
             self.logger.info(f"No new track points for {subject['name']}")
-            return([],[])
+            return([], [])
 
-        existing_points = self._get_existing_esri_points(esri_layer, oldest_date, subject['id'])
+        existing_points = self._get_existing_esri_points(
+            esri_layer, oldest_date, subject['id'])
         self.logger.info(
             f"Loaded {len(existing_points)} existing points from Esri for subject {subject['name']} (ER ID {subject['id']})")
 
@@ -826,11 +845,13 @@ class AgolTools(object):
         attr_columns = {}
         point_count = 0
 
-        er_observations = self.das_client.get_subject_observations(subject['id'], oldest_date, None, 0, True, 10000)
+        er_observations = self.er_client.get_subject_observations(
+            subject['id'], oldest_date, None, 0, True, 10000)
         for point in er_observations:
             point_count += 1
-            if(point_count % 10000 ==0):
-                self.logger.info(f"Loaded {point_count} points for subject {subject['name']} so far.")
+            if(point_count % 10000 == 0):
+                self.logger.info(
+                    f"Loaded {point_count} points for subject {subject['name']} so far.")
             if(str(point['id']) in existing_points.keys()):
                 continue
 
@@ -854,7 +875,7 @@ class AgolTools(object):
                     point['location']['longitude'])
 
             details = point.get("observation_details")
-            for k,v in details.items():
+            for k, v in details.items():
                 feature['attributes'][k] = v
                 col_name = "additional_" + k
                 if(col_name not in attr_columns.keys()):
@@ -865,10 +886,11 @@ class AgolTools(object):
 
             features_to_add.append(feature)
 
-        self.logger.info(f"Processed {point_count} track points from ER for subject {subject['name']}")
+        self.logger.info(
+            f"Processed {point_count} track points from ER for subject {subject['name']}")
         return (features_to_add, attr_columns)
 
-    def upsert_track_points_from_er(self, esri_layer, oldest_date=None, threads = 1):
+    def upsert_track_points_from_er(self, esri_layer, oldest_date=None, threads=1):
         """
         Updates an AGOL point layer, adding any missing observation points from
         EarthRanger.  Each point in the track layer represents a single
@@ -897,15 +919,16 @@ class AgolTools(object):
         if(oldest_date == None):
             oldest_date = datetime.now(tz=timezone.utc) - timedelta(days=30)
 
-        subjects = self.das_client.get_subjects()
+        subjects = self.er_client.get_subjects()
         self.logger.info(f"Loaded {len(subjects)} subjects to process.")
 
         features_to_add = []
         all_attr_columns = {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers = threads) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
             futures = []
             for subject in subjects:
-                futures.append(executor.submit(self._get_track_points_to_send_for_subject, esri_layer, oldest_date, subject))
+                futures.append(executor.submit(
+                    self._get_track_points_to_send_for_subject, esri_layer, oldest_date, subject))
             for future in concurrent.futures.as_completed(futures):
                 (subject_features_to_add, subject_attr_columns) = future.result()
                 features_to_add.extend(subject_features_to_add)
@@ -914,9 +937,11 @@ class AgolTools(object):
         if(len(features_to_add) > 0):
 
             if(len(all_attr_columns) > 0):
-                self._ensure_attributes_in_layer(esri_layer, all_attr_columns.values())
+                self._ensure_attributes_in_layer(
+                    esri_layer, all_attr_columns.values())
 
-            (added, updated) = self._upsert_features(features_to_add, [], esri_layer, 250)
+            (added, updated) = self._upsert_features(
+                features_to_add, [], esri_layer, 250)
             self.logger.info(f"Created {added} point features in Esri")
 
 
