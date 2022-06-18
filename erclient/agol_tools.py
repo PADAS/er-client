@@ -7,7 +7,7 @@ import dateparser
 from arcgis.geometry import Point
 from arcgis.gis import GIS
 
-from .erclient import ERClient
+from .client import ERClient
 
 
 class AgolTools(object):

@@ -6,8 +6,7 @@ import dateparser
 import gpxpy
 import pytz
 
-from erclient import ERClient
-
+from .client import ERClient
 from .schemas import EREvent
 
 logger = logging.getLogger(__name__)
