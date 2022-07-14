@@ -42,8 +42,8 @@ class ERClient(object):
 
         :param username: username
         :param password: password
-        :param client_id: Auth client ID (Ex. das_web_client)
-        :param token_url: The auth token url for DAS (Ex. https://sandbox.pamdas.org/oauth2/token)
+        :param client_id: Auth client ID (Ex. er_web_client)
+        :param token_url: The auth token url for ER (Ex. https://sandbox.pamdas.org/oauth2/token)
 
         or
 
@@ -84,6 +84,7 @@ class ERClient(object):
         retries = Retry(total=5, backoff_factor=1.5, status_forcelist=[502])
         self._http_session.mount("http", HTTPAdapter(max_retries=retries))
         self._http_session.mount("https", HTTPAdapter(max_retries=retries))
+
 
     def _auth_is_valid(self):
         return self.auth_expires > pytz.utc.localize(datetime.utcnow())
@@ -133,7 +134,7 @@ class ERClient(object):
         self.auth_expires = pytz.utc.localize(datetime.min)
         return False
 
-    def _das_url(self, path):
+    def _er_url(self, path):
         return '/'.join((self.service_root, path))
 
     def _get(self, path, stream=False, **kwargs):
@@ -141,7 +142,7 @@ class ERClient(object):
 
         headers.update(self.auth_headers())
         if(not path.startswith("http")):
-            path = self._das_url(path)
+            path = self._er_url(path)
 
         response = None
         if(self._http_session):
@@ -157,7 +158,10 @@ class ERClient(object):
             data = json.loads(response.text)
             if 'metadata' in data:
                 return data['metadata']
-            return data['data']
+            elif 'data' in data:
+                return data['data']
+            else:
+                return data
 
         if response.status_code == 404:  # not found
             self.logger.error(f"404 when calling {path}")
@@ -173,7 +177,7 @@ class ERClient(object):
 
         self.logger.debug("Fail: " + response.text)
         raise ERClientException(
-            f'Failed to call DAS web service. {response.status_code} {response.text}')
+            f"Failed to call ER web service at {response.url}. {response.status_code} {response.text}")
 
     def _call(self, path, payload, method, params=None):
         headers = {'Content-Type': 'application/json',
@@ -197,7 +201,7 @@ class ERClient(object):
         except KeyError:
             self.logger.error('method must be one of...')
         else:
-            response = fn(self._das_url(path), data=body,
+            response = fn(self._er_url(path), data=body,
                           headers=headers, params=params)
 
         if response and response.ok:
@@ -237,7 +241,7 @@ class ERClient(object):
                                                                   text=response.text))
         message = f"provider_key: {self.provider_key}, service: {self.service_root}, path: {path},\n\t {response.status_code} from ER. Message: {reason} {response.text}"
         raise ERClientException(
-            f"Failed to {fn} to DAS web service. {message}")
+            f"Failed to {fn} to ER web service. {message}")
 
     def _post(self, path, payload, params={}):
         return self._call(path, payload, "POST", params)
@@ -264,11 +268,12 @@ class ERClient(object):
         headers = {'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
 
+        resonse = None
         if(self._http_session):
             response = self._http_session.delete(
-                self._das_url(path), headers=headers)
+                self._er_url(path), headers=headers)
         else:
-            response = requests.delete(self._das_url(path), headers=headers)
+            response = requests.delete(self._er_url(path), headers=headers)
         if response.ok:
             return True
 
@@ -308,7 +313,7 @@ class ERClient(object):
         headers.update(self.auth_headers())
 
         body = body or {}
-        response = requests.post(self._das_url(
+        response = requests.post(self._er_url(
             path), data=body, headers=headers, files=files)
         if response and response.ok:
             return json.loads(response.text)['data']
@@ -324,9 +329,22 @@ class ERClient(object):
                 reason = 'unknown reason'
             raise ERClientPermissionDenied(reason)
 
-        self.logger.error('provider_key: %s, path: %s\n\tBad result from das service. Message: %s',
+        self.logger.error('provider_key: %s, path: %s\n\tBad result from ER service. Message: %s',
                           self.provider_key, path, response.text)
-        raise ERClientException('Failed to post to DAS web service.')
+        raise ERClientException('Failed to post to ER web service.')
+
+
+    def post_eventprovider(self, eventprovider):
+        self.logger.debug('Posting eventprovider: %s', eventprovider)
+        result = self._post('activity/eventproviders/', payload=eventprovider)
+        self.logger.debug('Result of eventprovider post is: %s', result)
+        return result
+
+    def post_eventsource(self, eventprovider_id, eventsource):
+        self.logger.debug('Posting eventsource: %s', eventsource)
+        result = self._post(f'activity/eventprovider/{eventprovider_id}/eventsources', payload=eventsource)
+        self.logger.debug('Result of eventsource post is: %s', result)
+        return result
 
     def post_event_photo(self, event_id, image):
 
@@ -388,7 +406,7 @@ class ERClient(object):
 
     def get_me(self):
         """
-        Get details for the 'me', the current DAS user.
+        Get details for the 'me', the current ER user.
         :return:
         """
         return self._get('user/me')
@@ -401,6 +419,7 @@ class ERClient(object):
         '''
         self.logger.debug(f"Posting subject {subject.get('name')}")
         return self._post('subjects', payload=subject)
+
 
     def post_source(self, source):
         '''
@@ -452,9 +471,9 @@ class ERClient(object):
         Post a new observation, or a list of observations.
         """
         if isinstance(observation, (list, set)):
-            [self._clean_observation(o) for o in observation]
+            payload = [self._clean_observation(o) for o in observation]
         else:
-            self._clean_observation(observation)
+            payload = self._clean_observation(observation)
 
         self.logger.debug('Posting observation: %s', observation)
         result = self._post(
@@ -551,8 +570,9 @@ class ERClient(object):
             else:
                 break
 
-    def get_event_types(self, **params):
-        return self._get('activity/events/eventtypes', params=params)
+    def get_event_types(self, include_inactive = False, include_schema = False):
+        return self._get('activity/events/eventtypes', params =
+            {"include_inactive": include_inactive, "include_schema": include_schema})
 
     def get_event_schema(self, event_type):
         return self._get(f'activity/events/schema/eventtype/{event_type}')
@@ -571,12 +591,7 @@ class ERClient(object):
         if(not params.get('object')):
             raise ValueError("Must specify object URL")
 
-        result = self._get(params['object'], params=params)
-        for o in result:
-            yield o
-
         self.logger.debug(f"Getting {params['object']}: ", params)
-
         count = 0
         results = self._get(params['object'], params=params)
 
@@ -592,17 +607,19 @@ class ERClient(object):
                         return
                 next = results.get('next')
                 if (next and ('page' not in params)):
-                    url = re.sub(f".*{params['object']}?",
-                                 params['object'], next)
-                    self.logger.debug('Getting more events: ' + url)
+                    url = next
+                    self.logger.debug('Getting more objects: ' + url)
                     results = self._get(url)
-
                 else:
                     break
-            else:
-                for o in result:
+            elif(type(results) == list):
+                for o in results:
                     yield o
                 break
+            else:
+                yield results
+                break
+
 
     def get_objects_multithreaded(self, **kwargs):
         threads = kwargs.get("threads", 5)
@@ -625,13 +642,21 @@ class ERClient(object):
                 futures.append(executor.submit(
                     self._get, params['object'], params=temp_params))
             for future in concurrent.futures.as_completed(futures):
-                try:
-                    result = future.result()
-                    for e in result['results']:
-                        yield e
-                except Exception as e:
-                    logging.error(f"Error occurred loading events: {e}")
-                    raise e
+                max_retries = kwargs.get("retries", 0)
+                tries = 0
+                while(True):
+                    tries += 1
+                    try:
+                        result = future.result()
+                        for e in result['results']:
+                            yield e
+                        break
+                    except Exception as e:
+                        if(tries > max_retries):
+                            logging.error(f"Error occurred loading events: {e}")
+                            raise e
+                        else:
+                            logging.warning(f"Attempt {tries} of {max_retries}: Error occurred loading events: {e}.")
 
     def get_events(self, **kwargs):
         params = dict((k, v) for k, v in kwargs.items() if k in
@@ -690,7 +715,7 @@ class ERClient(object):
 
     def pulse(self, message=None):
         """
-        Convenience method for getting status of the DAS api.
+        Convenience method for getting status of the ER api.
         :param message:
         :return:
         """
@@ -703,19 +728,11 @@ class ERClient(object):
         return self._get(path=f'subject/{subject_id}/subjectsources')
 
     def get_source_provider(self, provider_key):
-        results = self._get('sourceproviders')
+        results = self.get_objects(object="sourceproviders")
 
-        while True:
-            if results and results.get('results'):
-                for r in results['results']:
-                    if(r.get('provider_key') == provider_key):
-                        return r
-
-            if results and results['next']:
-                url, params = split_link(results['next'])
-                results = self._get(path='sourceproviders', params=params)
-            else:
-                break
+        for r in results:
+            if(r.get('provider_key') == provider_key):
+                return r
 
         return None
 
