@@ -27,7 +27,7 @@ pip-compile setup.cfg
     See the following for more information and a library of hooks: http://pre-commit.com/
 2. install wheel and upgrade pip libraries
 ~~~~
-pip install pip setuptools wheel --upgrade
+pip install pip setuptools wheel build --upgrade
 ~~~~
 5. build wheel
 ~~~~
