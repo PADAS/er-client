@@ -85,7 +85,6 @@ class ERClient(object):
         self._http_session.mount("http", HTTPAdapter(max_retries=retries))
         self._http_session.mount("https", HTTPAdapter(max_retries=retries))
 
-
     def _auth_is_valid(self):
         return self.auth_expires > pytz.utc.localize(datetime.utcnow())
 
@@ -268,7 +267,6 @@ class ERClient(object):
         headers = {'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
 
-        resonse = None
         if(self._http_session):
             response = self._http_session.delete(
                 self._er_url(path), headers=headers)
@@ -333,7 +331,6 @@ class ERClient(object):
                           self.provider_key, path, response.text)
         raise ERClientException('Failed to post to ER web service.')
 
-
     def post_eventprovider(self, eventprovider):
         self.logger.debug('Posting eventprovider: %s', eventprovider)
         result = self._post('activity/eventproviders/', payload=eventprovider)
@@ -342,7 +339,8 @@ class ERClient(object):
 
     def post_eventsource(self, eventprovider_id, eventsource):
         self.logger.debug('Posting eventsource: %s', eventsource)
-        result = self._post(f'activity/eventprovider/{eventprovider_id}/eventsources', payload=eventsource)
+        result = self._post(
+            f'activity/eventprovider/{eventprovider_id}/eventsources', payload=eventsource)
         self.logger.debug('Result of eventsource post is: %s', result)
         return result
 
@@ -420,7 +418,6 @@ class ERClient(object):
         self.logger.debug(f"Posting subject {subject.get('name')}")
         return self._post('subjects', payload=subject)
 
-
     def post_source(self, source):
         '''
         Post a source payload to create a new source.
@@ -471,9 +468,9 @@ class ERClient(object):
         Post a new observation, or a list of observations.
         """
         if isinstance(observation, (list, set)):
-            payload = [self._clean_observation(o) for o in observation]
+            [self._clean_observation(o) for o in observation]
         else:
-            payload = self._clean_observation(observation)
+            self._clean_observation(observation)
 
         self.logger.debug('Posting observation: %s', observation)
         result = self._post(
@@ -570,9 +567,8 @@ class ERClient(object):
             else:
                 break
 
-    def get_event_types(self, include_inactive = False, include_schema = False):
-        return self._get('activity/events/eventtypes', params =
-            {"include_inactive": include_inactive, "include_schema": include_schema})
+    def get_event_types(self, include_inactive=False, include_schema=False):
+        return self._get('activity/events/eventtypes', params={"include_inactive": include_inactive, "include_schema": include_schema})
 
     def get_event_schema(self, event_type):
         return self._get(f'activity/events/schema/eventtype/{event_type}')
@@ -620,7 +616,6 @@ class ERClient(object):
                 yield results
                 break
 
-
     def get_objects_multithreaded(self, **kwargs):
         threads = kwargs.get("threads", 5)
         params = dict((k, v) for k, v in kwargs.items() if k not in ('page'))
@@ -653,10 +648,12 @@ class ERClient(object):
                         break
                     except Exception as e:
                         if(tries > max_retries):
-                            logging.error(f"Error occurred loading events: {e}")
+                            logging.error(
+                                f"Error occurred loading events: {e}")
                             raise e
                         else:
-                            logging.warning(f"Attempt {tries} of {max_retries}: Error occurred loading events: {e}.")
+                            logging.warning(
+                                f"Attempt {tries} of {max_retries}: Error occurred loading events: {e}.")
 
     def get_events(self, **kwargs):
         params = dict((k, v) for k, v in kwargs.items() if k in
