@@ -1,6 +1,6 @@
 repos:
 -   repo: https://github.com/pre-commit/mirrors-autopep8
-    rev: 'v1.6.0'  # Use the sha / tag you want to point at
+    rev: 'v1.7.0'  # Use the sha / tag you want to point at
     hooks:
     -   id: autopep8
         args: ['--in-place']
@@ -21,7 +21,7 @@ repos:
     -   id: isort
     
 -   repo: https://github.com/myint/autoflake
-    rev: v1.4
+    rev: v1.5.3
     hooks:
     -   id: autoflake
         args: ['--in-place', '--remove-all-unused-imports', '--remove-unused-variable']

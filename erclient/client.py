@@ -1,4 +1,5 @@
 import concurrent.futures
+import csv
 import json
 import logging
 import math
@@ -136,47 +137,54 @@ class ERClient(object):
     def _er_url(self, path):
         return '/'.join((self.service_root, path))
 
-    def _get(self, path, stream=False, **kwargs):
+    def _get(self, path, stream=False, max_retries=0, seconds_between_attempts=5, **kwargs):
         headers = {'User-Agent': self.user_agent}
 
         headers.update(self.auth_headers())
-        if(not path.startswith("http")):
+        if (not path.startswith("http")):
             path = self._er_url(path)
 
-        response = None
-        if(self._http_session):
-            response = self._http_session.get(path, headers=headers,
-                                              params=kwargs.get('params'), stream=stream)
-        else:
-            response = requests.get(path, headers=headers,
-                                    params=kwargs.get('params'), stream=stream)
+        attempts = 0
+        while (attempts <= max_retries):
+            attempts += 1
 
-        if response.ok:
-            if kwargs.get('return_response', False):
-                return response
-            data = json.loads(response.text)
-            if 'metadata' in data:
-                return data['metadata']
-            elif 'data' in data:
-                return data['data']
+            response = None
+            if (self._http_session):
+                response = self._http_session.get(path, headers=headers,
+                                                  params=kwargs.get('params'), stream=stream)
             else:
-                return data
+                response = requests.get(path, headers=headers,
+                                        params=kwargs.get('params'), stream=stream)
 
-        if response.status_code == 404:  # not found
-            self.logger.error(f"404 when calling {path}")
-            raise ERClientNotFound()
+            if response.ok:
+                if kwargs.get('return_response', False):
+                    return response
+                data = json.loads(response.text)
+                if 'metadata' in data:
+                    return data['metadata']
+                elif 'data' in data:
+                    return data['data']
+                else:
+                    return data
 
-        if response.status_code == 403:  # forbidden
-            try:
-                _ = json.loads(response.text)
-                reason = _['status']['detail']
-            except:
-                reason = 'unknown reason'
-            raise ERClientPermissionDenied(reason)
+            if response.status_code == 404:  # not found
+                self.logger.error(f"404 when calling {path}")
+                raise ERClientNotFound()
 
-        self.logger.debug("Fail: " + response.text)
-        raise ERClientException(
-            f"Failed to call ER web service at {response.url}. {response.status_code} {response.text}")
+            if response.status_code == 403:  # forbidden
+                try:
+                    _ = json.loads(response.text)
+                    reason = _['status']['detail']
+                except:
+                    reason = 'unknown reason'
+                raise ERClientPermissionDenied(reason)
+
+            self.logger.warn(
+                f"Fail attempt {attempts} of {max_retries}: {response.text}")
+            if (attempts >= max_retries):
+                raise ERClientException(
+                    f"Failed to call ER web service at {response.url} after {attempts} tries. {response.status_code} {response.text}")
+            time.sleep(seconds_between_attempts)
 
     def _call(self, path, payload, method, params=None):
         headers = {'Content-Type': 'application/json',
@@ -190,7 +198,7 @@ class ERClient(object):
         body = json.dumps(payload, default=time_converter)
 
         fmap = None
-        if(self._http_session):
+        if (self._http_session):
             fmap = {'POST': self._http_session.post,
                     'PATCH': self._http_session.patch}
         else:
@@ -205,7 +213,7 @@ class ERClient(object):
 
         if response and response.ok:
             res_json = response.json()
-            if('data' in res_json):
+            if ('data' in res_json):
                 return res_json['data']
             else:
                 return res_json
@@ -267,11 +275,12 @@ class ERClient(object):
         headers = {'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
 
-        if(self._http_session):
+        if (self._http_session):
             response = self._http_session.delete(
                 self._er_url(path), headers=headers)
         else:
             response = requests.delete(self._er_url(path), headers=headers)
+
         if response.ok:
             return True
 
@@ -387,7 +396,7 @@ class ERClient(object):
 
         created = []
 
-        if(not isinstance(notes, list)):
+        if (not isinstance(notes, list)):
             notes = [notes, ]
 
         for note in notes:
@@ -584,7 +593,7 @@ class ERClient(object):
 
     def get_objects(self, **kwargs):
         params = dict((k, v) for k, v in kwargs.items() if k not in ('page'))
-        if(not params.get('object')):
+        if (not params.get('object')):
             raise ValueError("Must specify object URL")
 
         self.logger.debug(f"Getting {params['object']}: ", params)
@@ -592,14 +601,14 @@ class ERClient(object):
         results = self._get(params['object'], params=params)
 
         while True:
-            if(not results):
+            if (not results):
                 break
 
-            if('results' in results):
+            if ('results' in results):
                 for result in results['results']:
                     yield result
                     count += 1
-                    if(('max_results' in params) and (count >= params['max_results'])):
+                    if (('max_results' in params) and (count >= params['max_results'])):
                         return
                 next = results.get('next')
                 if (next and ('page' not in params)):
@@ -608,7 +617,7 @@ class ERClient(object):
                     results = self._get(url)
                 else:
                     break
-            elif(type(results) == list):
+            elif (type(results) == list):
                 for o in results:
                     yield o
                 break
@@ -619,13 +628,17 @@ class ERClient(object):
     def get_objects_multithreaded(self, **kwargs):
         threads = kwargs.get("threads", 5)
         params = dict((k, v) for k, v in kwargs.items() if k not in ('page'))
-        if(not params.get('object')):
+        if (not params.get('object')):
             raise ValueError("Must specify object URL")
 
-        if(not params.get('page_size')):
+        if (not params.get('page_size')):
             params['page_size'] = 100
 
         count = self._get_objects_count(params)
+
+        if (count == 0):
+            self.logger.debug(f"No {params['object']} to load from ER.")
+            return []
 
         self.logger.debug(
             f"Loading {count} {params['object']} from ER with page size {params['page_size']} and {threads} threads")
@@ -634,12 +647,13 @@ class ERClient(object):
             for page in range(1, math.ceil(count/params['page_size'])+1):
                 temp_params = params.copy()
                 temp_params["page"] = page
-                futures.append(executor.submit(
-                    self._get, params['object'], params=temp_params))
+                futures.append(executor.submit(self._get, path=params['object'],
+                                               max_retries=5, params=temp_params))
+
             for future in concurrent.futures.as_completed(futures):
                 max_retries = kwargs.get("retries", 0)
                 tries = 0
-                while(True):
+                while (True):
                     tries += 1
                     try:
                         result = future.result()
@@ -647,7 +661,7 @@ class ERClient(object):
                             yield e
                         break
                     except Exception as e:
-                        if(tries > max_retries):
+                        if (tries > max_retries):
                             logging.error(
                                 f"Error occurred loading events: {e}")
                             raise e
@@ -670,7 +684,7 @@ class ERClient(object):
                 for result in events['results']:
                     yield result
                     count += 1
-                    if(('max_results' in params) and (count >= params['max_results'])):
+                    if (('max_results' in params) and (count >= params['max_results'])):
                         return
             if events['next'] and ('page' not in params):
                 url = events['next']
@@ -700,6 +714,60 @@ class ERClient(object):
             else:
                 break
 
+    def __result_to_dict(self, result):
+        dict = {}
+        for row in result:
+            dict[row['id']] = row
+        return dict
+
+    def export_observations_to_csv(self, start_date, end_date, subject_groups, outputfile):
+
+        subjects = {}
+        if (subject_groups):
+            for subject_group in subject_groups:
+                more_subjects = self.__result_to_dict(self.get_objects_multithreaded(
+                    object="subjects", subject_group=subject_group))
+                subjects.update(more_subjects)
+        else:
+            subject = self.__result_to_dict(
+                self.get_objects_multithreaded(object="subjects"))
+
+        obs = {}
+        total = 0
+        for subject_key, subject in sorted(subjects.items(), key=lambda item: item[1]['name']):
+            obs[subject_key] = self.__result_to_dict(self.get_objects_multithreaded(
+                object="observations", since=start_date.isoformat(), until=end_date.isoformat(),
+                subject_id=subject_key, include_details="true"))
+            num = len(obs[subject_key])
+            total += num
+            self.logger.info(
+                f"Loaded {num} observations for {subject['name']}")
+        self.logger.info(f"Loaded {total} observations for all subjects")
+
+        csvfile = open(outputfile, 'w')
+        csvwriter = csv.writer(csvfile, delimiter=',',
+                               quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+        additional_fields = []
+        for subject_id, s_obs in obs.items():
+            for ob in s_obs.values():
+                for k in ob.get('observation_details', {}).keys():
+                    if (k not in additional_fields):
+                        additional_fields.append(k)
+
+        headers = ["Subject", "Recorded At", "Lat", "Lon"]
+        headers.extend(additional_fields)
+        csvwriter.writerow(headers)
+
+        for subject_id, s_obs in obs.items():
+            subject = subjects[subject_id]
+            for ob in s_obs.values():
+                output = [subject['name'], ob['recorded_at'],
+                          ob['location']['latitude'], ob['location']['longitude']]
+                for k in additional_fields:
+                    output.append(ob['observation_details'].get(k, ''))
+                csvwriter.writerow(output)
+
     def get_events_export(self, filter=None):
         params = None
         if filter:
@@ -728,7 +796,7 @@ class ERClient(object):
         results = self.get_objects(object="sourceproviders")
 
         for r in results:
-            if(r.get('provider_key') == provider_key):
+            if (r.get('provider_key') == provider_key):
                 return r
 
         return None

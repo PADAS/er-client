@@ -24,11 +24,11 @@ class DasCSVLoader(object):
 
         is_error = False
         for col in self.REQ_COLS:
-            if(col not in reader.fieldnames):
+            if (col not in reader.fieldnames):
                 logger.error(f"Missing column name: {col}")
                 is_error = True
 
-        if(is_error):
+        if (is_error):
             raise DataFormatException('Invalid columns.')
 
         for row in reader:
@@ -39,7 +39,7 @@ class DasCSVLoader(object):
 
         recorded_at = dateparser.parse(row["recorded_at"])
 
-        if(recorded_at.tzinfo == None):
+        if (recorded_at.tzinfo == None):
             recorded_at = recorded_at.replace(tzinfo=datetime.timezone.utc)
 
         point = {
@@ -52,11 +52,11 @@ class DasCSVLoader(object):
         }
 
         for col in self.OPTIONAL_COLS:
-            if(col in row.keys()):
+            if (col in row.keys()):
                 point[col] = row[col]
 
         for col in row.keys():
-            if((col not in self.REQ_COLS) and (col not in self.OPTIONAL_COLS)):
+            if ((col not in self.REQ_COLS) and (col not in self.OPTIONAL_COLS)):
                 point["additional"][col] = row[col]
 
         return point

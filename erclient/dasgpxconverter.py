@@ -22,11 +22,11 @@ class DasGpxConverter(object):
         return
 
     def _get_event_type_name(self, type):
-        if(self.event_types == None):
+        if (self.event_types == None):
             self.event_types = self.er_client.get_event_types()
 
         for event_type in self.event_types:
-            if(event_type['value'] == type):
+            if (event_type['value'] == type):
                 return event_type['display']
 
         return type
@@ -35,7 +35,7 @@ class DasGpxConverter(object):
 
         for eventdict in events:
             event = EREvent(**eventdict)
-            if(event.location != None):
+            if (event.location != None):
                 type = self._get_event_type_name(event.event_type)
 
                 point = gpxpy.gpx.GPXWaypoint(
@@ -47,11 +47,11 @@ class DasGpxConverter(object):
 
                 descstr = f""
 
-                if(event.event_type in symbols.keys()):
+                if (event.event_type in symbols.keys()):
                     point.symbol = symbols[event.event_type]
 
                 for k in event_details:
-                    if(k in event.event_details):
+                    if (k in event.event_details):
                         field_name, field_value = self.process_field(
                             k, event.event_details[k])
                         descstr += str(field_name) + ": " + \
@@ -80,15 +80,15 @@ class DasGpxConverter(object):
         gpx_segment = gpxpy.gpx.GPXTrackSegment()
         for i in range(len(points)):
             gpxpoint = gpxpy.gpx.GPXTrackPoint(points[i][1], points[i][0])
-            if(len(points[i]) > 2):
+            if (len(points[i]) > 2):
                 gpxpoint.elevation = points[i][2]
-            if(len(times) > i):
+            if (len(times) > i):
                 gpxpoint.time = dateparser.parse(times[i])
 
             gpx_segment.points.append(gpxpoint)
 
         gpx_segments.append(gpx_segment)
-        return(gpx_segments)
+        return (gpx_segments)
 
     def add_paths(self, lower=None, upper=None, subject_group_id=None):
 
@@ -102,7 +102,7 @@ class DasGpxConverter(object):
             gpx_track = gpxpy.gpx.GPXTrack()
             gpx_track.name = subject['name']
             for path in track['features']:
-                if((path['geometry'] != None) and (path['geometry']['type'] == 'LineString')):
+                if ((path['geometry'] != None) and (path['geometry']['type'] == 'LineString')):
                     segments = self._convert_array_to_gpx(
                         path['geometry']['coordinates'], path['properties']['coordinateProperties']['times'])
                     gpx_track.segments += segments
