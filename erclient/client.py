@@ -137,7 +137,7 @@ class ERClient(object):
     def _er_url(self, path):
         return '/'.join((self.service_root, path))
 
-    def _get(self, path, stream=False, max_retries=0, seconds_between_attempts=5, **kwargs):
+    def _get(self, path, stream=False, max_retries=5, seconds_between_attempts=5, **kwargs):
         headers = {'User-Agent': self.user_agent}
 
         headers.update(self.auth_headers())
@@ -180,7 +180,7 @@ class ERClient(object):
                 raise ERClientPermissionDenied(reason)
 
             self.logger.warn(
-                f"Fail attempt {attempts} of {max_retries}: {response.text}")
+                f"Fail attempt {attempts} of {max_retries+1}: {response.text}")
             if (attempts >= max_retries):
                 raise ERClientException(
                     f"Failed to call ER web service at {response.url} after {attempts} tries. {response.status_code} {response.text}")
