@@ -720,13 +720,14 @@ class ERClient(object):
             dict[row['id']] = row
         return dict
 
-    def export_observations_to_csv(self, start_date, end_date, subject_groups, outputfile):
+    def export_observations_to_csv(self, start_date, end_date, subject_groups, include_inactive, outputfile):
 
         subjects = {}
         if (subject_groups):
             for subject_group in subject_groups:
                 more_subjects = self.__result_to_dict(self.get_objects_multithreaded(
-                    object="subjects", subject_group=subject_group))
+                    object="subjects", subject_group=subject_group,
+                    include_inactive=include_inactive))
                 subjects.update(more_subjects)
         else:
             subject = self.__result_to_dict(
