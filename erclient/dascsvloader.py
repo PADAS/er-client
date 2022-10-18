@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 
 class DasCSVLoader(object):
 
-    REQ_COLS = ["source_provider", "manufacturer_id",
-                "recorded_at", "lat", "lon"]
+    BASE_COLS = ["recorded_at", "lat", "lon"]
+    REQ_COLS = ["source_provider", "manufacturer_id"]
     OPTIONAL_COLS = ["subject_name", "subject_type",
                      "subject_subtype", "model_name", "source_type"]
 
@@ -23,7 +23,7 @@ class DasCSVLoader(object):
         reader = csv.DictReader(f, delimiter=',', quotechar='"')
 
         is_error = False
-        for col in self.REQ_COLS:
+        for col in (self.BASE_COLS + self.REQ_COLS):
             if (col not in reader.fieldnames):
                 logger.error(f"Missing column name: {col}")
                 is_error = True
@@ -51,12 +51,10 @@ class DasCSVLoader(object):
             "additional": {}
         }
 
-        for col in self.OPTIONAL_COLS:
-            if (col in row.keys()):
-                point[col] = row[col]
-
         for col in row.keys():
-            if ((col not in self.REQ_COLS) and (col not in self.OPTIONAL_COLS)):
+            if ((col in self.REQ_COLS) or (col in self.OPTIONAL_COLS)):
+                point[col] = row[col]
+            elif (col not in self.BASE_COLS):
                 point["additional"][col] = row[col]
 
         return point
