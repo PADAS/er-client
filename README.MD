@@ -15,13 +15,13 @@ The er-client is a way, using python, to access the EarthRanger server HTTP API.
 see simple-example.py
 
 ## Installation
-```
-pip install er-client
+```sh
+pip install earthranger-client
 ```
 
 Then in your code, import the library and create an instance of the client.
 
-```
+```python
 from erclient import ERClient
 
 client = ERClient(service_root="https://sandbox.pamdas.org/api/v1.0", username="", password="")
