@@ -1035,12 +1035,12 @@ class AsyncERClient(object):
             transport=transport, timeout=timeout)
 
     async def close(self):
-        # Close the session
         await self._http_session.aclose()
 
     # Support using this client as an async context manager.
     async def __aenter__(self):
         await self._http_session.__aenter__()
+        return self
 
     async def __aexit__(self, exc_type, exc_value, traceback):
         await self._http_session.__aexit__()
