@@ -1074,11 +1074,11 @@ class AsyncERClient(object):
         if file:
             files = {'filecontent.file': file}
             return await self._post_form(camera_trap_report_path, body=camera_trap_payload, files=files)
-        else:
-            file_path = camera_trap_payload.get('file')
-
-            with open(file_path, 'rb') as f:
-                files = {'filecontent.file': f}
+        # Open the file
+        file_path = camera_trap_payload.get('file')
+        # ToDo: open the files using async (aiofiles)
+        with open(file_path, 'rb') as f:
+            files = {'filecontent.file': f}
             return await self._post_form(camera_trap_report_path, body=camera_trap_payload, files=files)
 
     def _clean_observation(self, observation):
@@ -1234,7 +1234,7 @@ class AsyncERClient(object):
                                                                  status_code=None,
                                                                  reason=reason,
                                                                  text=""))
-            raise ERClientException('Request to ER failed: {reason}')
+            raise ERClientException(f'Request to ER failed: {reason}')
         except httpx.HTTPStatusError as e:
             json_response = e.response.json()
             reason = json_response.get('status', {}).get(
