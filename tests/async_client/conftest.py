@@ -60,7 +60,10 @@ def camera_trap_payload():
 
 @pytest.fixture
 def camera_trap_conflict_response():
-    return {}
+    return {
+        "data": None,
+        "status": {"code": 409, "message": "Conflict"}
+    }
 
 
 @pytest.fixture
