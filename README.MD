@@ -45,7 +45,7 @@ async with AsyncERClient(service_root="https://sandbox.pamdas.org/api/v1.0", use
    ...
 
 # Or create an instance and close the client explicitly later
-client = AsyncERClient(service_root="https://sandbox.pamdas.org/api/v1.0", username="", password="") as client:
+client = AsyncERClient(service_root="https://sandbox.pamdas.org/api/v1.0", username="", password="")
 await self.er_client.post_sensor_observation(position)
 await client.post_report(report)
 await self.er_client.post_camera_trap_report(camera_trap_payload, file)
