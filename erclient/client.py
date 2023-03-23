@@ -7,6 +7,7 @@ import re
 import time
 from datetime import datetime, timedelta
 
+import httpx
 import pytz
 import requests
 from requests.adapters import HTTPAdapter
@@ -251,10 +252,10 @@ class ERClient(object):
         raise ERClientException(
             f"Failed to {fn} to ER web service. {message}")
 
-    def _post(self, path, payload, params={}):
+    def _post(self, path, payload, params=None):
         return self._call(path, payload, "POST", params)
 
-    def _patch(self, path, payload, params={}):
+    def _patch(self, path, payload, params=None):
         return self._call(path, payload, "PATCH", params)
 
     def add_event_to_incident(self, event_id, incident_id):
@@ -572,6 +573,7 @@ class ERClient(object):
 
             if results and results['next']:
                 url, params = split_link(results['next'])
+                # FixMe: p is not defined in this context
                 p['page'] = params['page']
                 results = self._get(path='messages')
             else:
@@ -942,6 +944,7 @@ class ERClient(object):
     def get_sources(self, page_size=100):
         """Return all sources"""
         params = dict(page_size=page_size)
+        params = dict(page_size=page_size)
         sources = 'sources'
         results = self._get(path=sources, params=params)
 
@@ -959,6 +962,309 @@ class ERClient(object):
 
     def get_users(self):
         return self._get('users')
+
+
+class AsyncERClient(object):
+    """
+    AsyncERClient asynchronous usage of EarthRanger server API (asyncio).
+    Notice: This client is experimental and only supports a reduced set of features.
+    ToDo: Move common logic from async and syc clients into a common place such as a base class
+    """
+
+    DEFAULT_CONNECT_TIMEOUT_SECONDS = 3.1
+    DEFAULT_DATA_TIMEOUT_SECONDS = 20
+    DEFAULT_CONNECTION_RETRIES = 5
+
+    def __init__(self, **kwargs):
+        """
+        Initialize an ERClient instance.
+
+        :param service_root: The root of the ER API (Ex. https://sandbox.pamdas.org/api/v1.0)
+
+        :param username: username
+        :param password: password
+        :param client_id: Auth client ID (Ex. er_web_client)
+        :param token_url: The auth token url for ER (Ex. https://sandbox.pamdas.org/oauth2/token)
+
+        or
+
+        :param token: authorization token
+
+        If posting to the sensors API, the default provider key
+        :param provider_key: provider-key for posting observation data (Ex. xyz_provider)
+
+        :param max_http_retries: Number of retries on connection errors. default is 5
+        :param connect_timeout [seconds]: Maximum amount of time to wait until a socket connection to the requested host is established. Default is 3.1
+        :param data_timeout [seconds]:  Maximum duration to wait for a chunk of data to be sent or received. Default is 20
+
+        """
+
+        self.auth = None
+        self.auth_expires = pytz.utc.localize(datetime.min)
+        self._http_session = None
+        self.max_retries = kwargs.get(
+            'max_http_retries', self.DEFAULT_CONNECTION_RETRIES)
+
+        self.service_root = kwargs.get('service_root')
+        self.client_id = kwargs.get('client_id')
+        self.provider_key = kwargs.get('provider_key')
+
+        self.token_url = kwargs.get('token_url')
+        self.username = kwargs.get('username')
+        self.password = kwargs.get('password')
+        self.realtime_url = kwargs.get('realtime_url')
+
+        if kwargs.get('token'):
+            self.token = kwargs.get('token')
+            self.auth = dict(token_type='Bearer',
+                             access_token=kwargs.get('token'))
+            self.auth_expires = datetime(2099, 1, 1, tzinfo=pytz.utc)
+
+        # ToDo: rename the agent name to er-client, or should we keep it for backward compatibility?
+        self.user_agent = f'das-client/{version_string}'
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+        transport = httpx.AsyncHTTPTransport(retries=self.max_retries)
+        connect_timeout = kwargs.get(
+            'connect_timeout', self.DEFAULT_CONNECT_TIMEOUT_SECONDS)
+        data_timeout = kwargs.get(
+            'data_timeout', self.DEFAULT_DATA_TIMEOUT_SECONDS)
+        timeout = httpx.Timeout(
+            data_timeout, connect=connect_timeout, pool=connect_timeout)
+        self._http_session = httpx.AsyncClient(
+            transport=transport, timeout=timeout)
+
+    async def close(self):
+        await self._http_session.aclose()
+
+    # Support using this client as an async context manager.
+    async def __aenter__(self):
+        await self._http_session.__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await self._http_session.__aexit__()
+
+    async def post_sensor_observation(self, observation, sensor_type='generic'):
+        """
+        Post a new observation, or a list of observations.
+        """
+        observations_list = observation if isinstance(
+            observation, (list, set)) else [observation]
+        for observation in observations_list:
+            self._clean_observation(observation)
+
+        self.logger.debug('Posting observation: %s', observation)
+        result = await self._post(
+            f'sensors/{sensor_type}/{self.provider_key}/status', payload=observation
+        )
+        self.logger.debug('Result of post is: %s', result)
+        return result
+
+    async def post_report(self, data):
+        payload = self._clean_event(data)
+        self.logger.debug(f'Posting report: {payload}', )
+        result = await self._post('activity/events', payload=payload)
+        self.logger.debug(f'Result of report post is: {result}')
+        return result
+
+    async def post_camera_trap_report(self, camera_trap_payload, file=None):
+        camera_trap_report_path = f'sensors/camera-trap/{self.provider_key}/status/'
+
+        if file:
+            files = {'filecontent.file': file}
+            return await self._post_form(camera_trap_report_path, body=camera_trap_payload, files=files)
+        # Open the file
+        file_path = camera_trap_payload.get('file')
+        # ToDo: open the files using async (aiofiles)
+        with open(file_path, 'rb') as f:
+            files = {'filecontent.file': f}
+            return await self._post_form(camera_trap_report_path, body=camera_trap_payload, files=files)
+
+    def _clean_observation(self, observation):
+        if hasattr(observation['recorded_at'], 'isoformat'):
+            observation['recorded_at'] = observation['recorded_at'].isoformat()
+        return observation
+
+    def _clean_event(self, event):
+        return event
+
+    def _auth_is_valid(self):
+        return self.auth_expires > pytz.utc.localize(datetime.utcnow())
+
+    async def auth_headers(self):
+        if self.auth:
+            if not self._auth_is_valid():
+                if not await self.refresh_token():
+                    if not await self.login():
+                        raise ERClientException('Login failed.')
+        else:
+            if not await self.login():
+                raise ERClientException('Login failed.')
+
+        return {
+            'Authorization': f'{self.auth["token_type"]} {self.auth["access_token"]}',
+            'Accept-Type': 'application/json'
+        }
+
+    async def refresh_token(self):
+        return await self._token_request(
+            payload={
+                'grant_type': 'refresh_token',
+                'refresh_token': self.auth['refresh_token'],
+                'client_id': self.client_id
+            }
+        )
+
+    async def login(self):
+        return await self._token_request(
+            payload={
+                'grant_type': 'password',
+                'username': self.username,
+                'password': self.password,
+                'client_id': self.client_id
+            }
+        )
+
+    async def _token_request(self, payload):
+        response = await self._http_session.post(self.token_url, data=payload)
+        if response.status_code == httpx.codes.OK:
+            self.auth = response.json()
+            expires_in = int(self.auth['expires_in']) - 5 * 60
+            self.auth_expires = pytz.utc.localize(
+                datetime.utcnow()) + timedelta(seconds=expires_in)
+            return True
+
+        self.auth = None
+        self.auth_expires = pytz.utc.localize(datetime.min)
+        return False
+
+    def _er_url(self, path):
+        return '/'.join((self.service_root, path))
+
+    async def _post_form(self, path, body=None, files=None):
+        body = body or {}
+        auth_headers = await self.auth_headers()
+        headers = {
+            'User-Agent': self.user_agent,
+            **auth_headers
+        }
+        try:
+            response = await self._http_session.post(
+                self._er_url(path),
+                data=body,  # # payload is automatically encoded as form data
+                headers=headers,
+                files=files
+            )
+            response.raise_for_status()
+        except httpx.RequestError as e:
+            # Network errors, timeouts
+            # ToDo: Check if we want a more granular error handling defining more specific exception classes
+            reason = str(e)
+            self.logger.error(
+                'Request to ER failed',
+                extra=dict(
+                    provider_key=self.provider_key,
+                    service=self.service_root,
+                    path=path,
+                    status_code=None,
+                    reason=reason,
+                    text=""
+                )
+            )
+            raise ERClientException(f'Request to ER failed: {reason}')
+        except httpx.HTTPStatusError as e:
+            json_response = e.response.json()
+            reason = json_response.get('status', {}).get(
+                'detail', 'unknown reason')
+            if e.response.status_code == httpx.codes.FORBIDDEN:
+                raise ERClientPermissionDenied(reason)
+            if e.response.status_code == httpx.codes.NOT_FOUND:
+                self.logger.error(f'Could not load {path}')
+                raise ERClientNotFound()
+            if e.response.status_code in [httpx.codes.GATEWAY_TIMEOUT, httpx.codes.BAD_GATEWAY]:
+                self.logger.error(f'ER service unavailable', extra=dict(provider_key=self.provider_key,
+                                                                        service=self.service_root,
+                                                                        path=path,
+                                                                        status_code=e.response.status_code,
+                                                                        reason=reason,
+                                                                        text=e.response.text))
+                raise ERClientServiceUnavailable('ER service unavailable')
+            # Other error status
+            self.logger.error('ER returned bad response', extra=dict(provider_key=self.provider_key,
+                                                                     service=self.service_root,
+                                                                     path=path,
+                                                                     status_code=e.response.status_code,
+                                                                     reason=reason,
+                                                                     text=e.response.text))
+            self.logger.error(
+                f'provider_key: {self.provider_key}, path: {path}\n\tBad result from ER service. Message: {e.response.text}')
+            raise ERClientException('Failed to post to ER web service.')
+        else:  # Parse the response
+            json_response = response.json()
+            return json_response['data'] if 'data' in json_response else json_response
+
+    async def _post(self, path, payload, params=None):
+        return await self._call(path, payload, "POST", params)
+
+    async def _call(self, path, payload, method, params=None):
+        params = params or {}
+        auth_headers = await self.auth_headers()
+        headers = {
+            'Content-Type': 'application/json',
+            'User-Agent': self.user_agent,
+            **auth_headers
+        }
+        try:
+            response = await self._http_session.request(
+                method,
+                self._er_url(path),
+                json=payload,  # payload is automatically encoded as json data
+                params=params,
+                headers=headers
+            )
+            response.raise_for_status()
+        except httpx.RequestError as e:
+            # Network errors, timeouts
+            # ToDo: Check if we want a more granular error handling defining more specific exception classes
+            reason = str(e)
+            self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
+                                                                 service=self.service_root,
+                                                                 path=path,
+                                                                 status_code=None,
+                                                                 reason=reason,
+                                                                 text=""))
+            raise ERClientException(f'Request to ER failed: {reason}')
+        except httpx.HTTPStatusError as e:
+            json_response = e.response.json()
+            reason = json_response.get('status', {}).get(
+                'detail', 'unknown reason')
+            if e.response.status_code == httpx.codes.FORBIDDEN:
+                raise ERClientPermissionDenied(reason)
+            if e.response.status_code == httpx.codes.NOT_FOUND:
+                self.logger.error(f'Could not load {path}')
+                raise ERClientNotFound()
+            if e.response.status_code in [httpx.codes.GATEWAY_TIMEOUT, httpx.codes.BAD_GATEWAY]:
+                self.logger.error('ER service unavailable', extra=dict(provider_key=self.provider_key,
+                                                                       service=self.service_root,
+                                                                       path=path,
+                                                                       status_code=e.response.status_code,
+                                                                       reason=reason,
+                                                                       text=e.response.text))
+                raise ERClientServiceUnavailable('ER service unavailable')
+            # Other error status
+            self.logger.error('ER returned bad response', extra=dict(provider_key=self.provider_key,
+                                                                     service=self.service_root,
+                                                                     path=path,
+                                                                     status_code=e.response.status_code,
+                                                                     reason=reason,
+                                                                     text=e.response.text))
+            message = f'provider_key: {self.provider_key}, service: {self.service_root}, path: {path},\n\t {e.response.status_code} from ER. Message: {reason} {e.response.text}'
+            raise ERClientException(
+                f"Failed to {method} to ER web service. {message}")
+        else:  # Parse the response
+            json_response = response.json()
+            return json_response['data'] if 'data' in json_response else json_response
 
 
 class ERClientException(Exception):

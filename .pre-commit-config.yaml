@@ -14,6 +14,7 @@ repos:
     -   id: check-ast
     -   id: check-case-conflict
     -   id: detect-aws-credentials
+        args: ['--allow-missing-credentials']
     -   id: detect-private-key
 -   repo: https://github.com/pycqa/isort
     rev: 5.10.1

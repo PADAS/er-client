@@ -19,12 +19,38 @@ see simple-example.py
 pip install er-client
 ```
 
+## Usage
 Then in your code, import the library and create an instance of the client.
 
 ```
 from erclient import ERClient
 
 client = ERClient(service_root="https://sandbox.pamdas.org/api/v1.0", username="", password="")
+```
+## Async Support
+We also offer an async client (asyncio).
+
+Disclaimer: The async client is experimental and the current capabilities are limited to:
+* Posting Sensor Observations (a.k.a Positions)
+* Posting Reports (a.k.a Events)
+* Posting Camera Trap Reports
+```
+from erclient import AsyncERClient
+
+# You can use it as an async context-managed client
+async with AsyncERClient(service_root="https://sandbox.pamdas.org/api/v1.0", username="", password="") as client:
+   await self.er_client.post_sensor_observation(position)
+   await client.post_report(report)
+   await self.er_client.post_camera_trap_report(camera_trap_payload, file)
+   ...
+
+# Or create an instance and close the client explicitly later
+client = AsyncERClient(service_root="https://sandbox.pamdas.org/api/v1.0", username="", password="")
+await self.er_client.post_sensor_observation(position)
+await client.post_report(report)
+await self.er_client.post_camera_trap_report(camera_trap_payload, file)
+...
+await client.close()  # Close the session used to send requests to ER API
 ```
 ## Development
 Find [er-client source](https://github.com/PADAS/er-client) here in github.

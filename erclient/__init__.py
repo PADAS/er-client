@@ -1,3 +1,4 @@
+from .client import AsyncERClient as AsyncERClient  # noqa: F401
 from .client import ERClient as ERClient  # noqa: F401
 from .client import ERClientException as ERClientException  # noqa: F401
 from .client import ERClientNotFound as ERClientNotFound  # noqa: F401
