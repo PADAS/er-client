@@ -33,6 +33,7 @@ We also offer an async client (asyncio).
 Disclaimer: The async client is experimental and the current capabilities are limited to:
 * Posting Sensor Observations (a.k.a Positions)
 * Posting Reports (a.k.a Events)
+* Posting Report Attachments
 * Posting Camera Trap Reports
 ```
 from erclient import AsyncERClient
