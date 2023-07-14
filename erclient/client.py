@@ -822,9 +822,9 @@ class ERClient(object):
         Get the latest tracks for the Subject having the given subject_id and a source ID.
         """
         p = {}
-        if start is not None and isinstance(start, datetime):
+        if start:
+            assert isinstance(start, datetime)
             p['since'] = start.isoformat()
-
         return self._get(path='subject/{0}/source/{1}/tracks'.format(subject_id, src_id), params=p)
 
     def get_subject_trackingdata(self, subject_id=None, subject_chronofile=None, include_inactive=True, start=None, end=None,
