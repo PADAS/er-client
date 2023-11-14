@@ -1078,6 +1078,67 @@ class AsyncERClient(object):
         self.logger.debug(f'Result of report post is: {result}')
         return result
 
+    async def get_events(self, **kwargs):
+        """
+        Returns all observations.
+        Optional kwargs passed as query params:
+        filter: json string with filter criteria
+                i.e: "date_range": {
+                    "lower": "2023-11-14T06:00:00-06:00",
+                    "upper": "2023-11-14T09:14:35-06:00",
+                }
+
+        sort_by, valid values are event_time, updated_at, created_at, serial_number (prefix with '-' for reverse order)
+        * default is by '-sort_at' which is a special value representing reverse by updated_at.
+        page_size=100,
+        page_size=0
+        """
+        params = {**kwargs}
+        batch_size = kwargs.get('batch_size', 0)  # 0 means no batching
+        if batch_size > params.get('page_size', 0):
+            params['page_size'] = batch_size
+        async for event in self._get_data(endpoint='activity/events', params=params, batch_size=batch_size):
+            yield event
+
+    async def get_observations(self, **kwargs):
+        """
+        Returns all observations.
+        Optional kwargs passed as query params:
+        subject_id=None
+        source_id=None
+        start=None
+        end=None
+        filter_flag=None,
+        include_details=True,
+        page_size=100,
+        page_size=0
+        """
+        subject_id = kwargs.get('subject_id')
+        source_id = kwargs.get('source_id')
+        start = kwargs.get('start')
+        end = kwargs.get('end')
+        filter_flag = kwargs.get('filter_flag')
+        include_details = kwargs.get('include_details', True)
+        page_size = kwargs.get('page_size', 100)
+        batch_size = kwargs.get('batch_size', 0)  # 0 means no batching
+        params = {}
+        if start:
+            params['since'] = start.isoformat() if isinstance(start, datetime) else start
+        if end:
+            params['until'] = end.isoformat() if isinstance(end, datetime) else end
+        if subject_id:
+            params['subject_id'] = subject_id
+        elif source_id:
+            params['source_id'] = source_id
+
+        params['filter'] = filter_flag or 'null'
+        params['include_details'] = include_details
+        params['page_size'] = page_size  # current limit
+        if batch_size > page_size:
+            params['page_size'] = batch_size
+        async for observation in self._get_data(endpoint='observations', params=params, batch_size=batch_size):
+            yield observation
+
     async def post_camera_trap_report(self, camera_trap_payload, file=None):
         camera_trap_report_path = f'sensors/camera-trap/{self.provider_key}/status/'
 
@@ -1219,6 +1280,27 @@ class AsyncERClient(object):
             json_response = response.json()
             return json_response['data'] if 'data' in json_response else json_response
 
+    async def _get_data(self, endpoint, params, batch_size=0):
+        response = await self._get(endpoint, params=params)
+        while results := response.get('results'):
+            if batch_size > 0:
+                for batch in self._get_batches(results, batch_size):
+                    yield batch
+            else:
+                for obj in results:
+                    yield obj
+
+            # Deal with pagination
+            if response.get('next') and 'page' not in params:
+                url, link_params = split_link(response['next'])
+                new_params = {**params, 'page': link_params['page']}
+                response = await self._get(endpoint, params=new_params)
+            else:
+                break
+
+    async def _get(self, path, params):
+        return await self._call(path=path, payload={}, method="GET", params=params)
+
     async def _post(self, path, payload, params=None):
         return await self._call(path, payload, "POST", params)
 
@@ -1280,6 +1362,10 @@ class AsyncERClient(object):
         else:  # Parse the response
             json_response = response.json()
             return json_response['data'] if 'data' in json_response else json_response
+
+    def _get_batches(self, data, batch_size):
+        for i in range(0, len(data), batch_size):
+            yield data[i:i + batch_size]
 
 
 class ERClientException(Exception):
