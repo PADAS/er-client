@@ -1281,6 +1281,8 @@ class AsyncERClient(object):
             return json_response['data'] if 'data' in json_response else json_response
 
     async def _get_data(self, endpoint, params, batch_size=0):
+        if "page" not in params:  # Use cursor paginator unless the user has specified a page
+            params["use_cursor"] = "true"
         response = await self._get(endpoint, params=params)
         while results := response.get('results'):
             if batch_size > 0:
@@ -1293,7 +1295,10 @@ class AsyncERClient(object):
             # Deal with pagination
             if response.get('next') and 'page' not in params:
                 url, link_params = split_link(response['next'])
-                new_params = {**params, 'page': link_params['page']}
+                if "page" in link_params:  # Pager is using page numbers
+                    new_params = {**params, 'page': link_params['page']}
+                elif "cursor" in link_params:
+                    new_params = {**params, 'cursor': link_params['cursor']}
                 response = await self._get(endpoint, params=new_params)
             else:
                 break
