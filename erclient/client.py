@@ -1294,11 +1294,16 @@ class AsyncERClient(object):
 
             # Deal with pagination
             if response.get('next') and 'page' not in params:
-                url, link_params = split_link(response['next'])
-                if "page" in link_params:  # Pager is using page numbers
-                    new_params = {**params, 'page': link_params['page']}
-                elif "cursor" in link_params:
-                    new_params = {**params, 'cursor': link_params['cursor']}
+                url, query_params = split_link(response['next'])
+                # Try to discover the pagination method
+                if "page" in query_params:
+                    new_params = {**params, 'page': query_params['page']}
+                elif "cursor" in query_params:
+                    new_params = {**params, 'cursor': query_params['cursor']}
+                elif "offset" in query_params:
+                    new_params = {**params, 'offset': query_params['offset']}
+                else:  # Unknown pagination method
+                    break
                 response = await self._get(endpoint, params=new_params)
             else:
                 break
