@@ -765,3 +765,73 @@ def get_events_response_page_two():
                  'type': 'add_event'}], 'patrols': []}
         ]
     }
+
+
+@pytest.fixture
+def get_observations_response_single_page():
+    return {
+        'next': None,
+        'previous': None,
+        'results': [
+            {'id': 'e083f777-eb6c-494c-9079-46f81b3300ca', 'location': {'longitude': 36.7922397, 'latitude': -1.2932121}, 'recorded_at': '2023-11-10T06:01:06+00:00', 'created_at': '2023-11-10T06:01:09+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}, {'id': '13908ea9-f037-432a-841a-6b279dcefcbd', 'location': {'longitude': 36.7921529, 'latitude': -1.2931406}, 'recorded_at': '2023-11-10T06:02:08+00:00', 'created_at': '2023-11-10T06:02:10+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}, {'id': 'e93e791f-12e2-46a2-84ec-6ecec7923879', 'location': {'longitude': 36.7919254, 'latitude': -1.2931796}, 'recorded_at': '2023-11-10T06:02:30+00:00', 'created_at': '2023-11-10T06:02:31+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}, {'id': 'be1b73ab-0db1-45d3-a349-619fa7968116', 'location': {'longitude': 36.7917022, 'latitude': -1.2931531}, 'recorded_at': '2023-11-10T06:02:50+00:00', 'created_at': '2023-11-10T06:02:51+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}, {'id': 'b65d8258-e765-4bbf-a7fa-075494fb4678', 'location': {'longitude': 36.7914986, 'latitude': -1.2930534}, 'recorded_at': '2023-11-10T06:03:13+00:00', 'created_at': '2023-11-10T06:03:14+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}
+        ]
+    }
+
+
+@pytest.fixture
+def get_observations_response_page_one():
+    return {
+        'next': 'https://gundi-er.pamdas.org/api/v1.0/observations?cursor=cD0yMDIzLTExLTEwKzA2JTNBMDMlM0ExMy42NDAwMDAlMkIwMCUzQTAw&filter=null&include_details=true&page_size=5&since=2023-11-10T00%3A00%3A00-06%3A00&use_cursor=true',
+        'previous': None,
+        'results': [
+            {'id': 'e083f777-eb6c-494c-9079-46f81b3300ca',
+             'location': {'longitude': 36.7922397, 'latitude': -1.2932121}, 'recorded_at': '2023-11-10T06:01:06+00:00',
+             'created_at': '2023-11-10T06:01:09+00:00', 'exclusion_flags': 0,
+             'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}},
+            {'id': '13908ea9-f037-432a-841a-6b279dcefcbd',
+             'location': {'longitude': 36.7921529, 'latitude': -1.2931406}, 'recorded_at': '2023-11-10T06:02:08+00:00',
+             'created_at': '2023-11-10T06:02:10+00:00', 'exclusion_flags': 0,
+             'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}},
+            {'id': 'e93e791f-12e2-46a2-84ec-6ecec7923879',
+             'location': {'longitude': 36.7919254, 'latitude': -1.2931796}, 'recorded_at': '2023-11-10T06:02:30+00:00',
+             'created_at': '2023-11-10T06:02:31+00:00', 'exclusion_flags': 0,
+             'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}},
+            {'id': 'be1b73ab-0db1-45d3-a349-619fa7968116',
+             'location': {'longitude': 36.7917022, 'latitude': -1.2931531}, 'recorded_at': '2023-11-10T06:02:50+00:00',
+             'created_at': '2023-11-10T06:02:51+00:00', 'exclusion_flags': 0,
+             'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}},
+            {'id': 'b65d8258-e765-4bbf-a7fa-075494fb4678',
+             'location': {'longitude': 36.7914986, 'latitude': -1.2930534}, 'recorded_at': '2023-11-10T06:03:13+00:00',
+             'created_at': '2023-11-10T06:03:14+00:00', 'exclusion_flags': 0,
+             'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}
+        ]
+    }
+
+
+@pytest.fixture
+def get_observations_response_page_two():
+    return {
+        'next': None,
+        'previous': 'https://gundi-er.pamdas.org/api/v1.0/observations?cursor=cj0xJnA9MjAyMy0xMS0xMCswNiUzQTAzJTNBMzMuMTg3MDAwJTJCMDAlM0EwMA%3D%3D&filter=null&include_details=true&page_size=5&since=2023-11-10T00%3A00%3A00-06%3A00&use_cursor=true',
+        'results': [
+            {'id': '225984cc-b195-4853-b366-1e53f4e772e5',
+             'location': {'longitude': 36.7912758, 'latitude': -1.2930861}, 'recorded_at': '2023-11-10T06:03:33+00:00',
+             'created_at': '2023-11-10T06:03:34+00:00', 'exclusion_flags': 0,
+             'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}},
+            {'id': '2c166c41-df53-4520-a42c-2aa7a8f8b6e3',
+             'location': {'longitude': 36.7910665, 'latitude': -1.2929826}, 'recorded_at': '2023-11-10T06:03:54+00:00',
+             'created_at': '2023-11-10T06:03:55+00:00', 'exclusion_flags': 0,
+             'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}},
+            {'id': '42017465-ae88-400e-8afe-d6ff5051b8ac',
+             'location': {'longitude': 36.7908843, 'latitude': -1.2928466}, 'recorded_at': '2023-11-10T06:04:18+00:00',
+             'created_at': '2023-11-10T06:04:19+00:00', 'exclusion_flags': 0,
+             'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}},
+            {'id': '8c6a5e1d-bf78-42c2-b22d-dd443d281cc1', 'location': {'longitude': 36.790857, 'latitude': -1.2926173},
+             'recorded_at': '2023-11-10T06:04:38+00:00', 'created_at': '2023-11-10T06:04:39+00:00',
+             'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}},
+            {'id': 'a61b38cc-bcac-4db1-96c4-ee277175977f',
+             'location': {'longitude': 36.7908162, 'latitude': -1.2923946}, 'recorded_at': '2023-11-10T06:04:57+00:00',
+             'created_at': '2023-11-10T06:04:58+00:00', 'exclusion_flags': 0,
+             'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}
+        ]
+    }
