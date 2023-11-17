@@ -1285,6 +1285,8 @@ class AsyncERClient(object):
     async def _get_data(self, endpoint, params, batch_size=0):
         if "page" not in params:  # Use cursor paginator unless the user has specified a page
             params["use_cursor"] = "true"
+        if batch_size > params.get("page_size", 0):
+            params["page_size"] = batch_size
         response = await self._get(endpoint, params=params)
         while results := response.get('results'):
             if batch_size > 0:

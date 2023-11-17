@@ -47,7 +47,7 @@ async def test_get_events_in_batches(er_client, get_events_response_single_page)
         i = 0
         batches = 0
         batch_size = 2
-        async for batch in er_client.get_events(batch_size=2):
+        async for batch in er_client.get_events(batch_size=batch_size):
             assert batch
             assert isinstance(batch, list)
             assert len(batch) <= batch_size  # The last batch may be smaller
@@ -56,7 +56,7 @@ async def test_get_events_in_batches(er_client, get_events_response_single_page)
                 assert event == get_events_response_single_page["results"][i]
                 i += 1
 
-        assert batches == 3
+        assert batches == len(get_events_response_single_page["results"]) // batch_size + 1
         assert route.called
         await er_client.close()
 
