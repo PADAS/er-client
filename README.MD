@@ -35,6 +35,8 @@ Disclaimer: The async client is experimental and the current capabilities are li
 * Posting Reports (a.k.a Events)
 * Posting Report Attachments
 * Posting Camera Trap Reports
+* Getting Events
+* Getting Observations
 ```
 from erclient import AsyncERClient
 
@@ -44,6 +46,11 @@ async with AsyncERClient(service_root="https://sandbox.pamdas.org/api/v1.0", use
    await client.post_report(report)
    await self.er_client.post_camera_trap_report(camera_trap_payload, file)
    ...
+   
+async with AsyncERClient(service_root="https://sandbox.pamdas.org/api/v1.0", username="", password="") as client:
+   async for observation in client.get_observations(start="2023-11-10T00:00:00-06:00"):
+      print(observation)
+      ...
 
 # Or create an instance and close the client explicitly later
 client = AsyncERClient(service_root="https://sandbox.pamdas.org/api/v1.0", username="", password="")
