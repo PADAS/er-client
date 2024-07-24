@@ -167,6 +167,90 @@ def report_created_response():
 
 
 @pytest.fixture
+def report_updated_response():
+    return {
+        'data': {
+            'id': 'bf7e56c7-0751-4899-844f-b5888eb813b1',
+            'location': {'latitude': 13.688635, 'longitude': 13.783065},
+            'time': '2024-07-24T07:18:12-07:00',
+            'end_time': None,
+            'message': '',
+            'provenance': '',
+            'event_type': 'wilddog_sighting_rep',
+            'priority': 0,
+            'priority_label': 'Gray',
+            'attributes': {},
+            'comment': None,
+            'title': 'Animal Detected Test Event',
+            'notes': [],
+            'reported_by': None,
+            'state': 'active',
+            'event_details': {'species': 'Wilddog'},
+            'contains': [], 'is_linked_to': [], 'is_contained_in': [],
+            'files': [], 'related_subjects': [], 'sort_at': '2024-07-24T08:06:06.788195-07:00',
+            'patrol_segments': [], 'geometry': None, 'updated_at': '2024-07-24T08:06:06.788195-07:00',
+            'created_at': '2024-07-24T07:54:04.506420-07:00', 'icon_id': 'wild_dog_rep',
+            'serial_number': 148556, 'event_category': 'monitoring',
+            'url': 'https://gundi-dev.staging.pamdas.org/api/v1.0/activity/event/bf7e56c7-0751-4899-844f-b5888eb813b1',
+            'image_url': 'https://gundi-dev.staging.pamdas.org/static/sprite-src/wild_dog_rep.svg',
+            'geojson': {
+                'type': 'Feature',
+                'geometry': {'type': 'Point', 'coordinates': [13.783065, 13.688635]},
+                'properties': {'message': '', 'datetime': '2024-07-24T14:18:12+00:00',
+                               'image': 'https://gundi-dev.staging.pamdas.org/static/sprite-src/wild_dog_rep.svg',
+                               'icon': {
+                                   'iconUrl': 'https://gundi-dev.staging.pamdas.org/static/sprite-src/wild_dog_rep.svg',
+                                   'iconSize': [25, 25], 'iconAncor': [12, 12], 'popupAncor': [0, -13],
+                                   'className': 'dot'}}
+            },
+            'is_collection': False,
+            'updates': [{
+                'message': 'Changed State: active → active, Changed Event type: 1ef54da1-25d2-42df-b2a1-f529c122d94c → a4e413d5-ac39-42bf-8451-04da99f73ab0',
+                'time': '2024-07-24T15:06:06.796070+00:00',
+                'user': {
+                    'username': 'gundi_serviceaccount',
+                    'first_name': 'Gundi',
+                    'last_name': 'Service Account',
+                    'id': '21706d8b-98f7-4be1-bf9e-ad1639a63914',
+                    'content_type': 'accounts.user'},
+                'type': 'update_event_state'},
+                {
+                    'message': 'Changed State: new → active',
+                    'time': '2024-07-24T15:06:06.758903+00:00',
+                    'user': {
+                        'username': 'gundi_serviceaccount',
+                        'first_name': 'Gundi',
+                        'last_name': 'Service Account',
+                        'id': '21706d8b-98f7-4be1-bf9e-ad1639a63914',
+                        'content_type': 'accounts.user'},
+                    'type': 'read'},
+                {
+                    'message': 'Updated fields: Species',
+                    'time': '2024-07-24T15:06:06.709827+00:00',
+                    'text': '',
+                    'user': {
+                        'username': 'gundi_serviceaccount',
+                        'first_name': 'Gundi',
+                        'last_name': 'Service Account',
+                        'id': '21706d8b-98f7-4be1-bf9e-ad1639a63914',
+                        'content_type': 'accounts.user'},
+                    'type': 'update_event'},
+                {
+                    'message': 'Created',
+                    'time': '2024-07-24T14:54:04.515311+00:00',
+                    'user': {
+                        'username': 'gundi_serviceaccount',
+                        'first_name': 'Gundi',
+                        'last_name': 'Service Account',
+                        'id': '21706d8b-98f7-4be1-bf9e-ad1639a63914',
+                        'content_type': 'accounts.user'},
+                    'type': 'add_event'}],
+            'patrols': []},
+        'status': {'code': 200, 'message': 'OK'}
+    }
+
+
+@pytest.fixture
 def camera_trap_report_created_response():
     return {
         "data": {"group_id": "f14f241f-ad51-4c06-85ca-0aca8c5965a0"},
@@ -773,7 +857,26 @@ def get_observations_response_single_page():
         'next': None,
         'previous': None,
         'results': [
-            {'id': 'e083f777-eb6c-494c-9079-46f81b3300ca', 'location': {'longitude': 36.7922397, 'latitude': -1.2932121}, 'recorded_at': '2023-11-10T06:01:06+00:00', 'created_at': '2023-11-10T06:01:09+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}, {'id': '13908ea9-f037-432a-841a-6b279dcefcbd', 'location': {'longitude': 36.7921529, 'latitude': -1.2931406}, 'recorded_at': '2023-11-10T06:02:08+00:00', 'created_at': '2023-11-10T06:02:10+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}, {'id': 'e93e791f-12e2-46a2-84ec-6ecec7923879', 'location': {'longitude': 36.7919254, 'latitude': -1.2931796}, 'recorded_at': '2023-11-10T06:02:30+00:00', 'created_at': '2023-11-10T06:02:31+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}, {'id': 'be1b73ab-0db1-45d3-a349-619fa7968116', 'location': {'longitude': 36.7917022, 'latitude': -1.2931531}, 'recorded_at': '2023-11-10T06:02:50+00:00', 'created_at': '2023-11-10T06:02:51+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}, {'id': 'b65d8258-e765-4bbf-a7fa-075494fb4678', 'location': {'longitude': 36.7914986, 'latitude': -1.2930534}, 'recorded_at': '2023-11-10T06:03:13+00:00', 'created_at': '2023-11-10T06:03:14+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}
+            {'id': 'e083f777-eb6c-494c-9079-46f81b3300ca',
+             'location': {'longitude': 36.7922397, 'latitude': -1.2932121}, 'recorded_at': '2023-11-10T06:01:06+00:00',
+             'created_at': '2023-11-10T06:01:09+00:00', 'exclusion_flags': 0,
+             'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}},
+            {'id': '13908ea9-f037-432a-841a-6b279dcefcbd',
+             'location': {'longitude': 36.7921529, 'latitude': -1.2931406}, 'recorded_at': '2023-11-10T06:02:08+00:00',
+             'created_at': '2023-11-10T06:02:10+00:00', 'exclusion_flags': 0,
+             'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}},
+            {'id': 'e93e791f-12e2-46a2-84ec-6ecec7923879',
+             'location': {'longitude': 36.7919254, 'latitude': -1.2931796}, 'recorded_at': '2023-11-10T06:02:30+00:00',
+             'created_at': '2023-11-10T06:02:31+00:00', 'exclusion_flags': 0,
+             'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}},
+            {'id': 'be1b73ab-0db1-45d3-a349-619fa7968116',
+             'location': {'longitude': 36.7917022, 'latitude': -1.2931531}, 'recorded_at': '2023-11-10T06:02:50+00:00',
+             'created_at': '2023-11-10T06:02:51+00:00', 'exclusion_flags': 0,
+             'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}},
+            {'id': 'b65d8258-e765-4bbf-a7fa-075494fb4678',
+             'location': {'longitude': 36.7914986, 'latitude': -1.2930534}, 'recorded_at': '2023-11-10T06:03:13+00:00',
+             'created_at': '2023-11-10T06:03:14+00:00', 'exclusion_flags': 0,
+             'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}
         ]
     }
 
