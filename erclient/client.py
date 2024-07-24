@@ -1078,6 +1078,12 @@ class AsyncERClient(object):
         self.logger.debug(f'Result of report post is: {result}')
         return result
 
+    async def patch_report(self, event_id, data):
+        self.logger.debug('Patching event: %s', data)
+        result = await self._patch('activity/event/' + event_id, payload=data)
+        self.logger.debug('Result of event patch is: %s', result)
+        return result
+
     async def get_events(self, **kwargs):
         """
         Returns an async generator to iterate over events.
@@ -1317,6 +1323,9 @@ class AsyncERClient(object):
 
     async def _post(self, path, payload, params=None):
         return await self._call(path, payload, "POST", params)
+
+    async def _patch(self, path, payload, params=None):
+        return await self._call(path, payload, "PATCH", params)
 
     async def _call(self, path, payload, method, params=None):
         params = params or {}
