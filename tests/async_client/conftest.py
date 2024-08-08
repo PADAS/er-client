@@ -269,11 +269,11 @@ def get_events_response_single_page():
              'files': [{'id': '7fb0279d-2e2e-4529-bbcc-7fc9e49a3714', 'comment': '',
                         'created_at': '2023-11-16T14:59:03.111316-06:00',
                         'updated_at': '2023-11-16T14:59:03.111335-06:00', 'updates': [
-                     {'message': 'File Added: 739b53ff-af34-458d-bcc6-897cc18a253e_godzilla.jpg',
-                      'time': '2023-11-16T20:59:03.120967+00:00', 'text': '',
-                      'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
-                               'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
-                      'type': 'add_eventfile'}],
+                            {'message': 'File Added: 739b53ff-af34-458d-bcc6-897cc18a253e_godzilla.jpg',
+                             'time': '2023-11-16T20:59:03.120967+00:00', 'text': '',
+                             'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
+                                      'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
+                             'type': 'add_eventfile'}],
                         'url': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/e87ccabd-7b7a-446d-bfcc-c52424dc97b5/file/7fb0279d-2e2e-4529-bbcc-7fc9e49a3714/',
                         'images': {
                             'original': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/e87ccabd-7b7a-446d-bfcc-c52424dc97b5/file/7fb0279d-2e2e-4529-bbcc-7fc9e49a3714/original/739b53ff-af34-458d-bcc6-897cc18a253e_godzilla.jpg',
@@ -316,11 +316,11 @@ def get_events_response_single_page():
              'files': [{'id': 'dbe74373-84a4-4020-86f8-79a6c4a4408e', 'comment': '',
                         'created_at': '2023-11-16T14:34:15.646361-06:00',
                         'updated_at': '2023-11-16T14:34:15.646383-06:00', 'updates': [
-                     {'message': 'File Added: e3a9fbec-9a5d-4e66-b524-3ab44d8aaefb_coyote.jpg',
-                      'time': '2023-11-16T20:34:15.653320+00:00', 'text': '',
-                      'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
-                               'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
-                      'type': 'add_eventfile'}],
+                            {'message': 'File Added: e3a9fbec-9a5d-4e66-b524-3ab44d8aaefb_coyote.jpg',
+                             'time': '2023-11-16T20:34:15.653320+00:00', 'text': '',
+                             'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
+                                      'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
+                             'type': 'add_eventfile'}],
                         'url': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/81c5ea7b-0c95-41ad-9764-d42a6ba0aa00/file/dbe74373-84a4-4020-86f8-79a6c4a4408e/',
                         'images': {
                             'original': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/81c5ea7b-0c95-41ad-9764-d42a6ba0aa00/file/dbe74373-84a4-4020-86f8-79a6c4a4408e/original/e3a9fbec-9a5d-4e66-b524-3ab44d8aaefb_coyote.jpg',
@@ -363,11 +363,11 @@ def get_events_response_single_page():
              'files': [{'id': '6c258455-b3de-4613-bc00-cf6c5f4f1c0d', 'comment': '',
                         'created_at': '2023-11-16T14:32:36.098189-06:00',
                         'updated_at': '2023-11-16T14:32:36.098208-06:00', 'updates': [
-                     {'message': 'File Added: 22c2a51d-111c-4a1c-92dc-14df73c283e3_coyote.jpg',
-                      'time': '2023-11-16T20:32:36.109299+00:00', 'text': '',
-                      'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
-                               'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
-                      'type': 'add_eventfile'}],
+                            {'message': 'File Added: 22c2a51d-111c-4a1c-92dc-14df73c283e3_coyote.jpg',
+                             'time': '2023-11-16T20:32:36.109299+00:00', 'text': '',
+                             'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
+                                      'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
+                             'type': 'add_eventfile'}],
                         'url': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/5cd12145-4490-4324-91ac-6865943fd26f/file/6c258455-b3de-4613-bc00-cf6c5f4f1c0d/',
                         'images': {
                             'original': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/5cd12145-4490-4324-91ac-6865943fd26f/file/6c258455-b3de-4613-bc00-cf6c5f4f1c0d/original/22c2a51d-111c-4a1c-92dc-14df73c283e3_coyote.jpg',
@@ -451,11 +451,11 @@ def get_events_response_page_one():
              'files': [{'id': '7fb0279d-2e2e-4529-bbcc-7fc9e49a3714', 'comment': '',
                         'created_at': '2023-11-16T14:59:03.111316-06:00',
                         'updated_at': '2023-11-16T14:59:03.111335-06:00', 'updates': [
-                     {'message': 'File Added: 739b53ff-af34-458d-bcc6-897cc18a253e_godzilla.jpg',
-                      'time': '2023-11-16T20:59:03.120967+00:00', 'text': '',
-                      'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
-                               'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
-                      'type': 'add_eventfile'}],
+                            {'message': 'File Added: 739b53ff-af34-458d-bcc6-897cc18a253e_godzilla.jpg',
+                             'time': '2023-11-16T20:59:03.120967+00:00', 'text': '',
+                             'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
+                                      'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
+                             'type': 'add_eventfile'}],
                         'url': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/e87ccabd-7b7a-446d-bfcc-c52424dc97b5/file/7fb0279d-2e2e-4529-bbcc-7fc9e49a3714/',
                         'images': {
                             'original': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/e87ccabd-7b7a-446d-bfcc-c52424dc97b5/file/7fb0279d-2e2e-4529-bbcc-7fc9e49a3714/original/739b53ff-af34-458d-bcc6-897cc18a253e_godzilla.jpg',
@@ -498,11 +498,11 @@ def get_events_response_page_one():
              'files': [{'id': 'dbe74373-84a4-4020-86f8-79a6c4a4408e', 'comment': '',
                         'created_at': '2023-11-16T14:34:15.646361-06:00',
                         'updated_at': '2023-11-16T14:34:15.646383-06:00', 'updates': [
-                     {'message': 'File Added: e3a9fbec-9a5d-4e66-b524-3ab44d8aaefb_coyote.jpg',
-                      'time': '2023-11-16T20:34:15.653320+00:00', 'text': '',
-                      'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
-                               'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
-                      'type': 'add_eventfile'}],
+                            {'message': 'File Added: e3a9fbec-9a5d-4e66-b524-3ab44d8aaefb_coyote.jpg',
+                             'time': '2023-11-16T20:34:15.653320+00:00', 'text': '',
+                             'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
+                                      'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
+                             'type': 'add_eventfile'}],
                         'url': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/81c5ea7b-0c95-41ad-9764-d42a6ba0aa00/file/dbe74373-84a4-4020-86f8-79a6c4a4408e/',
                         'images': {
                             'original': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/81c5ea7b-0c95-41ad-9764-d42a6ba0aa00/file/dbe74373-84a4-4020-86f8-79a6c4a4408e/original/e3a9fbec-9a5d-4e66-b524-3ab44d8aaefb_coyote.jpg',
@@ -545,11 +545,11 @@ def get_events_response_page_one():
              'files': [{'id': '6c258455-b3de-4613-bc00-cf6c5f4f1c0d', 'comment': '',
                         'created_at': '2023-11-16T14:32:36.098189-06:00',
                         'updated_at': '2023-11-16T14:32:36.098208-06:00', 'updates': [
-                     {'message': 'File Added: 22c2a51d-111c-4a1c-92dc-14df73c283e3_coyote.jpg',
-                      'time': '2023-11-16T20:32:36.109299+00:00', 'text': '',
-                      'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
-                               'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
-                      'type': 'add_eventfile'}],
+                            {'message': 'File Added: 22c2a51d-111c-4a1c-92dc-14df73c283e3_coyote.jpg',
+                             'time': '2023-11-16T20:32:36.109299+00:00', 'text': '',
+                             'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
+                                      'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
+                             'type': 'add_eventfile'}],
                         'url': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/5cd12145-4490-4324-91ac-6865943fd26f/file/6c258455-b3de-4613-bc00-cf6c5f4f1c0d/',
                         'images': {
                             'original': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/5cd12145-4490-4324-91ac-6865943fd26f/file/6c258455-b3de-4613-bc00-cf6c5f4f1c0d/original/22c2a51d-111c-4a1c-92dc-14df73c283e3_coyote.jpg',
@@ -603,11 +603,11 @@ def get_events_response_page_two():
              'files': [{'id': 'dbe74373-84a4-4020-86f8-79a6c4a4408e', 'comment': '',
                         'created_at': '2023-11-16T14:34:15.646361-06:00',
                         'updated_at': '2023-11-16T14:34:15.646383-06:00', 'updates': [
-                     {'message': 'File Added: e3a9fbec-9a5d-4e66-b524-3ab44d8aaefb_coyote.jpg',
-                      'time': '2023-11-16T20:34:15.653320+00:00', 'text': '',
-                      'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
-                               'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
-                      'type': 'add_eventfile'}],
+                            {'message': 'File Added: e3a9fbec-9a5d-4e66-b524-3ab44d8aaefb_coyote.jpg',
+                             'time': '2023-11-16T20:34:15.653320+00:00', 'text': '',
+                             'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
+                                      'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
+                             'type': 'add_eventfile'}],
                         'url': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/81c5ea7b-0c95-41ad-9764-d42a6ba0aa00/file/dbe74373-84a4-4020-86f8-79a6c4a4408e/',
                         'images': {
                             'original': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/81c5ea7b-0c95-41ad-9764-d42a6ba0aa00/file/dbe74373-84a4-4020-86f8-79a6c4a4408e/original/e3a9fbec-9a5d-4e66-b524-3ab44d8aaefb_coyote.jpg',
@@ -650,11 +650,11 @@ def get_events_response_page_two():
              'files': [{'id': '6c258455-b3de-4613-bc00-cf6c5f4f1c0d', 'comment': '',
                         'created_at': '2023-11-16T14:32:36.098189-06:00',
                         'updated_at': '2023-11-16T14:32:36.098208-06:00', 'updates': [
-                     {'message': 'File Added: 22c2a51d-111c-4a1c-92dc-14df73c283e3_coyote.jpg',
-                      'time': '2023-11-16T20:32:36.109299+00:00', 'text': '',
-                      'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
-                               'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
-                      'type': 'add_eventfile'}],
+                            {'message': 'File Added: 22c2a51d-111c-4a1c-92dc-14df73c283e3_coyote.jpg',
+                             'time': '2023-11-16T20:32:36.109299+00:00', 'text': '',
+                             'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
+                                      'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
+                             'type': 'add_eventfile'}],
                         'url': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/5cd12145-4490-4324-91ac-6865943fd26f/file/6c258455-b3de-4613-bc00-cf6c5f4f1c0d/',
                         'images': {
                             'original': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/5cd12145-4490-4324-91ac-6865943fd26f/file/6c258455-b3de-4613-bc00-cf6c5f4f1c0d/original/22c2a51d-111c-4a1c-92dc-14df73c283e3_coyote.jpg',
@@ -727,11 +727,11 @@ def get_events_response_page_two():
              'files': [{'id': '7fb1ce8b-e18f-47dd-a5d1-8a978b19dda9', 'comment': '',
                         'created_at': '2023-11-16T14:12:53.305013-06:00',
                         'updated_at': '2023-11-16T14:12:53.305032-06:00', 'updates': [
-                     {'message': 'File Added: 3b5bacfa-df78-47d2-872d-093e2c7e3b0c_coyote.jpg',
-                      'time': '2023-11-16T20:12:53.311389+00:00', 'text': '',
-                      'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
-                               'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
-                      'type': 'add_eventfile'}],
+                            {'message': 'File Added: 3b5bacfa-df78-47d2-872d-093e2c7e3b0c_coyote.jpg',
+                             'time': '2023-11-16T20:12:53.311389+00:00', 'text': '',
+                             'user': {'username': 'gundi_serviceaccout', 'first_name': 'Gundi', 'last_name': 'Service Account',
+                                      'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
+                             'type': 'add_eventfile'}],
                         'url': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/dbb2dd78-e7ac-48d0-ba3f-007bb2cd1159/file/7fb1ce8b-e18f-47dd-a5d1-8a978b19dda9/',
                         'images': {
                             'original': 'https://gundi-er.pamdas.org/api/v1.0/activity/event/dbb2dd78-e7ac-48d0-ba3f-007bb2cd1159/file/7fb1ce8b-e18f-47dd-a5d1-8a978b19dda9/original/3b5bacfa-df78-47d2-872d-093e2c7e3b0c_coyote.jpg',
@@ -773,7 +773,8 @@ def get_observations_response_single_page():
         'next': None,
         'previous': None,
         'results': [
-            {'id': 'e083f777-eb6c-494c-9079-46f81b3300ca', 'location': {'longitude': 36.7922397, 'latitude': -1.2932121}, 'recorded_at': '2023-11-10T06:01:06+00:00', 'created_at': '2023-11-10T06:01:09+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}, {'id': '13908ea9-f037-432a-841a-6b279dcefcbd', 'location': {'longitude': 36.7921529, 'latitude': -1.2931406}, 'recorded_at': '2023-11-10T06:02:08+00:00', 'created_at': '2023-11-10T06:02:10+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}, {'id': 'e93e791f-12e2-46a2-84ec-6ecec7923879', 'location': {'longitude': 36.7919254, 'latitude': -1.2931796}, 'recorded_at': '2023-11-10T06:02:30+00:00', 'created_at': '2023-11-10T06:02:31+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}, {'id': 'be1b73ab-0db1-45d3-a349-619fa7968116', 'location': {'longitude': 36.7917022, 'latitude': -1.2931531}, 'recorded_at': '2023-11-10T06:02:50+00:00', 'created_at': '2023-11-10T06:02:51+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}, {'id': 'b65d8258-e765-4bbf-a7fa-075494fb4678', 'location': {'longitude': 36.7914986, 'latitude': -1.2930534}, 'recorded_at': '2023-11-10T06:03:13+00:00', 'created_at': '2023-11-10T06:03:14+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}
+            {'id': 'e083f777-eb6c-494c-9079-46f81b3300ca', 'location': {'longitude': 36.7922397, 'latitude': -1.2932121}, 'recorded_at': '2023-11-10T06:01:06+00:00', 'created_at': '2023-11-10T06:01:09+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}, {'id': '13908ea9-f037-432a-841a-6b279dcefcbd', 'location': {'longitude': 36.7921529, 'latitude': -1.2931406}, 'recorded_at': '2023-11-10T06:02:08+00:00', 'created_at': '2023-11-10T06:02:10+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}, {'id': 'e93e791f-12e2-46a2-84ec-6ecec7923879', 'location': {'longitude': 36.7919254, 'latitude': -1.2931796}, 'recorded_at': '2023-11-10T06:02:30+00:00',
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               'created_at': '2023-11-10T06:02:31+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}, {'id': 'be1b73ab-0db1-45d3-a349-619fa7968116', 'location': {'longitude': 36.7917022, 'latitude': -1.2931531}, 'recorded_at': '2023-11-10T06:02:50+00:00', 'created_at': '2023-11-10T06:02:51+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}, {'id': 'b65d8258-e765-4bbf-a7fa-075494fb4678', 'location': {'longitude': 36.7914986, 'latitude': -1.2930534}, 'recorded_at': '2023-11-10T06:03:13+00:00', 'created_at': '2023-11-10T06:03:14+00:00', 'exclusion_flags': 0, 'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}
         ]
     }
 

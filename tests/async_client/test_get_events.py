@@ -1,4 +1,5 @@
 import json
+
 import httpx
 import pytest
 import respx
@@ -56,7 +57,8 @@ async def test_get_events_in_batches(er_client, get_events_response_single_page)
                 assert event == get_events_response_single_page["results"][i]
                 i += 1
 
-        assert batches == len(get_events_response_single_page["results"]) // batch_size + 1
+        assert batches == len(
+            get_events_response_single_page["results"]) // batch_size + 1
         assert route.called
         await er_client.close()
 
@@ -67,7 +69,7 @@ async def test_get_events_with_pagination(er_client, get_events_response_page_on
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('activity/events')
-        route.side_effect = ( # Simulate pagination
+        route.side_effect = (  # Simulate pagination
             httpx.Response(
                 httpx.codes.OK,
                 json=get_events_response_page_one
