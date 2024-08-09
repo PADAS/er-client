@@ -213,9 +213,9 @@ class ERClient(object):
             response = fn(self._er_url(path), data=body,
                           headers=headers, params=params)
 
-        if response and response.ok:
+        if response and response.ok and response.json() is not None:
             res_json = response.json()
-            if ('data' in res_json and len(res_json['data'])):
+            if ('data' in res_json and res_json['data']):
                 return res_json['data']
             else:
                 return res_json
