@@ -2,9 +2,6 @@ import httpx
 import pytest
 import respx
 
-from erclient import (ERClientException, ERClientNotFound,
-                      ERClientPermissionDenied, ERClientServiceUnavailable)
-
 
 @pytest.mark.asyncio
 async def test_patch_report_success(er_client, report_updated_response):
@@ -14,7 +11,8 @@ async def test_patch_report_success(er_client, report_updated_response):
         # Mock the call to the ER API and simulate a successful response
         event_id = "fake-id"
         route = respx_mock.patch(f"activity/event/{event_id}")
-        route.return_value = httpx.Response(httpx.codes.OK, json=report_updated_response)
+        route.return_value = httpx.Response(
+            httpx.codes.OK, json=report_updated_response)
         # Send an event using the async client
         response = await er_client.patch_report(
             event_id=event_id,
