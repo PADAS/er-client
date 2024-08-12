@@ -215,7 +215,7 @@ class ERClient(object):
 
         if response and response.ok:
             res_json = response.json()
-            if ('data' in res_json):
+            if res_json and 'data' in res_json and res_json['data']:
                 return res_json['data']
             else:
                 return res_json
@@ -1131,9 +1131,11 @@ class AsyncERClient(object):
         batch_size = kwargs.get('batch_size', 0)  # 0 means no batching
         params = {}
         if start:
-            params['since'] = start.isoformat() if isinstance(start, datetime) else start
+            params['since'] = start.isoformat() if isinstance(
+                start, datetime) else start
         if end:
-            params['until'] = end.isoformat() if isinstance(end, datetime) else end
+            params['until'] = end.isoformat() if isinstance(
+                end, datetime) else end
         if subject_id:
             params['subject_id'] = subject_id
         elif source_id:
