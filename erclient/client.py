@@ -215,7 +215,7 @@ class ERClient(object):
 
         if response and response.ok:
             res_json = response.json()
-            if ('data' in res_json and res_json['data']):
+            if res_json and 'data' in res_json and res_json['data']:
                 return res_json['data']
             else:
                 return res_json
