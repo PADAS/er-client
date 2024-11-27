@@ -1212,6 +1212,9 @@ class AsyncERClient(object):
             }
         )
 
+    async def get_me(self):
+        return await self._get('user/me')
+
     async def _token_request(self, payload):
         response = await self._http_session.post(self.token_url, data=payload)
         if response.status_code == httpx.codes.OK:
@@ -1320,7 +1323,7 @@ class AsyncERClient(object):
             else:
                 break
 
-    async def _get(self, path, params):
+    async def _get(self, path, params=None):
         return await self._call(path=path, payload={}, method="GET", params=params)
 
     async def _post(self, path, payload, params=None):
