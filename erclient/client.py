@@ -1324,7 +1324,7 @@ class AsyncERClient(object):
                 break
 
     async def _get(self, path, params=None):
-        return await self._call(path=path, payload={}, method="GET", params=params)
+        return await self._call(path=path, payload=None, method="GET", params=params)
 
     async def _post(self, path, payload, params=None):
         return await self._call(path, payload, "POST", params)
@@ -1344,7 +1344,7 @@ class AsyncERClient(object):
             response = await self._http_session.request(
                 method,
                 self._er_url(path),
-                json=payload,  # payload is automatically encoded as json data
+                json=payload if method in ["POST", "PUT", "PATCH"] else None,  # payload is automatically encoded as json data
                 params=params,
                 headers=headers
             )
@@ -1361,9 +1361,13 @@ class AsyncERClient(object):
                                                                  text=""))
             raise ERClientException(f'Request to ER failed: {reason}')
         except httpx.HTTPStatusError as e:
-            json_response = e.response.json()
-            reason = json_response.get('status', {}).get(
-                'detail', 'unknown reason')
+            # ToDo: Review the error handling and logging here
+            try:  # Sometimes we get 4xx with html content
+                json_response = e.response.json()
+                reason = json_response.get('status', {}).get(
+                    'detail', 'unknown reason')
+            except json.JSONDecodeError:
+                reason = e.response.text
             if e.response.status_code == httpx.codes.FORBIDDEN:
                 raise ERClientPermissionDenied(reason)
             if e.response.status_code == httpx.codes.NOT_FOUND:
@@ -1378,6 +1382,7 @@ class AsyncERClient(object):
                                                                        text=e.response.text))
                 raise ERClientServiceUnavailable('ER service unavailable')
             # Other error status
+            # ToDo: Improve this messages
             self.logger.error('ER returned bad response', extra=dict(provider_key=self.provider_key,
                                                                      service=self.service_root,
                                                                      path=path,
