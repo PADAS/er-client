@@ -1361,9 +1361,13 @@ class AsyncERClient(object):
                                                                  text=""))
             raise ERClientException(f'Request to ER failed: {reason}')
         except httpx.HTTPStatusError as e:
-            json_response = e.response.json()
-            reason = json_response.get('status', {}).get(
-                'detail', 'unknown reason')
+            # ToDo: Review the error handling and logging here
+            try:  # Sometimes we get 4xx with html content
+                json_response = e.response.json()
+                reason = json_response.get('status', {}).get(
+                    'detail', 'unknown reason')
+            except json.JSONDecodeError:
+                reason = e.response.text
             if e.response.status_code == httpx.codes.FORBIDDEN:
                 raise ERClientPermissionDenied(reason)
             if e.response.status_code == httpx.codes.NOT_FOUND:
@@ -1378,6 +1382,7 @@ class AsyncERClient(object):
                                                                        text=e.response.text))
                 raise ERClientServiceUnavailable('ER service unavailable')
             # Other error status
+            # ToDo: Improve this messages
             self.logger.error('ER returned bad response', extra=dict(provider_key=self.provider_key,
                                                                      service=self.service_root,
                                                                      path=path,
