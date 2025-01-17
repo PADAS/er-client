@@ -1,9 +1,11 @@
+import re
+
 import httpx
 import pytest
 import respx
 
 from erclient import (ERClientException, ERClientNotFound,
-                      ERClientPermissionDenied, ERClientServiceUnavailable)
+                      ERClientPermissionDenied, ERClientServiceUnreachable)
 
 
 @pytest.mark.asyncio
@@ -80,12 +82,12 @@ async def test_post_camera_trap_report_status_gateway_timeout(er_client, camera_
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a gateway timeout
-        route = respx_mock.post(
-            f'sensors/camera-trap/{er_client.provider_key}/status/')
-        route.return_value = httpx.Response(
-            httpx.codes.GATEWAY_TIMEOUT, json={})
+        path = f'sensors/camera-trap/{er_client.provider_key}/status/'
+        route = respx_mock.post(path)
+        route.return_value = httpx.Response(httpx.codes.GATEWAY_TIMEOUT, json={})
         # Check that the right exception is raised by the client
-        with pytest.raises(ERClientServiceUnavailable, match='ER service unavailable'):
+        expected_error = f'ER Gateway Timeout ON POST {er_client.service_root}/{path}. (status_code=504) (response_body={{}})'
+        with pytest.raises(ERClientServiceUnreachable, match=re.escape(expected_error)):
             await er_client.post_camera_trap_report(camera_trap_payload, camera_trap_file)
         assert route.called  # Check that the api endpoint was called
         await er_client.close()
@@ -97,12 +99,14 @@ async def test_post_camera_trap_report_status_bad_gateway(er_client, camera_trap
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a bad gateway error
-        route = respx_mock.post(
-            f'sensors/camera-trap/{er_client.provider_key}/status/')
+        path = f'sensors/camera-trap/{er_client.provider_key}/status/'
+        route = respx_mock.post(path)
         route.return_value = httpx.Response(httpx.codes.BAD_GATEWAY, json={})
         # Check that the right exception is raised by the client
-        with pytest.raises(ERClientServiceUnavailable, match='ER service unavailable'):
+        expected_error = f'ER Bad Gateway ON POST {er_client.service_root}/{path}. (status_code=502) (response_body={{}})'
+        with pytest.raises(ERClientServiceUnreachable, match=re.escape(expected_error)) as exc_info:
             await er_client.post_camera_trap_report(camera_trap_payload, camera_trap_file)
+        assert exc_info.value.status_code == httpx.codes.BAD_GATEWAY
         assert route.called  # Check that the api endpoint was called
         await er_client.close()
 

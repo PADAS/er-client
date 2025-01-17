@@ -1,9 +1,11 @@
+import re
+
 import httpx
 import pytest
 import respx
 
 from erclient import (ERClientException, ERClientNotFound,
-                      ERClientPermissionDenied, ERClientServiceUnavailable)
+                      ERClientPermissionDenied, ERClientServiceUnreachable)
 
 
 @pytest.mark.asyncio
@@ -12,10 +14,9 @@ async def test_post_sensor_observation_success(er_client, position, position_cre
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a successful response
-        route = respx_mock.post(
-            f'/sensors/generic/{er_client.provider_key}/status')
-        route.return_value = httpx.Response(
-            httpx.codes.CREATED, json=position_created_response)
+        path = f'/sensors/generic/{er_client.provider_key}/status'
+        route = respx_mock.post(path)
+        route.return_value = httpx.Response(httpx.codes.CREATED, json=position_created_response)
         # Send a position using the async client
         response = await er_client.post_sensor_observation(position)
         assert route.called  # Check that the api endpoint was called
@@ -61,13 +62,14 @@ async def test_post_sensor_observation_status_gateway_timeout(er_client, positio
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a gateway timeout
-        route = respx_mock.post(
-            f'/sensors/generic/{er_client.provider_key}/status')
-        route.return_value = httpx.Response(
-            httpx.codes.GATEWAY_TIMEOUT, json={})
+        path = f'sensors/generic/{er_client.provider_key}/status'
+        route = respx_mock.post(path)
+        route.return_value = httpx.Response(httpx.codes.GATEWAY_TIMEOUT, json={})
         # Check that the right exception is raised by the client
-        with pytest.raises(ERClientServiceUnavailable, match='ER service unavailable'):
+        expected_message = f'ER Gateway Timeout ON POST {er_client.service_root}/{path}. (status_code={httpx.codes.GATEWAY_TIMEOUT}) (response_body={{}})'
+        with pytest.raises(ERClientServiceUnreachable, match=re.escape(expected_message)) as exc_info:
             await er_client.post_sensor_observation(position)
+        assert exc_info.value.status_code == httpx.codes.GATEWAY_TIMEOUT
         assert route.called  # Check that the api endpoint was called
         await er_client.close()
 
@@ -78,12 +80,14 @@ async def test_post_sensor_observation_status_bad_gateway(er_client, position):
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a bad gateway error
-        route = respx_mock.post(
-            f'/sensors/generic/{er_client.provider_key}/status')
+        path = f'sensors/generic/{er_client.provider_key}/status'
+        route = respx_mock.post(path)
         route.return_value = httpx.Response(httpx.codes.BAD_GATEWAY, json={})
         # Check that the right exception is raised by the client
-        with pytest.raises(ERClientServiceUnavailable, match='ER service unavailable'):
+        expected_message = f'ER Bad Gateway ON POST {er_client.service_root}/{path}. (status_code={httpx.codes.BAD_GATEWAY}) (response_body={{}})'
+        with pytest.raises(ERClientServiceUnreachable, match=re.escape(expected_message)) as exc_info:
             await er_client.post_sensor_observation(position)
+        assert exc_info.value.status_code == httpx.codes.BAD_GATEWAY
         assert route.called  # Check that the api endpoint was called
         await er_client.close()
 
