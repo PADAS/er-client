@@ -1,3 +1,4 @@
+import json
 import re
 
 import httpx
@@ -134,14 +135,15 @@ async def test_post_camera_trap_report_status_forbidden(er_client, camera_trap_p
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a permissions error
-        route = respx_mock.post(
-            f'sensors/camera-trap/{er_client.provider_key}/status/')
-        route.return_value = httpx.Response(
-            httpx.codes.FORBIDDEN, json=forbidden_response)
+        path = f'sensors/camera-trap/{er_client.provider_key}/status/'
+        route = respx_mock.post(path)
+        route.return_value = httpx.Response(httpx.codes.FORBIDDEN, json=forbidden_response)
         # Check that the right exception is raised by the client
-        expected_reason = forbidden_response['status']['detail']
-        with pytest.raises(ERClientPermissionDenied, match=expected_reason):
+        expected_message = f'ER Forbidden ON POST {er_client.service_root}/{path}. (status_code={httpx.codes.FORBIDDEN}) (response_body={json.dumps(forbidden_response)})'
+        with pytest.raises(ERClientPermissionDenied, match=re.escape(expected_message)) as exc_info:
             await er_client.post_camera_trap_report(camera_trap_payload, camera_trap_file)
+        assert exc_info.value.status_code == httpx.codes.FORBIDDEN
+        assert exc_info.value.response_body == json.dumps(forbidden_response)
         assert route.called  # Check that the api endpoint was called
         await er_client.close()
 
