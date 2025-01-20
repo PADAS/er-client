@@ -20,7 +20,7 @@ from .er_errors import (
     ERClientPermissionDenied,
     ERClientServiceUnreachable,
     ERClientBadRequest,
-    ERClientUnauthorized,
+    ERClientBadCredentials,
     ERClientInternalError
 )
 from .version import __version__
@@ -1358,7 +1358,7 @@ class AsyncERClient(object):
         self.logger.exception(error_details_log)
 
         exception_map = {
-            httpx.codes.UNAUTHORIZED: ERClientUnauthorized,
+            httpx.codes.UNAUTHORIZED: ERClientBadCredentials,
             httpx.codes.FORBIDDEN: ERClientPermissionDenied,
             httpx.codes.NOT_FOUND: ERClientNotFound,
             httpx.codes.BAD_REQUEST: ERClientBadRequest,

@@ -1,7 +1,7 @@
 from .client import ERClient, AsyncERClient
 from .er_errors import (
     ERClientException,
-    ERClientUnauthorized,
+    ERClientBadCredentials,
     ERClientPermissionDenied,
     ERClientBadRequest,
     ERClientInternalError,

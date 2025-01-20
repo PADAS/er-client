@@ -12,7 +12,7 @@ class ERClientException(Exception):
         return f"{base_message}{status_info}{body_info}"
 
 
-class ERClientUnauthorized(ERClientException):
+class ERClientBadCredentials(ERClientException):
     pass
 
 
