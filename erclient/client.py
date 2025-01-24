@@ -6,6 +6,7 @@ import math
 import re
 import time
 from datetime import datetime, timedelta
+from http import HTTPStatus
 
 import httpx
 import pytz
@@ -13,6 +14,15 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from .er_errors import (
+    ERClientException,
+    ERClientNotFound,
+    ERClientPermissionDenied,
+    ERClientServiceUnreachable,
+    ERClientBadRequest,
+    ERClientBadCredentials,
+    ERClientInternalError
+)
 from .version import __version__
 
 version_string = __version__
@@ -240,7 +250,7 @@ class ERClient(object):
                                                                     status_code=response.status_code,
                                                                     reason=reason,
                                                                     text=response.text))
-            raise ERClientServiceUnavailable(f"ER service unavailable")
+            raise ERClientServiceUnreachable(f"ER service unavailable")
 
         self.logger.error(f"ER returned bad response", extra=dict(provider_key=self.provider_key,
                                                                   service=self.service_root,
@@ -1182,11 +1192,9 @@ class AsyncERClient(object):
         if self.auth:
             if not self._auth_is_valid():
                 if not await self.refresh_token():
-                    if not await self.login():
-                        raise ERClientException('Login failed.')
+                    await self.login()
         else:
-            if not await self.login():
-                raise ERClientException('Login failed.')
+            await self.login()
 
         return {
             'Authorization': f'{self.auth["token_type"]} {self.auth["access_token"]}',
@@ -1217,81 +1225,56 @@ class AsyncERClient(object):
 
     async def _token_request(self, payload):
         response = await self._http_session.post(self.token_url, data=payload)
-        if response.status_code == httpx.codes.OK:
-            self.auth = response.json()
-            expires_in = int(self.auth['expires_in']) - 5 * 60
-            self.auth_expires = pytz.utc.localize(
-                datetime.utcnow()) + timedelta(seconds=expires_in)
-            return True
 
-        self.auth = None
-        self.auth_expires = pytz.utc.localize(datetime.min)
-        return False
+        if response.status_code != httpx.codes.OK:
+            self.auth = None
+            self.auth_expires = pytz.utc.localize(datetime.min)
+            response.raise_for_status()
+
+        self.auth = response.json()
+        expires_in = int(self.auth['expires_in']) - 5 * 60
+        self.auth_expires = pytz.utc.localize(datetime.utcnow()) + timedelta(seconds=expires_in)
+        return True
 
     def _er_url(self, path):
         return '/'.join((self.service_root, path))
 
     async def _post_form(self, path, body=None, files=None):
-        body = body or {}
-        auth_headers = await self.auth_headers()
-        headers = {
-            'User-Agent': self.user_agent,
-            **auth_headers
-        }
+
         try:
-            response = await self._http_session.post(
-                self._er_url(path),
-                data=body,  # # payload is automatically encoded as form data
-                headers=headers,
-                files=files
-            )
-            response.raise_for_status()
-        except httpx.RequestError as e:
-            # Network errors, timeouts
-            # ToDo: Check if we want a more granular error handling defining more specific exception classes
-            reason = str(e)
-            self.logger.error(
-                'Request to ER failed',
-                extra=dict(
-                    provider_key=self.provider_key,
-                    service=self.service_root,
-                    path=path,
-                    status_code=None,
-                    reason=reason,
-                    text=""
-                )
-            )
-            raise ERClientException(f'Request to ER failed: {reason}')
+            auth_headers = await self.auth_headers()
         except httpx.HTTPStatusError as e:
-            json_response = e.response.json()
-            reason = json_response.get('status', {}).get(
-                'detail', 'unknown reason')
-            if e.response.status_code == httpx.codes.FORBIDDEN:
-                raise ERClientPermissionDenied(reason)
-            if e.response.status_code == httpx.codes.NOT_FOUND:
-                self.logger.error(f'Could not load {path}')
-                raise ERClientNotFound()
-            if e.response.status_code in [httpx.codes.GATEWAY_TIMEOUT, httpx.codes.BAD_GATEWAY]:
-                self.logger.error(f'ER service unavailable', extra=dict(provider_key=self.provider_key,
-                                                                        service=self.service_root,
-                                                                        path=path,
-                                                                        status_code=e.response.status_code,
-                                                                        reason=reason,
-                                                                        text=e.response.text))
-                raise ERClientServiceUnavailable('ER service unavailable')
-            # Other error status
-            self.logger.error('ER returned bad response', extra=dict(provider_key=self.provider_key,
+            self._handle_http_status_error(path, "POST", e)
+        else:
+            body = body or {}
+            headers = {
+                'User-Agent': self.user_agent,
+                **auth_headers
+            }
+            try:
+                response = await self._http_session.post(
+                    self._er_url(path),
+                    data=body,  # # payload is automatically encoded as form data
+                    headers=headers,
+                    files=files
+                )
+                response.raise_for_status()
+            except httpx.RequestError as e:
+                # Network errors, timeouts
+                # ToDo: Check if we want a more granular error handling defining more specific exception classes
+                reason = str(e)
+                self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
                                                                      service=self.service_root,
                                                                      path=path,
-                                                                     status_code=e.response.status_code,
+                                                                     status_code=None,
                                                                      reason=reason,
-                                                                     text=e.response.text))
-            self.logger.error(
-                f'provider_key: {self.provider_key}, path: {path}\n\tBad result from ER service. Message: {e.response.text}')
-            raise ERClientException('Failed to post to ER web service.')
-        else:  # Parse the response
-            json_response = response.json()
-            return json_response['data'] if 'data' in json_response else json_response
+                                                                     text=""))
+                raise ERClientException(f'Request to ER failed: {reason}')
+            except httpx.HTTPStatusError as e:
+                self._handle_http_status_error(path, "POST", e)
+            else:  # Parse the response
+                json_response = response.json()
+                return json_response.get('data', json_response)
 
     async def _get_data(self, endpoint, params, batch_size=0):
         if "page" not in params:  # Use cursor paginator unless the user has specified a page
@@ -1333,85 +1316,70 @@ class AsyncERClient(object):
         return await self._call(path, payload, "PATCH", params)
 
     async def _call(self, path, payload, method, params=None):
-        params = params or {}
-        auth_headers = await self.auth_headers()
-        headers = {
-            'Content-Type': 'application/json',
-            'User-Agent': self.user_agent,
-            **auth_headers
-        }
         try:
-            response = await self._http_session.request(
-                method,
-                self._er_url(path),
-                json=payload if method in ["POST", "PUT", "PATCH"] else None,  # payload is automatically encoded as json data
-                params=params,
-                headers=headers
-            )
-            response.raise_for_status()
-        except httpx.RequestError as e:
-            # Network errors, timeouts
-            # ToDo: Check if we want a more granular error handling defining more specific exception classes
-            reason = str(e)
-            self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
-                                                                 service=self.service_root,
-                                                                 path=path,
-                                                                 status_code=None,
-                                                                 reason=reason,
-                                                                 text=""))
-            raise ERClientException(f'Request to ER failed: {reason}')
+            auth_headers = await self.auth_headers()
         except httpx.HTTPStatusError as e:
-            # ToDo: Review the error handling and logging here
-            try:  # Sometimes we get 4xx with html content
-                json_response = e.response.json()
-                reason = json_response.get('status', {}).get(
-                    'detail', 'unknown reason')
-            except json.JSONDecodeError:
-                reason = e.response.text
-            if e.response.status_code == httpx.codes.FORBIDDEN:
-                raise ERClientPermissionDenied(reason)
-            if e.response.status_code == httpx.codes.NOT_FOUND:
-                self.logger.error(f'Could not load {path}')
-                raise ERClientNotFound()
-            if e.response.status_code in [httpx.codes.GATEWAY_TIMEOUT, httpx.codes.BAD_GATEWAY]:
-                self.logger.error('ER service unavailable', extra=dict(provider_key=self.provider_key,
-                                                                       service=self.service_root,
-                                                                       path=path,
-                                                                       status_code=e.response.status_code,
-                                                                       reason=reason,
-                                                                       text=e.response.text))
-                raise ERClientServiceUnavailable('ER service unavailable')
-            # Other error status
-            # ToDo: Improve this messages
-            self.logger.error('ER returned bad response', extra=dict(provider_key=self.provider_key,
+            self._handle_http_status_error(path, method, e)
+        else:
+            params = params or {}
+            headers = {
+                'Content-Type': 'application/json',
+                'User-Agent': self.user_agent,
+                **auth_headers
+            }
+            try:
+                response = await self._http_session.request(
+                    method,
+                    self._er_url(path),
+                    json=payload if method in ["POST", "PUT", "PATCH"] else None,  # payload is automatically encoded as json data
+                    params=params,
+                    headers=headers
+                )
+                response.raise_for_status()
+            except httpx.RequestError as e:
+                # Network errors, timeouts
+                # ToDo: Check if we want a more granular error handling defining more specific exception classes
+                reason = str(e)
+                self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
                                                                      service=self.service_root,
                                                                      path=path,
-                                                                     status_code=e.response.status_code,
+                                                                     status_code=None,
                                                                      reason=reason,
-                                                                     text=e.response.text))
-            message = f'provider_key: {self.provider_key}, service: {self.service_root}, path: {path},\n\t {e.response.status_code} from ER. Message: {reason} {e.response.text}'
-            raise ERClientException(
-                f"Failed to {method} to ER web service. {message}")
-        else:  # Parse the response
-            json_response = response.json()
-            return json_response['data'] if 'data' in json_response else json_response
+                                                                     text=""))
+                raise ERClientException(f'Request to ER failed: {reason}')
+            except httpx.HTTPStatusError as e:
+                self._handle_http_status_error(path, method, e)
+            else:  # Parse the response
+                json_response = response.json()
+                return json_response.get('data', json_response)
 
     def _get_batches(self, data, batch_size):
         for i in range(0, len(data), batch_size):
             yield data[i:i + batch_size]
 
+    def _handle_http_status_error(self, path, method, e):
+        """Handles httpx.HTTPStatusError exceptions."""
+        status_name = HTTPStatus(e.response.status_code).phrase
+        error_details = f"ER {status_name} ON {method} {self.service_root}/{path}."
+        error_details_log = f"{error_details}. Response Body: {e.response.text}"
+        self.logger.exception(error_details_log)
 
-class ERClientException(Exception):
-    pass
+        exception_map = {
+            httpx.codes.UNAUTHORIZED: ERClientBadCredentials,
+            httpx.codes.FORBIDDEN: ERClientPermissionDenied,
+            httpx.codes.NOT_FOUND: ERClientNotFound,
+            httpx.codes.BAD_REQUEST: ERClientBadRequest,
+            httpx.codes.INTERNAL_SERVER_ERROR: ERClientInternalError,
+            httpx.codes.SERVICE_UNAVAILABLE: ERClientServiceUnreachable,
+            httpx.codes.BAD_GATEWAY: ERClientServiceUnreachable,
+            httpx.codes.GATEWAY_TIMEOUT: ERClientServiceUnreachable,
+        }
 
+        if e.response.status_code in exception_map:
+            raise exception_map[e.response.status_code](
+                message=error_details,
+                status_code=e.response.status_code,
+                response_body=e.response.text
+            )
 
-class ERClientPermissionDenied(ERClientException):
-    pass
-
-
-class ERClientServiceUnavailable(ERClientException):
-    pass
-
-
-class ERClientNotFound(ERClientException):
-    pass
+        raise ERClientException(error_details)
