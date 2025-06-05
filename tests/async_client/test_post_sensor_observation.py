@@ -147,3 +147,24 @@ async def test_post_sensor_observation_status_not_found(er_client, position, not
             await er_client.post_sensor_observation(position)
         assert route.called  # Check that the api endpoint was called
         await er_client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_sensor_observation_status_conflict(er_client, position, conflict_response):
+    async with respx.mock(
+            base_url=er_client.service_root, assert_all_called=False
+    ) as respx_mock:
+        # Mock the call to the ER API and simulate a conflict response
+        # This happens when sending more that one observation per second for the same subject/source
+        route = respx_mock.post(
+            f'/sensors/generic/{er_client.provider_key}/status')
+        route.return_value = httpx.Response(
+            httpx.codes.CONFLICT, json=conflict_response)
+        # Check that the right exception is raised by the client
+        with pytest.raises(ERClientException) as exc_info:
+            await er_client.post_sensor_observation(position)
+        # Check that response status and body are saved
+        assert exc_info.value.status_code == httpx.codes.CONFLICT
+        assert exc_info.value.response_body == json.dumps(conflict_response)
+        assert route.called
+        await er_client.close()

@@ -107,6 +107,16 @@ def not_found_response():
 
 
 @pytest.fixture
+def conflict_response():
+    return {
+        "status": {
+            "code": 409,
+            "detail": "an observation for this source and second already exists",
+        }
+    }
+
+
+@pytest.fixture
 def report_created_response():
     return {
         "data": {
