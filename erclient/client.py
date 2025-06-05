@@ -1178,6 +1178,10 @@ class AsyncERClient(object):
         files = {'filecontent.file': file}
         return await self._post_form(report_attachments_endpoint, files=files)
 
+    async def post_message(self, message, params=None):
+        self.logger.debug(f'Posting message: {message}')
+        return await self._post('messages', payload=message, params=params)
+
     def _clean_observation(self, observation):
         if hasattr(observation['recorded_at'], 'isoformat'):
             observation['recorded_at'] = observation['recorded_at'].isoformat()
