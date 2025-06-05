@@ -1389,4 +1389,8 @@ class AsyncERClient(object):
                 response_body=e.response.text
             )
 
-        raise ERClientException(message=error_details, status_code=e.response.status_code)
+        raise ERClientException(
+            message=error_details,
+            status_code=e.response.status_code,
+            response_body=e.response.text
+        )
