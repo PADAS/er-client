@@ -21,7 +21,8 @@ from .er_errors import (
     ERClientServiceUnreachable,
     ERClientBadRequest,
     ERClientBadCredentials,
-    ERClientInternalError
+    ERClientInternalError,
+    ERClientRateLimitExceeded
 )
 from .version import __version__
 
@@ -1177,6 +1178,10 @@ class AsyncERClient(object):
         files = {'filecontent.file': file}
         return await self._post_form(report_attachments_endpoint, files=files)
 
+    async def post_message(self, message, params=None):
+        self.logger.debug(f'Posting message: {message}')
+        return await self._post('messages', payload=message, params=params)
+
     def _clean_observation(self, observation):
         if hasattr(observation['recorded_at'], 'isoformat'):
             observation['recorded_at'] = observation['recorded_at'].isoformat()
@@ -1373,6 +1378,8 @@ class AsyncERClient(object):
             httpx.codes.SERVICE_UNAVAILABLE: ERClientServiceUnreachable,
             httpx.codes.BAD_GATEWAY: ERClientServiceUnreachable,
             httpx.codes.GATEWAY_TIMEOUT: ERClientServiceUnreachable,
+            httpx.codes.TOO_MANY_REQUESTS: ERClientRateLimitExceeded,
+            httpx.codes.CONFLICT: ERClientRateLimitExceeded  # Only one observation per second per source is allowed
         }
 
         if e.response.status_code in exception_map:
@@ -1382,4 +1389,8 @@ class AsyncERClient(object):
                 response_body=e.response.text
             )
 
-        raise ERClientException(error_details)
+        raise ERClientException(
+            message=error_details,
+            status_code=e.response.status_code,
+            response_body=e.response.text
+        )
