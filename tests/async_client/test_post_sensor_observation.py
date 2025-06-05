@@ -155,7 +155,7 @@ async def test_post_sensor_observation_status_conflict(er_client, position, conf
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a conflict response
-        # This happens when sending more that one observation per second for the same subject/source
+        # This happens when sending more than one observation per second for the same subject/source
         route = respx_mock.post(
             f'/sensors/generic/{er_client.provider_key}/status')
         route.return_value = httpx.Response(
