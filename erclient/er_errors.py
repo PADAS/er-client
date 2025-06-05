@@ -24,6 +24,10 @@ class ERClientBadRequest(ERClientException):
     pass
 
 
+class ERClientRateLimitExceeded(ERClientException):
+    pass
+
+
 class ERClientInternalError(ERClientException):
     pass
 
