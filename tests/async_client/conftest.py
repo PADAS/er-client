@@ -316,6 +316,59 @@ def camera_trap_file():
     # ToDo: open the files using async (aiofiles)
     return open(file_path, "rb")
 
+@pytest.fixture
+def message():
+    return {
+        "message_type": "inbox",
+        "text": "A test message!",
+        "message_time": "2025-06-05T11:07:37.401Z",
+        "device_location": {
+            "latitude": -51.687,
+            "longitude": -72.710
+        },
+        "additional": {
+            "status": {
+                "autonomous": 0,
+                "lowBattery": 1,
+                "intervalChange": 0,
+                "resetDetected": 0
+            }
+        }
+    }
+
+
+@pytest.fixture
+def message_received_response():
+    return {
+        "id": "da783214-0d79-4d8c-ba6c-687688e3f6e7",
+        "sender": {
+            "content_type": "observations.subject",
+            "id": "d2bd0ac8-080d-4be9-a8c2-2250623e6782",
+            "name": "gundi2",
+            "subject_type": "unassigned",
+            "subject_subtype": "mm-inreach-test",
+            "common_name": None,
+            "additional": {},
+            "created_at": "2025-06-05T07:05:12.817899-07:00",
+            "updated_at": "2025-06-05T07:05:12.817926-07:00",
+            "is_active": True,
+            "user": None,
+            "tracks_available": False,
+            "image_url": "/static/pin-black.svg"
+        },
+        "receiver": None,
+        "device": "443724d6-043f-4014-bea6-4d80a38469c8",
+        "message_type": "inbox",
+        "text": "A test message!",
+        "status": "received",
+        "device_location": {
+            "latitude": -51.687,
+            "longitude": -72.71
+        },
+        "message_time": "2025-06-05T04:07:37.401000-07:00",
+        "read": False
+    }
+
 
 @pytest.fixture
 def get_events_response_single_page():
