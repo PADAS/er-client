@@ -1,3 +1,58 @@
-[build.system]
-requires = ["setuptools>=62", "wheel"]
-build-backend = "setuptools.build_meta"
+[build-system]
+requires = ["hatchling>=1.0.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["erclient"]
+
+[project]
+name = "earthranger-client"
+dynamic = ["version"]
+description = "Client for EarthRanger API"
+readme = "README.md"
+authors = [
+    {name = "EarthRanger", email = "opensource@earthranger.com"}
+]
+license = {text = "Apache License 2.0"}
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License", 
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12"
+]
+keywords = ["api", "EarthRanger"]
+requires-python = ">=3.8"
+dependencies = [
+    "requests>=2.28.0",
+    "httpx>=0.23.3",
+    "dateparser>=1.1.1",
+    "gpxpy>=1.5.0",
+    "pydantic>=1.10.17",
+    "pytz>=2021.1",
+    "importlib-metadata;python_version<\"3.8\""
+]
+
+[project.urls]
+Homepage = "http://github.com/PADAS/er-client"
+
+
+[dependency-groups]
+dev = [
+    "hatch>=1.14.1",
+    "pre-commit>=3.5.0",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.24.0",
+    "respx>=0.22.0",
+]
+
+
+[tool.hatch.version]
+path = "erclient/version.py"
+
+
+[tool.hatch.envs.default]
+installer = "uv"
