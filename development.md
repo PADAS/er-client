@@ -53,3 +53,9 @@ hatch version
 uv build
 ~~~~
 5. publish new wheel to project in github and pypi
+6. First get a pypi publishing token.
+7. you can either set an environment variable UV_PUBLISH_TOKEN, or on command line include --token ...
+8. Then run publish
+```
+uv publish
+```
