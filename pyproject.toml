@@ -13,7 +13,10 @@ readme = "README.md"
 authors = [
     {name = "EarthRanger", email = "opensource@earthranger.com"}
 ]
-license = {text = "Apache License 2.0"}
+license = {text = "Apache-2.0"}
+license-files = [
+    "LICENSE",
+]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
