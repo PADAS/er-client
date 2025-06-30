@@ -14,16 +14,10 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from .er_errors import (
-    ERClientException,
-    ERClientNotFound,
-    ERClientPermissionDenied,
-    ERClientServiceUnreachable,
-    ERClientBadRequest,
-    ERClientBadCredentials,
-    ERClientInternalError,
-    ERClientRateLimitExceeded
-)
+from .er_errors import (ERClientBadCredentials, ERClientBadRequest,
+                        ERClientException, ERClientInternalError,
+                        ERClientNotFound, ERClientPermissionDenied,
+                        ERClientRateLimitExceeded, ERClientServiceUnreachable)
 from .version import __version__
 
 version_string = __version__
@@ -183,6 +177,14 @@ class ERClient(object):
             if response.status_code == 404:  # not found
                 self.logger.error(f"404 when calling {path}")
                 raise ERClientNotFound()
+
+            if response.status_code == 401:  # bad credentials
+                try:
+                    _ = json.loads(response.text)
+                    reason = _['status']['detail']
+                except:
+                    reason = 'unknown reason'
+                raise ERClientBadCredentials(reason)
 
             if response.status_code == 403:  # forbidden
                 try:
