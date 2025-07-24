@@ -1283,6 +1283,62 @@ class AsyncERClient(object):
                 json_response = response.json()
                 return json_response.get('data', json_response)
 
+    async def get_subjectgroups(
+            self,
+            include_inactive=False,
+            include_hidden=True,
+            isvisible=True,
+            flat=True,
+            group_name=None
+    ):
+        """
+        Get the list of visible subjectgroups including members.
+         By default don't include inactive subjects
+         to get all subject groups whether visible or not, call with include_hidden=True
+
+        Args:
+            include_inactive (bool, optional): set to True to include inactive subjects. Defaults to False.
+            include_hidden (bool, optional): include subject groups that are not visible (isvisible flag is false). Defaults to True.
+            isvisible (bool, optional): either include all visible groups, or only include not visible groups. Defaults to True.
+            flat (bool, optional): unnest parent/child subjectgroups returning a flat list of subjectgroups
+            group_name (string, optional): filter the subjectgroups to this name
+
+        Returns:
+            [type]: [description]
+        """
+        p = dict()
+        p['include_inactive'] = include_inactive
+        p['include_hidden'] = include_hidden
+        p['isvisible'] = isvisible
+        p['flat'] = flat
+        p['group_name'] = group_name
+
+        return await self._get('subjectgroups', params=p)
+
+    async def get_subject_sources(self, subject_id):
+        """
+        Get the sources for a subject by subject_id
+        Args:
+        Args:
+            subject_id (int): id of the subject
+
+        Returns:
+            list: list of sources for the subject
+        """
+        return await self._get(f'subject/{subject_id}/sources', params={})
+
+    async def get_feature_group(self, feature_group_id: str):
+        """
+        Get a feature group by id
+
+        Args:
+            feature_group_id (int): id of the feature group
+
+        Returns:
+            dict: feature group data
+        """
+        return await self._get(f"spatialfeaturegroup/{feature_group_id}", params={})
+
     async def _get_data(self, endpoint, params, batch_size=0):
         if "page" not in params:  # Use cursor paginator unless the user has specified a page
             params["use_cursor"] = "true"
