@@ -17,7 +17,8 @@ async def test_post_sensor_observation_success(er_client, position, position_cre
         # Mock the call to the ER API and simulate a successful response
         path = f'/sensors/generic/{er_client.provider_key}/status'
         route = respx_mock.post(path)
-        route.return_value = httpx.Response(httpx.codes.CREATED, json=position_created_response)
+        route.return_value = httpx.Response(
+            httpx.codes.CREATED, json=position_created_response)
         # Send a position using the async client
         response = await er_client.post_sensor_observation(position)
         assert route.called  # Check that the api endpoint was called
@@ -65,7 +66,8 @@ async def test_post_sensor_observation_status_gateway_timeout(er_client, positio
         # Mock the call to the ER API and simulate a gateway timeout
         path = f'sensors/generic/{er_client.provider_key}/status'
         route = respx_mock.post(path)
-        route.return_value = httpx.Response(httpx.codes.GATEWAY_TIMEOUT, json={})
+        route.return_value = httpx.Response(
+            httpx.codes.GATEWAY_TIMEOUT, json={})
         # Check that the right exception is raised by the client
         expected_message = f'ER Gateway Timeout ON POST {er_client.service_root}/{path}. (status_code={httpx.codes.GATEWAY_TIMEOUT}) (response_body={{}})'
         with pytest.raises(ERClientServiceUnreachable, match=re.escape(expected_message)) as exc_info:
@@ -123,11 +125,12 @@ async def test_post_sensor_observation_status_forbidden(er_client, position, for
             json=forbidden_response
         )
         # Check that the right exception is raised by the client
-        expected_message = f'ER Forbidden ON POST {er_client.service_root}/{path}. (status_code={httpx.codes.FORBIDDEN}) (response_body={json.dumps(forbidden_response)})'
-        with pytest.raises(ERClientPermissionDenied, match=re.escape(expected_message)) as exc_info:
+        with pytest.raises(ERClientPermissionDenied) as exc_info:
             await er_client.post_sensor_observation(position)
         assert exc_info.value.status_code == httpx.codes.FORBIDDEN
-        assert exc_info.value.response_body == json.dumps(forbidden_response)
+        assert json.loads(exc_info.value.response_body) == forbidden_response
+        expected_message = f'ER Forbidden ON POST {er_client.service_root}/{path}. (status_code={httpx.codes.FORBIDDEN})'
+        assert expected_message in str(exc_info.value)
         assert route.called
         await er_client.close()
 
@@ -165,6 +168,6 @@ async def test_post_sensor_observation_status_conflict(er_client, position, conf
             await er_client.post_sensor_observation(position)
         # Check that response status and body are saved
         assert exc_info.value.status_code == httpx.codes.CONFLICT
-        assert exc_info.value.response_body == json.dumps(conflict_response)
+        assert json.loads(exc_info.value.response_body) == conflict_response
         assert route.called
         await er_client.close()
