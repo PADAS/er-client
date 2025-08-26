@@ -5,13 +5,9 @@ import httpx
 import pytest
 import respx
 
-from erclient import (
-    ERClientException,
-    ERClientNotFound,
-    ERClientPermissionDenied,
-    ERClientServiceUnreachable,
-    ERClientBadCredentials,
-)
+from erclient import (ERClientBadCredentials, ERClientException,
+                      ERClientNotFound, ERClientPermissionDenied,
+                      ERClientServiceUnreachable)
 
 
 @pytest.mark.asyncio
@@ -68,7 +64,8 @@ async def test_post_report_status_gateway_timeout(er_client, report):
         # Mock the call to the ER API and simulate a gateway timeout
         path = 'activity/events'
         route = respx_mock.post(path)
-        route.return_value = httpx.Response(httpx.codes.GATEWAY_TIMEOUT, json={})
+        route.return_value = httpx.Response(
+            httpx.codes.GATEWAY_TIMEOUT, json={})
         # Check that the right exception is raised by the client
         expected_msg = f'ER Gateway Timeout ON POST {er_client.service_root}/{path}. (status_code={httpx.codes.GATEWAY_TIMEOUT}) (response_body={{}})'
         with pytest.raises(ERClientServiceUnreachable, match=re.escape(expected_msg)) as exc_info:
@@ -109,11 +106,13 @@ async def test_post_report_status_bad_request(er_client, report, bad_request_res
             json=response_data
         )
         # Check that the right exception is raised by the client
-        expected_message = f'ER Bad Request ON POST {er_client.service_root}/activity/events. (status_code={httpx.codes.BAD_REQUEST}) (response_body={json.dumps(response_data)})'
-        with pytest.raises(ERClientException, match=re.escape(expected_message)) as exc_info:
+        with pytest.raises(ERClientException) as exc_info:
             await er_client.post_report(report)
         assert exc_info.value.status_code == httpx.codes.BAD_REQUEST
-        assert exc_info.value.response_body == json.dumps(response_data)  # The response body must be stored
+        # The response body must be stored
+        assert json.loads(exc_info.value.response_body) == response_data
+        expected_message = f'ER Bad Request ON POST {er_client.service_root}/activity/events. (status_code={httpx.codes.BAD_REQUEST})'
+        assert expected_message in str(exc_info.value)
         assert route.called
 
 
@@ -130,11 +129,12 @@ async def test_post_report_status_forbidden(er_client, report, forbidden_respons
             json=response_data
         )
         # Check that the right exception is raised by the client
-        expected_message = f'ER Forbidden ON POST {er_client.service_root}/activity/events. (status_code={httpx.codes.FORBIDDEN}) (response_body={json.dumps(response_data)})'
-        with pytest.raises(ERClientPermissionDenied, match=re.escape(expected_message)) as exc_info:
+        with pytest.raises(ERClientPermissionDenied) as exc_info:
             await er_client.post_report(report)
         assert exc_info.value.status_code == httpx.codes.FORBIDDEN
-        assert exc_info.value.response_body == json.dumps(response_data)
+        assert json.loads(exc_info.value.response_body) == response_data
+        expected_message = f'ER Forbidden ON POST {er_client.service_root}/activity/events. (status_code={httpx.codes.FORBIDDEN})'
+        assert expected_message in str(exc_info.value)
         assert route.called
 
 
@@ -155,7 +155,7 @@ async def test_post_report_status_not_found(er_client, report, not_found_respons
 
 
 @pytest.mark.asyncio
-async def test_post_report_status_(er_client, report, bad_credentials_response):
+async def test_post_report_status_unauthorized(er_client, report, bad_credentials_response):
     async with respx.mock(
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
@@ -167,9 +167,10 @@ async def test_post_report_status_(er_client, report, bad_credentials_response):
             json=response_data
         )
         # Check that the right exception is raised by the client
-        expected_message = f'ER Unauthorized ON POST {er_client.service_root}/activity/events. (status_code={httpx.codes.UNAUTHORIZED}) (response_body={json.dumps(response_data)})'
-        with pytest.raises(ERClientBadCredentials, match=re.escape(expected_message)) as exc_info:
+        with pytest.raises(ERClientBadCredentials) as exc_info:
             await er_client.post_report(report)
         assert exc_info.value.status_code == httpx.codes.UNAUTHORIZED
-        assert exc_info.value.response_body == json.dumps(response_data)
+        assert json.loads(exc_info.value.response_body) == response_data
+        expected_message = f'ER Unauthorized ON POST {er_client.service_root}/activity/events. (status_code={httpx.codes.UNAUTHORIZED})'
+        assert expected_message in str(exc_info.value)
         assert route.called
