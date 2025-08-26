@@ -31,13 +31,17 @@ client = ERClient(service_root="https://sandbox.pamdas.org/api/v1.0", username="
 ## Async Support
 We also offer an async client (asyncio).
 
-Disclaimer: The async client is experimental and the current capabilities are limited to:
+Disclaimer: The async client current capabilities are limited to:
 * Posting Sensor Observations (a.k.a Positions)
-* Posting Reports (a.k.a Events)
-* Posting Report Attachments
+* Posting Events (a.k.a Reports)
+* Posting Event Attachments
 * Posting Camera Trap Reports
+* Getting Event Types
 * Getting Events
 * Getting Observations
+* Getting Subject Groups
+* Getting Feature groups
+* Getting Sources
 ```
 from erclient import AsyncERClient
 

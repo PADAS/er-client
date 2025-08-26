@@ -1240,7 +1240,8 @@ class AsyncERClient(object):
 
         self.auth = response.json()
         expires_in = int(self.auth['expires_in']) - 5 * 60
-        self.auth_expires = pytz.utc.localize(datetime.utcnow()) + timedelta(seconds=expires_in)
+        self.auth_expires = pytz.utc.localize(
+            datetime.utcnow()) + timedelta(seconds=expires_in)
         return True
 
     def _er_url(self, path):
@@ -1282,6 +1283,13 @@ class AsyncERClient(object):
             else:  # Parse the response
                 json_response = response.json()
                 return json_response.get('data', json_response)
+
+    async def get_event_types(self, include_inactive=False, include_schema=False):
+        return await self._get(
+            'activity/events/eventtypes',
+            params={"include_inactive": include_inactive,
+                    "include_schema": include_schema}
+        )
 
     async def get_subjectgroups(
             self,
@@ -1394,7 +1402,9 @@ class AsyncERClient(object):
                 response = await self._http_session.request(
                     method,
                     self._er_url(path),
-                    json=payload if method in ["POST", "PUT", "PATCH"] else None,  # payload is automatically encoded as json data
+                    # payload is automatically encoded as json data
+                    json=payload if method in [
+                        "POST", "PUT", "PATCH"] else None,
                     params=params,
                     headers=headers
                 )
@@ -1437,7 +1447,8 @@ class AsyncERClient(object):
             httpx.codes.BAD_GATEWAY: ERClientServiceUnreachable,
             httpx.codes.GATEWAY_TIMEOUT: ERClientServiceUnreachable,
             httpx.codes.TOO_MANY_REQUESTS: ERClientRateLimitExceeded,
-            httpx.codes.CONFLICT: ERClientRateLimitExceeded  # Only one observation per second per source is allowed
+            # Only one observation per second per source is allowed
+            httpx.codes.CONFLICT: ERClientRateLimitExceeded
         }
 
         if e.response.status_code in exception_map:
