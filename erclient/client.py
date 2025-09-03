@@ -1347,7 +1347,7 @@ class AsyncERClient(object):
         if source_ids:
             params['sources'] = ','.join(source_ids)
 
-        return await self._get(f'subjectsources', params=params or None)
+        return await self._get(f'subjectsources', params=params)
 
     async def get_feature_group(self, feature_group_id: str):
         """
