@@ -5,8 +5,9 @@ import logging
 import math
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
+from typing import List
 
 import httpx
 import pytz
@@ -94,7 +95,7 @@ class ERClient(object):
         self._http_session.mount("https", HTTPAdapter(max_retries=retries))
 
     def _auth_is_valid(self):
-        return self.auth_expires > pytz.utc.localize(datetime.utcnow())
+        return self.auth_expires > datetime.now(tz=timezone.utc)
 
     def auth_headers(self):
 
@@ -133,8 +134,8 @@ class ERClient(object):
         if response.ok:
             self.auth = json.loads(response.text)
             expires_in = int(self.auth['expires_in']) - 5 * 60
-            self.auth_expires = pytz.utc.localize(
-                datetime.utcnow()) + timedelta(seconds=expires_in)
+            self.auth_expires = datetime.now(
+                tz=timezone.utc) + timedelta(seconds=expires_in)
             return True
 
         self.auth = None
@@ -1193,7 +1194,7 @@ class AsyncERClient(object):
         return event
 
     def _auth_is_valid(self):
-        return self.auth_expires > pytz.utc.localize(datetime.utcnow())
+        return self.auth_expires > datetime.now(tz=timezone.utc)
 
     async def auth_headers(self):
         if self.auth:
@@ -1240,8 +1241,8 @@ class AsyncERClient(object):
 
         self.auth = response.json()
         expires_in = int(self.auth['expires_in']) - 5 * 60
-        self.auth_expires = pytz.utc.localize(
-            datetime.utcnow()) + timedelta(seconds=expires_in)
+        self.auth_expires = datetime.now(
+            tz=timezone.utc) + timedelta(seconds=expires_in)
         return True
 
     def _er_url(self, path):
@@ -1334,6 +1335,19 @@ class AsyncERClient(object):
             list: list of sources for the subject
         """
         return await self._get(f'subject/{subject_id}/sources', params={})
+
+    async def get_source_assignments(self, subject_ids: List[str] = None, source_ids: List[str] = None):
+        """
+        Get the source assignments (aka subject_sources). Optionally filter by subject_ids or source_ids.
+        """
+        params = {}
+        if subject_ids:
+            params['subjects'] = ','.join(subject_ids)
+
+        if source_ids:
+            params['sources'] = ','.join(source_ids)
+
+        return await self._get(f'subjectsources', params=params or None)
 
     async def get_feature_group(self, feature_group_id: str):
         """

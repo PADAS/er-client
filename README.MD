@@ -42,6 +42,7 @@ Disclaimer: The async client current capabilities are limited to:
 * Getting Subject Groups
 * Getting Feature groups
 * Getting Sources
+* Getting Source Assignments (aka SubjectSource resources)
 ```
 from erclient import AsyncERClient
 
