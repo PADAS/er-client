@@ -10,13 +10,15 @@ from .er_errors import (
     ERClientRateLimitExceeded
 )
 
-ERClientException,
-ERClientBadCredentials,
-ERClientPermissionDenied,
-ERClientBadRequest,
-ERClientInternalError,
-ERClientServiceUnreachable,
-ERClientNotFound,
-ERClientRateLimitExceeded
-ERClient
-AsyncERClient
+__all__ = [
+    "ERClient",
+    "AsyncERClient",
+    "ERClientException",
+    "ERClientBadCredentials",
+    "ERClientPermissionDenied",
+    "ERClientBadRequest",
+    "ERClientInternalError",
+    "ERClientServiceUnreachable",
+    "ERClientNotFound",
+    "ERClientRateLimitExceeded",
+]
