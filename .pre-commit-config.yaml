@@ -22,13 +22,11 @@ repos:
     hooks:
       - id: autopep8
         args: ['--in-place']
-        exclude: ^erclient/__init__\.py$
 
   - repo: https://github.com/pycqa/isort
     rev: 6.0.1
     hooks:
       - id: isort
-        exclude: ^erclient/__init__\.py$
 
   - repo: https://github.com/myint/autoflake
     rev: v2.3.1
