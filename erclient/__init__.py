@@ -6,5 +6,19 @@ from .er_errors import (
     ERClientBadRequest,
     ERClientInternalError,
     ERClientServiceUnreachable,
-    ERClientNotFound
+    ERClientNotFound,
+    ERClientRateLimitExceeded
 )
+
+__all__ = [
+    "ERClient",
+    "AsyncERClient",
+    "ERClientException",
+    "ERClientBadCredentials",
+    "ERClientPermissionDenied",
+    "ERClientBadRequest",
+    "ERClientInternalError",
+    "ERClientServiceUnreachable",
+    "ERClientNotFound",
+    "ERClientRateLimitExceeded",
+]

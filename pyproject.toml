@@ -59,3 +59,16 @@ path = "erclient/version.py"
 
 [tool.hatch.envs.default]
 installer = "uv"
+features = ["test"]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8",
+  "pytest-asyncio",
+  "anyio",
+  "respx>=0.22",
+  "pytest-mock"
+]
+
+[tool.hatch.envs.default.scripts]
+test = "pytest -q"
