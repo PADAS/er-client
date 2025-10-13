@@ -78,6 +78,7 @@ class ERClient(object):
         self.username = kwargs.get('username')
         self.password = kwargs.get('password')
         self.realtime_url = kwargs.get('realtime_url')
+        self.instance_id = kwargs.get('instance_id') # Meant to log inbound id
 
         if kwargs.get('token'):
             self.token = kwargs.get('token')
@@ -153,6 +154,9 @@ class ERClient(object):
             path = self._er_url(path)
 
         attempts = 0
+
+        self.logger.info(f"Calling ER API, path: {path} for instance (inbound) ID: {self.instance_id}")
+
         while (attempts <= max_retries):
             attempts += 1
 
@@ -176,7 +180,7 @@ class ERClient(object):
                     return data
 
             if response.status_code == 404:  # not found
-                self.logger.error(f"404 when calling {path}")
+                self.logger.error(f"404 when calling {path} (Instance ID: {self.instance_id})")
                 raise ERClientNotFound()
 
             if response.status_code == 401:  # bad credentials
@@ -185,6 +189,7 @@ class ERClient(object):
                     reason = _['status']['detail']
                 except:
                     reason = 'unknown reason'
+                self.logger.error(f"401 when calling {path} (Instance ID: {self.instance_id})")
                 raise ERClientBadCredentials(reason)
 
             if response.status_code == 403:  # forbidden
@@ -193,13 +198,14 @@ class ERClient(object):
                     reason = _['status']['detail']
                 except:
                     reason = 'unknown reason'
+                self.logger.error(f"403 when calling {path} (Instance ID: {self.instance_id})")
                 raise ERClientPermissionDenied(reason)
 
             self.logger.warn(
-                f"Fail attempt {attempts} of {max_retries+1}: {response.text}")
+                f"Fail attempt {attempts} of {max_retries+1}: {response.text} for path {path} (Instance ID: {self.instance_id})")
             if (attempts >= max_retries):
                 raise ERClientException(
-                    f"Failed to call ER web service at {response.url} after {attempts} tries. {response.status_code} {response.text}")
+                    f"Failed to call ER web service at {response.url} after {attempts} tries. {response.status_code} {response.text} (Instance ID: {self.instance_id})")
             time.sleep(seconds_between_attempts)
 
     def _call(self, path, payload, method, params=None):
