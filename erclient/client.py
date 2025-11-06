@@ -524,7 +524,7 @@ class ERClient(object):
 
     def post_event_type(self, event_type, version="v1"):
         self.logger.debug('Posting event type: %s', event_type)
-        path = f"activity/events/eventtypes/{event_type.get('id')}" if version == "v1" else f"activity/eventtypes"
+        path = "activity/events/eventtypes" if version == "v1" else "activity/eventtypes"
         result = self._post(path, payload=event_type, version=version)
         self.logger.debug('Result of event type post is: %s', result)
         return result
