@@ -71,7 +71,7 @@ class ERClient(object):
         self.max_retries = kwargs.get('max_http_retries', 5)
 
         self.service_root = kwargs.get('service_root')
-        self.service_root_v2 = kwargs.get('service_root_v2')
+        self.service_root_v2 = kwargs.get('service_root_v2', self.service_root.replace("v1.0", "v2.0"))
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
@@ -143,18 +143,16 @@ class ERClient(object):
         self.auth_expires = pytz.utc.localize(datetime.min)
         return False
 
-    def _er_url(self, path):
-        return '/'.join((self.service_root, path))
-
-    def _er_v2_url(self, path):
-        return '/'.join((self.service_root_v2, path))
+    def _er_url(self, path, version="v1"):
+        service_root = self.service_root if version == "v1" else self.service_root_v2
+        return '/'.join((service_root, path))
 
     def _get(self, path, version="v1", stream=False, max_retries=5, seconds_between_attempts=5, **kwargs):
         headers = {'User-Agent': self.user_agent}
 
         headers.update(self.auth_headers())
         if (not path.startswith("http")):
-            path = self._er_url(path) if version == "v1" else self._er_v2_url(path)
+            path = self._er_url(path, version)
 
         attempts = 0
         while (attempts <= max_retries):
@@ -228,7 +226,7 @@ class ERClient(object):
         except KeyError:
             self.logger.error('method must be one of...')
         else:
-            url = self._er_url(path) if version == "v1" else self._er_v2_url(path)
+            url = self._er_url(path, version)
             response = fn(url, data=body,
                           headers=headers, params=params)
 
@@ -517,7 +515,7 @@ class ERClient(object):
 
     def patch_event_type(self, event_type, version="v1"):
         self.logger.debug('Patching event type: %s', event_type)
-        path = f"activity/events/eventtypes/{event_type.get('id')}" if version == "v1" else f"activity/eventtypes/{event_type['value']}"
+        path = f"activity/events/eventtypes/{event_type.get('id')}" if version == "v1" else f"activity/eventtypes/{event_type.get('value')}"
         result = self._patch(path, payload=event_type, version=version)
         self.logger.debug('Result of event type patch is: %s', result)
         return result
@@ -599,12 +597,9 @@ class ERClient(object):
             else:
                 break
 
-    def get_event_types(self, include_inactive=False, include_schema=False):
-        return self._get('activity/events/eventtypes',
-                         params={"include_inactive": include_inactive, "include_schema": include_schema})
-
-    def get_event_types_v2(self, include_inactive=False, include_schema=True):
-        return self._get('activity/eventtypes', version="v2",
+    def get_event_types(self, version="v1", include_inactive=False, include_schema=False):
+        path = f'activity/events/eventtypes' if version == "v1" else f'activity/eventtypes'
+        return self._get(path, version=version,
                          params={"include_inactive": include_inactive, "include_schema": include_schema})
 
     def get_event_schema(self, event_type):
