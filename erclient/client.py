@@ -597,7 +597,7 @@ class ERClient(object):
             else:
                 break
 
-    def get_event_types(self, version="v1", include_inactive=False, include_schema=False):
+    def get_event_types(self, include_inactive=False, include_schema=False, version="v1"):
         path = f'activity/events/eventtypes' if version == "v1" else f'activity/eventtypes'
         return self._get(path, version=version,
                          params={"include_inactive": include_inactive, "include_schema": include_schema})
