@@ -71,6 +71,7 @@ class ERClient(object):
         self.max_retries = kwargs.get('max_http_retries', 5)
 
         self.service_root = kwargs.get('service_root')
+        self.service_root_v2 = kwargs.get('service_root_v2')
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
@@ -145,12 +146,15 @@ class ERClient(object):
     def _er_url(self, path):
         return '/'.join((self.service_root, path))
 
-    def _get(self, path, stream=False, max_retries=5, seconds_between_attempts=5, **kwargs):
+    def _er_v2_url(self, path):
+        return '/'.join((self.service_root_v2, path))
+
+    def _get(self, path, version="v1", stream=False, max_retries=5, seconds_between_attempts=5, **kwargs):
         headers = {'User-Agent': self.user_agent}
 
         headers.update(self.auth_headers())
         if (not path.startswith("http")):
-            path = self._er_url(path)
+            path = self._er_url(path) if version == "v1" else self._er_v2_url(path)
 
         attempts = 0
         while (attempts <= max_retries):
@@ -202,7 +206,7 @@ class ERClient(object):
                     f"Failed to call ER web service at {response.url} after {attempts} tries. {response.status_code} {response.text}")
             time.sleep(seconds_between_attempts)
 
-    def _call(self, path, payload, method, params=None):
+    def _call(self, path, payload, method, params=None, version="v1"):
         headers = {'Content-Type': 'application/json',
                    'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
@@ -224,7 +228,8 @@ class ERClient(object):
         except KeyError:
             self.logger.error('method must be one of...')
         else:
-            response = fn(self._er_url(path), data=body,
+            url = self._er_url(path) if version == "v1" else self._er_v2_url(path)
+            response = fn(url, data=body,
                           headers=headers, params=params)
 
         if response and response.ok:
@@ -266,11 +271,11 @@ class ERClient(object):
         raise ERClientException(
             f"Failed to {fn} to ER web service. {message}")
 
-    def _post(self, path, payload, params=None):
-        return self._call(path, payload, "POST", params)
+    def _post(self, path, payload, params=None, version="v1"):
+        return self._call(path, payload, "POST", params, version=version)
 
-    def _patch(self, path, payload, params=None):
-        return self._call(path, payload, "PATCH", params)
+    def _patch(self, path, payload, params=None, version="v1"):
+        return self._call(path, payload, "PATCH", params, version=version)
 
     def add_event_to_incident(self, event_id, incident_id):
 
@@ -510,16 +515,17 @@ class ERClient(object):
         self.logger.debug('Result of patrol post is: %s', result)
         return result
 
-    def patch_event_type(self, event_type):
+    def patch_event_type(self, event_type, version="v1"):
         self.logger.debug('Patching event type: %s', event_type)
-        result = self._patch(
-            f"activity/events/eventtypes/{event_type['id']}", payload=event_type)
+        path = f"activity/events/eventtypes/{event_type.get('id')}" if version == "v1" else f"activity/eventtypes/{event_type['value']}"
+        result = self._patch(path, payload=event_type, version=version)
         self.logger.debug('Result of event type patch is: %s', result)
         return result
 
-    def post_event_type(self, event_type):
+    def post_event_type(self, event_type, version="v1"):
         self.logger.debug('Posting event type: %s', event_type)
-        result = self._post('activity/events/eventtypes/', payload=event_type)
+        path = f"activity/events/eventtypes/{event_type.get('id')}" if version == "v1" else f"activity/eventtypes"
+        result = self._post(path, payload=event_type, version=version)
         self.logger.debug('Result of event type post is: %s', result)
         return result
 
@@ -594,7 +600,12 @@ class ERClient(object):
                 break
 
     def get_event_types(self, include_inactive=False, include_schema=False):
-        return self._get('activity/events/eventtypes', params={"include_inactive": include_inactive, "include_schema": include_schema})
+        return self._get('activity/events/eventtypes',
+                         params={"include_inactive": include_inactive, "include_schema": include_schema})
+
+    def get_event_types_v2(self, include_inactive=False, include_schema=True):
+        return self._get('activity/eventtypes', version="v2",
+                         params={"include_inactive": include_inactive, "include_schema": include_schema})
 
     def get_event_schema(self, event_type):
         return self._get(f'activity/events/schema/eventtype/{event_type}')
