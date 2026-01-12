@@ -1204,8 +1204,7 @@ class AsyncERClient(object):
         :return: List of subject data
         """
         self.logger.debug(f'Getting subjects for source: {source_id}')
-        result = await self._get(f'source/{source_id}/subjects')
-        return result.get('data', result) if isinstance(result, dict) else result
+        return await self._get(f'source/{source_id}/subjects')
 
     async def patch_subject(self, subject_id, data):
         """
