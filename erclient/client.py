@@ -1212,7 +1212,7 @@ class AsyncERClient(object):
         Update a subject with partial data.
 
         :param subject_id: The subject UUID
-        :param data: Partial subject data (e.g., {"is_active": false})
+        :param data: Partial subject data (e.g., {"is_active": False})
         :return: Updated subject data
         """
         self.logger.debug(f'Patching subject {subject_id}: {data}')
