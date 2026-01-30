@@ -13,7 +13,7 @@ from erclient import (ERClientBadCredentials, ERClientException,
 @pytest.mark.asyncio
 async def test_post_report_success(er_client, report, report_created_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a successful response
         route = respx_mock.post('activity/events')
@@ -29,7 +29,7 @@ async def test_post_report_success(er_client, report, report_created_response):
 @pytest.mark.asyncio
 async def test_post_report_connect_timeout(er_client, report):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a connection timeout error
         route = respx_mock.post('activity/events')
@@ -44,7 +44,7 @@ async def test_post_report_connect_timeout(er_client, report):
 @pytest.mark.asyncio
 async def test_post_report_response_timeout(er_client, report):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a read timeout error
         route = respx_mock.post('activity/events')
@@ -59,7 +59,7 @@ async def test_post_report_response_timeout(er_client, report):
 @pytest.mark.asyncio
 async def test_post_report_status_gateway_timeout(er_client, report):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a gateway timeout
         path = 'activity/events'
@@ -78,7 +78,7 @@ async def test_post_report_status_gateway_timeout(er_client, report):
 @pytest.mark.asyncio
 async def test_post_report_status_bad_gateway(er_client, report):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a bad gateway error
         path = 'activity/events'
@@ -96,7 +96,7 @@ async def test_post_report_status_bad_gateway(er_client, report):
 @pytest.mark.asyncio
 async def test_post_report_status_bad_request(er_client, report, bad_request_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a missing event type error
         route = respx_mock.post('activity/events')
@@ -119,7 +119,7 @@ async def test_post_report_status_bad_request(er_client, report, bad_request_res
 @pytest.mark.asyncio
 async def test_post_report_status_forbidden(er_client, report, forbidden_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a permissions error
         route = respx_mock.post('activity/events')
@@ -141,7 +141,7 @@ async def test_post_report_status_forbidden(er_client, report, forbidden_respons
 @pytest.mark.asyncio
 async def test_post_report_status_not_found(er_client, report, not_found_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a not found response
         route = respx_mock.post('activity/events')
@@ -157,7 +157,7 @@ async def test_post_report_status_not_found(er_client, report, not_found_respons
 @pytest.mark.asyncio
 async def test_post_report_status_unauthorized(er_client, report, bad_credentials_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a permissions error
         route = respx_mock.post('activity/events')

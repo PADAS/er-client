@@ -339,9 +339,10 @@ def post_event_type_payload():
 @pytest.fixture
 def patch_event_type_payload():
     return {
+        "id": "test-event-type-id",
+        "value": "test_event_type",
         "name": "Test Event Type",
         "description": "A test event type payload",
-        # Add other required fields as needed
     }
 
 
@@ -1220,7 +1221,7 @@ def events_types_response(request,
                           get_events_types_response_v1,
                           get_events_types_response_v2):
     version = request.param
-    if version in (None, "v1"):
+    if version in (None, "v1", "v1.0"):
         return get_events_types_response_v1
     else:
         return get_events_types_response_v2
