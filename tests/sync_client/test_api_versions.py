@@ -84,7 +84,7 @@ def test_post_event_type_different_versions(er_server_info, post_event_type_payl
         mock_response.json.return_value = post_event_type_response
         mock_response.text = json.dumps(post_event_type_response)
         mock_session_instance = MagicMock()
-        mock_session_instance.post.return_value = mock_response  # <-- Fix here
+        mock_session_instance.post.return_value = mock_response
         mock_session.return_value = mock_session_instance
 
         er_client = ERClient(**er_server_info)
@@ -102,7 +102,7 @@ def test_post_event_type_without_version_treated_like_v1(er_server_info, post_ev
         mock_response.json.return_value = post_event_type_response
         mock_response.text = json.dumps(post_event_type_response)
         mock_session_instance = MagicMock()
-        mock_session_instance.post.return_value = mock_response  # <-- Fix here
+        mock_session_instance.post.return_value = mock_response
         mock_session.return_value = mock_session_instance
 
         er_client = ERClient(**er_server_info)
