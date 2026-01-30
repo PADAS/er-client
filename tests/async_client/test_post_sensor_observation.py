@@ -12,7 +12,7 @@ from erclient import (ERClientException, ERClientNotFound,
 @pytest.mark.asyncio
 async def test_post_sensor_observation_success(er_client, position, position_created_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a successful response
         path = f'/sensors/generic/{er_client.provider_key}/status'
@@ -29,7 +29,7 @@ async def test_post_sensor_observation_success(er_client, position, position_cre
 @pytest.mark.asyncio
 async def test_post_sensor_observation_connect_timeout(er_client, position):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a connection timeout error
         route = respx_mock.post(
@@ -45,7 +45,7 @@ async def test_post_sensor_observation_connect_timeout(er_client, position):
 @pytest.mark.asyncio
 async def test_post_sensor_observation_response_timeout(er_client, position):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a read timeout error
         route = respx_mock.post(
@@ -61,7 +61,7 @@ async def test_post_sensor_observation_response_timeout(er_client, position):
 @pytest.mark.asyncio
 async def test_post_sensor_observation_status_gateway_timeout(er_client, position):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a gateway timeout
         path = f'sensors/generic/{er_client.provider_key}/status'
@@ -80,7 +80,7 @@ async def test_post_sensor_observation_status_gateway_timeout(er_client, positio
 @pytest.mark.asyncio
 async def test_post_sensor_observation_status_bad_gateway(er_client, position):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a bad gateway error
         path = f'sensors/generic/{er_client.provider_key}/status'
@@ -98,7 +98,7 @@ async def test_post_sensor_observation_status_bad_gateway(er_client, position):
 @pytest.mark.asyncio
 async def test_post_sensor_observation_status_bad_request(er_client, position, bad_request_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a client error
         route = respx_mock.post(
@@ -115,7 +115,7 @@ async def test_post_sensor_observation_status_bad_request(er_client, position, b
 @pytest.mark.asyncio
 async def test_post_sensor_observation_status_forbidden(er_client, position, forbidden_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a permissions error
         path = f'sensors/generic/{er_client.provider_key}/status'
@@ -138,7 +138,7 @@ async def test_post_sensor_observation_status_forbidden(er_client, position, for
 @pytest.mark.asyncio
 async def test_post_sensor_observation_status_not_found(er_client, position, not_found_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a not found response
         route = respx_mock.post(
@@ -155,7 +155,7 @@ async def test_post_sensor_observation_status_not_found(er_client, position, not
 @pytest.mark.asyncio
 async def test_post_sensor_observation_status_conflict(er_client, position, conflict_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a conflict response
         # This happens when sending more than one observation per second for the same subject/source

@@ -15,6 +15,8 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from .api_paths import (DEFAULT_VERSION, event_type_detail_path,
+                        event_types_list_path, event_types_patch_path)
 from .er_errors import (ERClientBadCredentials, ERClientBadRequest,
                         ERClientException, ERClientInternalError,
                         ERClientNotFound, ERClientPermissionDenied,
@@ -47,7 +49,7 @@ class ERClient(object):
         """
         Initialize an ERClient instance.
 
-        :param service_root: The root of the ER API (Ex. https://sandbox.pamdas.org/api/v1.0)
+        :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org) or full API root (Ex. https://sandbox.pamdas.org/api/v1.0) for backward compatibility. The client assembles the API root as {base}/api/{version} (default version v1.0).
 
         :param username: username
         :param password: password
@@ -70,8 +72,12 @@ class ERClient(object):
         self._http_session = None
         self.max_retries = kwargs.get('max_http_retries', 5)
 
-        self.service_root = kwargs.get('service_root')
-        self.service_root_v2 = kwargs.get('service_root_v2', self.service_root.replace("v1.0", "v2.0"))
+        raw_service_root = kwargs.get('service_root')
+        # Normalize: if caller passed full API root (e.g. .../api/v1.0), use base only.
+        if raw_service_root and "/api/" in raw_service_root:
+            self.service_root = raw_service_root.split("/api/")[0].rstrip("/")
+        else:
+            self.service_root = (raw_service_root or "").rstrip("/")
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
@@ -143,16 +149,21 @@ class ERClient(object):
         self.auth_expires = pytz.utc.localize(datetime.min)
         return False
 
-    def _er_url(self, path, version="v1"):
-        service_root = self.service_root if version == "v1" else self.service_root_v2
-        return '/'.join((service_root, path))
+    def _api_root(self, version=DEFAULT_VERSION):
+        """Return the full API root URL for the given version (e.g. {base}/api/v1.0)."""
+        return f"{self.service_root.rstrip('/')}/api/{version}"
 
-    def _get(self, path, version="v1", stream=False, max_retries=5, seconds_between_attempts=5, **kwargs):
+    def _er_url(self, path, base_url=None):
+        if base_url is None:
+            base_url = self._api_root(DEFAULT_VERSION)
+        return '/'.join((base_url.rstrip('/'), path.lstrip('/')))
+
+    def _get(self, path, base_url=None, stream=False, max_retries=5, seconds_between_attempts=5, **kwargs):
         headers = {'User-Agent': self.user_agent}
 
         headers.update(self.auth_headers())
         if (not path.startswith("http")):
-            path = self._er_url(path, version)
+            path = self._er_url(path, base_url)
 
         attempts = 0
         while (attempts <= max_retries):
@@ -204,7 +215,7 @@ class ERClient(object):
                     f"Failed to call ER web service at {response.url} after {attempts} tries. {response.status_code} {response.text}")
             time.sleep(seconds_between_attempts)
 
-    def _call(self, path, payload, method, params=None, version="v1"):
+    def _call(self, path, payload, method, params=None, base_url=None):
         headers = {'Content-Type': 'application/json',
                    'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
@@ -226,7 +237,7 @@ class ERClient(object):
         except KeyError:
             self.logger.error('method must be one of...')
         else:
-            url = self._er_url(path, version)
+            url = self._er_url(path, base_url)
             response = fn(url, data=body,
                           headers=headers, params=params)
 
@@ -269,11 +280,11 @@ class ERClient(object):
         raise ERClientException(
             f"Failed to {fn} to ER web service. {message}")
 
-    def _post(self, path, payload, params=None, version="v1"):
-        return self._call(path, payload, "POST", params, version=version)
+    def _post(self, path, payload, params=None, base_url=None):
+        return self._call(path, payload, "POST", params, base_url=base_url)
 
-    def _patch(self, path, payload, params=None, version="v1"):
-        return self._call(path, payload, "PATCH", params, version=version)
+    def _patch(self, path, payload, params=None, base_url=None):
+        return self._call(path, payload, "PATCH", params, base_url=base_url)
 
     def add_event_to_incident(self, event_id, incident_id):
 
@@ -513,17 +524,29 @@ class ERClient(object):
         self.logger.debug('Result of patrol post is: %s', result)
         return result
 
-    def patch_event_type(self, event_type, version="v1"):
+    def patch_event_type(self, event_type, version=DEFAULT_VERSION):
+        """
+        Patch an event type.
+
+        :param version: API version segment (e.g. "v1.0", "v2.0"). v2.0 uses event_type["value"] (slug) in the path; v1.0 uses event_type["id"].
+        """
         self.logger.debug('Patching event type: %s', event_type)
-        path = f"activity/events/eventtypes/{event_type.get('id')}" if version == "v1" else f"activity/eventtypes/{event_type.get('value')}"
-        result = self._patch(path, payload=event_type, version=version)
+        path = event_types_patch_path(version, event_type)
+        base_url = self._api_root(version)
+        result = self._patch(path, payload=event_type, base_url=base_url)
         self.logger.debug('Result of event type patch is: %s', result)
         return result
 
-    def post_event_type(self, event_type, version="v1"):
+    def post_event_type(self, event_type, version=DEFAULT_VERSION):
+        """
+        Post a new event type.
+
+        :param version: API version segment (e.g. "v1.0", "v2.0").
+        """
         self.logger.debug('Posting event type: %s', event_type)
-        path = "activity/events/eventtypes" if version == "v1" else "activity/eventtypes"
-        result = self._post(path, payload=event_type, version=version)
+        path = event_types_list_path(version)
+        base_url = self._api_root(version)
+        result = self._post(path, payload=event_type, base_url=base_url)
         self.logger.debug('Result of event type post is: %s', result)
         return result
 
@@ -574,8 +597,17 @@ class ERClient(object):
     def get_file(self, url):
         return self._get(url, stream=True, return_response=True)
 
-    def get_event_type(self, event_type_name):
-        return self._get(f'activity/events/schema/eventtype/{event_type_name}')
+    def get_event_type(self, event_type_name, version=DEFAULT_VERSION):
+        """
+        Get a single event type by name/slug.
+
+        :param event_type_name: Event type value (slug) or name.
+        :param version: API version segment (e.g. "v1.0", "v2.0"). v2.0 uses
+            activity/eventtypes/{name}; v1.0 uses activity/events/schema/eventtype/{name}.
+        """
+        path = event_type_detail_path(version, event_type_name)
+        base_url = self._api_root(version) if version == "v2.0" else None
+        return self._get(path, base_url=base_url)
 
     def get_event_categories(self, include_inactive=False):
         return self._get(f'activity/events/categories', params={"include_inactive": include_inactive})
@@ -597,9 +629,15 @@ class ERClient(object):
             else:
                 break
 
-    def get_event_types(self, include_inactive=False, include_schema=False, version="v1"):
-        path = f'activity/events/eventtypes' if version == "v1" else f'activity/eventtypes'
-        return self._get(path, version=version,
+    def get_event_types(self, include_inactive=False, include_schema=False, version=DEFAULT_VERSION):
+        """
+        Get event types.
+
+        :param version: API version segment (e.g. "v1.0", "v2.0").
+        """
+        path = event_types_list_path(version)
+        base_url = self._api_root(version)
+        return self._get(path, base_url=base_url,
                          params={"include_inactive": include_inactive, "include_schema": include_schema})
 
     def get_event_schema(self, event_type):
@@ -1009,7 +1047,7 @@ class AsyncERClient(object):
         """
         Initialize an ERClient instance.
 
-        :param service_root: The root of the ER API (Ex. https://sandbox.pamdas.org/api/v1.0)
+        :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org) or full API root (Ex. https://sandbox.pamdas.org/api/v1.0) for backward compatibility. The client assembles the API root as {base}/api/{version} (default version v1.0).
 
         :param username: username
         :param password: password
@@ -1035,7 +1073,11 @@ class AsyncERClient(object):
         self.max_retries = kwargs.get(
             'max_http_retries', self.DEFAULT_CONNECTION_RETRIES)
 
-        self.service_root = kwargs.get('service_root')
+        raw_service_root = kwargs.get('service_root')
+        if raw_service_root and "/api/" in raw_service_root:
+            self.service_root = raw_service_root.split("/api/")[0].rstrip("/")
+        else:
+            self.service_root = (raw_service_root or "").rstrip("/")
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
@@ -1283,10 +1325,16 @@ class AsyncERClient(object):
             tz=timezone.utc) + timedelta(seconds=expires_in)
         return True
 
-    def _er_url(self, path):
-        return '/'.join((self.service_root, path))
+    def _api_root(self, version=DEFAULT_VERSION):
+        """Return the full API root URL for the given version (e.g. {base}/api/v1.0)."""
+        return f"{self.service_root.rstrip('/')}/api/{version}"
 
-    async def _post_form(self, path, body=None, files=None):
+    def _er_url(self, path, base_url=None):
+        if base_url is None:
+            base_url = self._api_root(DEFAULT_VERSION)
+        return '/'.join((base_url.rstrip('/'), path.lstrip('/')))
+
+    async def _post_form(self, path, body=None, files=None, base_url=None):
 
         try:
             auth_headers = await self.auth_headers()
@@ -1300,7 +1348,7 @@ class AsyncERClient(object):
             }
             try:
                 response = await self._http_session.post(
-                    self._er_url(path),
+                    self._er_url(path, base_url),
                     data=body,  # # payload is automatically encoded as form data
                     headers=headers,
                     files=files
@@ -1323,9 +1371,17 @@ class AsyncERClient(object):
                 json_response = response.json()
                 return json_response.get('data', json_response)
 
-    async def get_event_types(self, include_inactive=False, include_schema=False):
+    async def get_event_types(self, include_inactive=False, include_schema=False, version=DEFAULT_VERSION):
+        """
+        Get event types.
+
+        :param version: API version segment (e.g. "v1.0", "v2.0").
+        """
+        path = event_types_list_path(version)
+        base_url = self._api_root(version)
         return await self._get(
-            'activity/events/eventtypes',
+            path,
+            base_url=base_url,
             params={"include_inactive": include_inactive,
                     "include_schema": include_schema}
         )
@@ -1429,14 +1485,14 @@ class AsyncERClient(object):
             else:
                 break
 
-    async def _get(self, path, params=None):
-        return await self._call(path=path, payload=None, method="GET", params=params)
+    async def _get(self, path, base_url=None, params=None):
+        return await self._call(path=path, payload=None, method="GET", params=params, base_url=base_url)
 
-    async def _post(self, path, payload, params=None):
-        return await self._call(path, payload, "POST", params)
+    async def _post(self, path, payload, params=None, base_url=None):
+        return await self._call(path, payload, "POST", params, base_url=base_url)
 
-    async def _patch(self, path, payload, params=None):
-        return await self._call(path, payload, "PATCH", params)
+    async def _patch(self, path, payload, params=None, base_url=None):
+        return await self._call(path, payload, "PATCH", params, base_url=base_url)
 
     async def _delete(self, path, params=None, base_url=None):
         """Perform an async DELETE request. Delegates to _call (204/no body handled there)."""
@@ -1456,11 +1512,7 @@ class AsyncERClient(object):
                 'User-Agent': self.user_agent,
                 **auth_headers
             }
-            request_url = (
-                f"{base_url.rstrip('/')}/{path.lstrip('/')}"
-                if base_url is not None
-                else self._er_url(path)
-            )
+            request_url = self._er_url(path, base_url)
             try:
                 response = await self._http_session.request(
                     method,
