@@ -1,14 +1,8 @@
-from .client import ERClient, AsyncERClient
-from .er_errors import (
-    ERClientException,
-    ERClientBadCredentials,
-    ERClientPermissionDenied,
-    ERClientBadRequest,
-    ERClientInternalError,
-    ERClientServiceUnreachable,
-    ERClientNotFound,
-    ERClientRateLimitExceeded
-)
+from .client import VERSION_1_0, VERSION_2_0, AsyncERClient, ERClient
+from .er_errors import (ERClientBadCredentials, ERClientBadRequest,
+                        ERClientException, ERClientInternalError,
+                        ERClientNotFound, ERClientPermissionDenied,
+                        ERClientRateLimitExceeded, ERClientServiceUnreachable)
 
 __all__ = [
     "ERClient",
@@ -21,4 +15,6 @@ __all__ = [
     "ERClientServiceUnreachable",
     "ERClientNotFound",
     "ERClientRateLimitExceeded",
+    "VERSION_1_0",
+    "VERSION_2_0",
 ]

@@ -16,7 +16,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from .api_paths import (DEFAULT_VERSION, event_type_detail_path,
+from .api_paths import (DEFAULT_VERSION, VERSION_2_0, event_type_detail_path,
                         event_types_list_path, event_types_patch_path)
 from .er_errors import (ERClientBadCredentials, ERClientBadRequest,
                         ERClientException, ERClientInternalError,
@@ -610,8 +610,9 @@ class ERClient(object):
         :param include_schema: If True and version is v2.0, request includes schema in the response.
         """
         path = event_type_detail_path(version, event_type_name)
-        base_url = self._api_root(version) if version == "v2.0" else None
-        params = {"include_schema": include_schema} if version == "v2.0" else None
+        base_url = self._api_root(version) if version == VERSION_2_0 else None
+        params = {
+            "include_schema": include_schema} if version == VERSION_2_0 else None
         return self._get(path, base_url=base_url, params=params)
 
     def get_event_categories(self, include_inactive=False):
