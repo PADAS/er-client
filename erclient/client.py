@@ -8,6 +8,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from typing import List
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 import pytz
@@ -72,12 +73,14 @@ class ERClient(object):
         self._http_session = None
         self.max_retries = kwargs.get('max_http_retries', 5)
 
-        raw_service_root = kwargs.get('service_root')
-        # Normalize: if caller passed full API root (e.g. .../api/v1.0), use base only.
-        if raw_service_root and "/api/" in raw_service_root:
-            self.service_root = raw_service_root.split("/api/")[0].rstrip("/")
-        else:
-            self.service_root = (raw_service_root or "").rstrip("/")
+        raw_service_root = kwargs.get('service_root') or ""
+        # Normalize via urlparse: if path contains /api/, keep only scheme+netloc+path before /api/.
+        parsed = urlparse(raw_service_root)
+        path = parsed.path.rstrip("/")
+        if "/api/" in path:
+            path = path.split("/api/")[0].rstrip("/")
+        self.service_root = urlunparse(
+            (parsed.scheme, parsed.netloc, path, "", "", "")).rstrip("/")
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
@@ -597,17 +600,19 @@ class ERClient(object):
     def get_file(self, url):
         return self._get(url, stream=True, return_response=True)
 
-    def get_event_type(self, event_type_name, version=DEFAULT_VERSION):
+    def get_event_type(self, event_type_name, version=DEFAULT_VERSION, include_schema=False):
         """
         Get a single event type by name/slug.
 
         :param event_type_name: Event type value (slug) or name.
         :param version: API version segment (e.g. "v1.0", "v2.0"). v2.0 uses
             activity/eventtypes/{name}; v1.0 uses activity/events/schema/eventtype/{name}.
+        :param include_schema: If True and version is v2.0, request includes schema in the response.
         """
         path = event_type_detail_path(version, event_type_name)
         base_url = self._api_root(version) if version == "v2.0" else None
-        return self._get(path, base_url=base_url)
+        params = {"include_schema": include_schema} if version == "v2.0" else None
+        return self._get(path, base_url=base_url, params=params)
 
     def get_event_categories(self, include_inactive=False):
         return self._get(f'activity/events/categories', params={"include_inactive": include_inactive})
@@ -1073,11 +1078,13 @@ class AsyncERClient(object):
         self.max_retries = kwargs.get(
             'max_http_retries', self.DEFAULT_CONNECTION_RETRIES)
 
-        raw_service_root = kwargs.get('service_root')
-        if raw_service_root and "/api/" in raw_service_root:
-            self.service_root = raw_service_root.split("/api/")[0].rstrip("/")
-        else:
-            self.service_root = (raw_service_root or "").rstrip("/")
+        raw_service_root = kwargs.get('service_root') or ""
+        parsed = urlparse(raw_service_root)
+        path = parsed.path.rstrip("/")
+        if "/api/" in path:
+            path = path.split("/api/")[0].rstrip("/")
+        self.service_root = urlunparse(
+            (parsed.scheme, parsed.netloc, path, "", "", "")).rstrip("/")
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
