@@ -1293,6 +1293,38 @@ class AsyncERClient(object):
         self.logger.debug(f'Posting message: {message}')
         return await self._post('messages', payload=message, params=params)
 
+    async def get_source_by_manufacturer_id(self, manufacturer_id):
+        """
+        Get a source by manufacturer_id.
+
+        :param manufacturer_id: The manufacturer ID (source field from observations)
+        :return: Source data including ID
+        :raises ERClientNotFound: If source not found (404)
+        """
+        self.logger.debug(f'Getting source: {manufacturer_id}')
+        return await self._get(f'source/{manufacturer_id}/')
+
+    async def get_source_subjects(self, source_id):
+        """
+        Get all subjects linked to a source.
+
+        :param source_id: The source UUID
+        :return: List of subject data
+        """
+        self.logger.debug(f'Getting subjects for source: {source_id}')
+        return await self._get(f'source/{source_id}/subjects')
+
+    async def patch_subject(self, subject_id, data):
+        """
+        Update a subject with partial data.
+
+        :param subject_id: The subject UUID
+        :param data: Partial subject data (e.g., {"is_active": False})
+        :return: Updated subject data
+        """
+        self.logger.debug(f'Patching subject {subject_id}: {data}')
+        return await self._patch(f'subject/{subject_id}', payload=data)
+
     def _clean_observation(self, observation):
         if hasattr(observation['recorded_at'], 'isoformat'):
             observation['recorded_at'] = observation['recorded_at'].isoformat()
