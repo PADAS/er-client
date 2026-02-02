@@ -1638,8 +1638,8 @@ class AsyncERClient(object):
 
     async def get_file(self, url):
         """
-        Download a file (e.g. attachment URL). Returns the httpx response with stream=True.
-        Caller must read the response body (e.g. response.read() or iterate) and close if needed.
+        Download a file (e.g. attachment URL). Returns the httpx response; body is read into memory.
+        Caller can use response.content or response.read().
         """
         try:
             auth_headers = await self.auth_headers()
@@ -1648,7 +1648,7 @@ class AsyncERClient(object):
         headers = {'User-Agent': self.user_agent, **auth_headers}
         if not url.startswith('http'):
             url = self._er_url(url)
-        response = await self._http_session.get(url, headers=headers, stream=True)
+        response = await self._http_session.get(url, headers=headers)
         if response.is_success:
             return response
         if response.status_code == 404:
