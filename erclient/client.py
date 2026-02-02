@@ -1154,6 +1154,58 @@ class AsyncERClient(object):
         self.logger.debug('Result of event patch is: %s', result)
         return result
 
+    async def post_event(self, event):
+        """Post a new event (alias for post_report)."""
+        return await self.post_report(event)
+
+    async def patch_event(self, event_id, payload):
+        """Patch an event (alias for patch_report)."""
+        return await self.patch_report(event_id, payload)
+
+    async def post_event_file(self, event_id, filepath=None, comment=''):
+        """Upload a file to an event. filepath is the path to the file on disk."""
+        documents_path = 'activity/event/' + str(event_id) + '/files/'
+        with open(filepath, 'rb') as f:
+            files = {'filecontent.file': f}
+            return await self._post_form(documents_path, body={'comment': comment}, files=files)
+
+    async def post_event_note(self, event_id, notes):
+        """Add one or more notes to an event. notes can be a single string or a list of strings."""
+        created = []
+        if not isinstance(notes, list):
+            notes = [notes]
+        for note in notes:
+            notes_request = {'event': event_id, 'text': note}
+            result = await self._post('activity/event/' + event_id + '/notes', notes_request)
+            created.append(result)
+        return created
+
+    async def delete_event_file(self, event_id, file_id):
+        """Remove a file from an event."""
+        await self._delete(f"activity/event/{event_id}/file/{file_id}")
+
+    async def delete_event_note(self, event_id, note_id):
+        """Remove a note from an event."""
+        await self._delete(f"activity/event/{event_id}/note/{note_id}")
+
+    async def add_event_to_incident(self, event_id, incident_id):
+        """Link an event to an incident (relationship type 'contains')."""
+        payload = {'to_event_id': event_id, 'type': 'contains'}
+        return await self._post(
+            'activity/event/' + incident_id + '/relationships',
+            payload=payload
+        )
+
+    async def remove_event_from_incident(self, event_id, incident_id, relationship_type='contains'):
+        """Unlink an event from an incident."""
+        return await self._delete(
+            f'activity/event/{incident_id}/relationship/{relationship_type}/{event_id}/'
+        )
+
+    async def delete_event(self, event_id):
+        """Delete an event."""
+        await self._delete('activity/event/' + event_id + '/')
+
     async def get_events(self, **kwargs):
         """
         Returns an async generator to iterate over events.
@@ -1362,6 +1414,61 @@ class AsyncERClient(object):
                     "include_schema": include_schema}
         )
 
+    async def get_event_categories(self, include_inactive=False):
+        """Get event categories."""
+        return await self._get(
+            'activity/events/categories',
+            params={"include_inactive": include_inactive}
+        )
+
+    async def post_event_category(self, data):
+        """Create an event category."""
+        self.logger.debug('Posting event category: %s', data)
+        result = await self._post('activity/events/categories', payload=data)
+        self.logger.debug('Result of event category post is: %s', result)
+        return result
+
+    async def patch_event_category(self, data):
+        """Update an event category."""
+        self.logger.debug('Patching event category: %s', data)
+        result = await self._patch(
+            f'activity/events/categories/{data["id"]}', payload=data
+        )
+        self.logger.debug('Result of event category patch is: %s', result)
+        return result
+
+    async def get_event_type(self, event_type_name, version=DEFAULT_VERSION, include_schema=False):
+        """
+        Get a single event type by name/slug.
+
+        :param event_type_name: Event type value (slug) or name.
+        :param version: API version segment (e.g. "v1.0", "v2.0").
+        :param include_schema: If True and version is v2.0, request includes schema in the response.
+        """
+        path = event_type_detail_path(version, event_type_name)
+        base_url = self._api_root(version) if version == VERSION_2_0 else None
+        params = {
+            "include_schema": include_schema} if version == VERSION_2_0 else None
+        return await self._get(path, base_url=base_url, params=params)
+
+    async def post_event_type(self, event_type, version=DEFAULT_VERSION):
+        """Post a new event type."""
+        self.logger.debug('Posting event type: %s', event_type)
+        path = event_types_list_path(version)
+        base_url = self._api_root(version)
+        result = await self._post(path, payload=event_type, base_url=base_url)
+        self.logger.debug('Result of event type post is: %s', result)
+        return result
+
+    async def patch_event_type(self, event_type, version=DEFAULT_VERSION):
+        """Patch an event type."""
+        self.logger.debug('Patching event type: %s', event_type)
+        path = event_types_patch_path(version, event_type)
+        base_url = self._api_root(version)
+        result = await self._patch(path, payload=event_type, base_url=base_url)
+        self.logger.debug('Result of event type patch is: %s', result)
+        return result
+
     async def get_subjectgroups(
             self,
             include_inactive=False,
@@ -1463,6 +1570,72 @@ class AsyncERClient(object):
 
     async def _get(self, path, base_url=None, params=None):
         return await self._call(path=path, payload=None, method="GET", params=params, base_url=base_url)
+
+    async def _delete(self, path):
+        """Issue DELETE request. Returns True on success; raises ERClient* on error."""
+        try:
+            auth_headers = await self.auth_headers()
+        except httpx.HTTPStatusError as e:
+            self._handle_http_status_error(path, "DELETE", e)
+        headers = {'User-Agent': self.user_agent, **auth_headers}
+        if not path.startswith('http'):
+            path = self._er_url(path)
+        try:
+            response = await self._http_session.delete(path, headers=headers)
+        except httpx.RequestError as e:
+            reason = str(e)
+            self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
+                                                                 service=self.service_root,
+                                                                 path=path,
+                                                                 reason=reason))
+            raise ERClientException(f'Request to ER failed: {reason}')
+        if response.is_success:
+            return True
+        if response.status_code == 404:
+            self.logger.error("404 when calling %s", path)
+            raise ERClientNotFound()
+        if response.status_code == 403:
+            try:
+                reason = response.json().get('status', {}).get('detail', 'unknown reason')
+            except Exception:
+                reason = 'unknown reason'
+            raise ERClientPermissionDenied(reason)
+        raise ERClientException(
+            f'Failed to delete: {response.status_code} {response.text}'
+        )
+
+    async def get_file(self, url):
+        """
+        Download a file (e.g. attachment URL). Returns the httpx response with stream=True.
+        Caller must read the response body (e.g. response.read() or iterate) and close if needed.
+        """
+        try:
+            auth_headers = await self.auth_headers()
+        except httpx.HTTPStatusError as e:
+            self._handle_http_status_error(url, "GET", e)
+        headers = {'User-Agent': self.user_agent, **auth_headers}
+        if not url.startswith('http'):
+            url = self._er_url(url)
+        response = await self._http_session.get(url, headers=headers, stream=True)
+        if response.is_success:
+            return response
+        if response.status_code == 404:
+            self.logger.error("404 when calling %s", url)
+            raise ERClientNotFound()
+        if response.status_code == 401:
+            try:
+                reason = response.json().get('status', {}).get('detail', 'unknown reason')
+            except Exception:
+                reason = 'unknown reason'
+            raise ERClientBadCredentials(reason)
+        if response.status_code == 403:
+            try:
+                reason = response.json().get('status', {}).get('detail', 'unknown reason')
+            except Exception:
+                reason = 'unknown reason'
+            raise ERClientPermissionDenied(reason)
+        raise ERClientException(
+            f'Failed to get file: {response.status_code} {response.text}')
 
     async def _post(self, path, payload, params=None, base_url=None):
         return await self._call(path, payload, "POST", params, base_url=base_url)
