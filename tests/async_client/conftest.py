@@ -23,12 +23,6 @@ def er_client(er_server_info):
     return AsyncERClient(**er_server_info)
 
 
-@pytest.fixture
-def er_api_root(er_client):
-    """Default API root (base + /api/v1.0) for respx mocking. Use as base_url in respx.mock()."""
-    return er_client._api_root("v1.0")
-
-
 # ToDo: Use factories?
 @pytest.fixture
 def position():
