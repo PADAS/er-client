@@ -75,11 +75,11 @@ class ERClient(object):
         self.max_retries = kwargs.get('max_http_retries', 5)
 
         raw_service_root = kwargs.get('service_root') or ""
-        # Normalize via urlparse: if path contains /api/, keep only scheme+netloc+path before /api/.
+        # Normalize via urlparse: if path contains /api (e.g. /api or /api/v1.0), keep only scheme+netloc+path before /api.
         parsed = urlparse(raw_service_root)
         path = parsed.path.rstrip("/")
-        if "/api/" in path:
-            path = path.split("/api/")[0].rstrip("/")
+        if "/api" in path:
+            path = path[: path.find("/api")].rstrip("/")
         self.service_root = urlunparse(
             (parsed.scheme, parsed.netloc, path, "", "", "")).rstrip("/")
         self.client_id = kwargs.get('client_id')
@@ -1082,10 +1082,11 @@ class AsyncERClient(object):
             'max_http_retries', self.DEFAULT_CONNECTION_RETRIES)
 
         raw_service_root = kwargs.get('service_root') or ""
+        # Normalize via urlparse: if path contains /api (e.g. /api or /api/v1.0), keep only scheme+netloc+path before /api.
         parsed = urlparse(raw_service_root)
         path = parsed.path.rstrip("/")
-        if "/api/" in path:
-            path = path.split("/api/")[0].rstrip("/")
+        if "/api" in path:
+            path = path[: path.find("/api")].rstrip("/")
         self.service_root = urlunparse(
             (parsed.scheme, parsed.netloc, path, "", "", "")).rstrip("/")
         self.client_id = kwargs.get('client_id')
