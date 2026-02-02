@@ -611,6 +611,7 @@ class ERClient(object):
             activity/eventtypes/{name}; v1.0 uses activity/events/schema/eventtype/{name}.
         :param include_schema: If True and version is v2.0, request includes schema in the response.
         """
+        version = normalize_version(version)
         path = event_type_detail_path(version, event_type_name)
         base_url = self._api_root(version) if version == VERSION_2_0 else None
         params = {
@@ -1481,6 +1482,7 @@ class AsyncERClient(object):
         :param version: API version segment (e.g. "v1.0", "v2.0").
         :param include_schema: If True and version is v2.0, request includes schema in the response.
         """
+        version = normalize_version(version)
         path = event_type_detail_path(version, event_type_name)
         base_url = self._api_root(version) if version == VERSION_2_0 else None
         params = {

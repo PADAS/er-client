@@ -176,3 +176,28 @@ def test_get_event_type_different_versions(er_server_info, version):
             assert "activity/events/schema/eventtype/" in call_url
             assert event_type_slug in call_url
         assert result == get_response["data"]
+
+
+def test_get_event_type_version_alias_v2_uses_v2_api_root(er_server_info):
+    """get_event_type(version="v2") alias is normalized; request goes to .../api/v2.0/activity/eventtypes/."""
+    event_type_slug = "test_event_type"
+    get_response = {"data": {"id": "et-uuid",
+                             "value": event_type_slug, "display": "Test"}}
+    with patch("erclient.client.requests.Session") as mock_session:
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_response.json.return_value = get_response
+        mock_response.text = json.dumps(get_response)
+        mock_session_instance = MagicMock()
+        mock_session_instance.get.return_value = mock_response
+        mock_session.return_value = mock_session_instance
+
+        er_client = ERClient(**er_server_info)
+        result = er_client.get_event_type(event_type_slug, version="v2")
+
+        mock_session_instance.get.assert_called_once()
+        call_url = mock_session_instance.get.call_args[0][0]
+        assert "/api/v2.0/" in call_url
+        assert "activity/eventtypes/" in call_url
+        assert event_type_slug in call_url
+        assert result == get_response["data"]
