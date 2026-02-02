@@ -35,8 +35,8 @@ def event_types_patch_path(version: str, event_type: dict) -> str:
             raise ValueError(f"Event type value is required for v2.0 patching")
 
     try:
-        id = event_type['id']
-        return f"{base}/{id}"
+        event_type_id = event_type['id']
+        return f"{base}/{event_type_id}"
     except KeyError:
         raise ValueError(f"Event type id is required for v1.0 patching")
 
