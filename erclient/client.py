@@ -1406,9 +1406,10 @@ class AsyncERClient(object):
                 'User-Agent': self.user_agent,
                 **auth_headers
             }
+            request_url = self._er_url(path, base_url)
             try:
                 response = await self._http_session.post(
-                    self._er_url(path, base_url),
+                    request_url,
                     data=body,  # # payload is automatically encoded as form data
                     headers=headers,
                     files=files
@@ -1419,8 +1420,7 @@ class AsyncERClient(object):
                 # ToDo: Check if we want a more granular error handling defining more specific exception classes
                 reason = str(e)
                 self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
-                                                                     service=self.service_root,
-                                                                     path=path,
+                                                                     url=request_url,
                                                                      status_code=None,
                                                                      reason=reason,
                                                                      text=""))
@@ -1617,8 +1617,7 @@ class AsyncERClient(object):
         except httpx.RequestError as e:
             reason = str(e)
             self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
-                                                                 service=self.service_root,
-                                                                 path=path,
+                                                                 url=path,
                                                                  reason=reason))
             raise ERClientException(f'Request to ER failed: {reason}')
         if response.is_success:
@@ -1710,8 +1709,7 @@ class AsyncERClient(object):
                 # ToDo: Check if we want a more granular error handling defining more specific exception classes
                 reason = str(e)
                 self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
-                                                                     service=self.service_root,
-                                                                     path=path,
+                                                                     url=request_url,
                                                                      status_code=None,
                                                                      reason=reason,
                                                                      text=""))
@@ -1731,7 +1729,9 @@ class AsyncERClient(object):
     def _handle_http_status_error(self, path, method, e):
         """Handles httpx.HTTPStatusError exceptions."""
         status_name = HTTPStatus(e.response.status_code).phrase
-        error_details = f"ER {status_name} ON {method} {self.service_root}/{path}."
+        request_url = str(
+            e.response.url) if e.response else f"{self.service_root}/{path}"
+        error_details = f"ER {status_name} ON {method} {request_url}."
         error_details_log = f"{error_details}. Response Body: {e.response.text}"
         self.logger.exception(error_details_log)
 
