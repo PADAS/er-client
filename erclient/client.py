@@ -430,18 +430,19 @@ class ERClient(object):
     def post_event_note(self, event_id, notes):
 
         created = []
+        event_id_str = str(event_id)
 
         if (not isinstance(notes, list)):
             notes = [notes, ]
 
         for note in notes:
             notesRequest = {
-                'event': event_id,
+                'event': event_id_str,
                 'text': note
             }
 
-            result = self._post('activity/event/' +
-                                event_id + '/notes', notesRequest)
+            result = self._post(
+                f'activity/event/{event_id_str}/notes', notesRequest)
             created.append(result)
 
         return created
@@ -1168,7 +1169,7 @@ class AsyncERClient(object):
 
     async def post_event_file(self, event_id, filepath=None, comment=''):
         """Upload a file to an event. filepath is the path to the file on disk."""
-        documents_path = 'activity/event/' + str(event_id) + '/files/'
+        documents_path = f'activity/event/{str(event_id)}/files/'
         with open(filepath, 'rb') as f:
             files = {'filecontent.file': f}
             return await self._post_form(documents_path, body={'comment': comment}, files=files)
@@ -1176,11 +1177,12 @@ class AsyncERClient(object):
     async def post_event_note(self, event_id, notes):
         """Add one or more notes to an event. notes can be a single string or a list of strings."""
         created = []
+        event_id_str = str(event_id)
         if not isinstance(notes, list):
             notes = [notes]
         for note in notes:
-            notes_request = {'event': event_id, 'text': note}
-            result = await self._post('activity/event/' + event_id + '/notes', notes_request)
+            notes_request = {'event': event_id_str, 'text': note}
+            result = await self._post(f'activity/event/{event_id_str}/notes', notes_request)
             created.append(result)
         return created
 
