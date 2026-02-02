@@ -88,7 +88,7 @@ async def test_post_camera_trap_report_status_gateway_timeout(er_client, camera_
         route.return_value = httpx.Response(
             httpx.codes.GATEWAY_TIMEOUT, json={})
         # Check that the right exception is raised by the client
-        expected_error = f'ER Gateway Timeout ON POST {er_client.service_root}/{path}. (status_code=504) (response_body={{}})'
+        expected_error = f'ER Gateway Timeout ON POST {er_client._er_url(path)}. (status_code=504) (response_body={{}})'
         with pytest.raises(ERClientServiceUnreachable, match=re.escape(expected_error)):
             await er_client.post_camera_trap_report(camera_trap_payload, camera_trap_file)
         assert route.called  # Check that the api endpoint was called
@@ -105,7 +105,7 @@ async def test_post_camera_trap_report_status_bad_gateway(er_client, camera_trap
         route = respx_mock.post(path)
         route.return_value = httpx.Response(httpx.codes.BAD_GATEWAY, json={})
         # Check that the right exception is raised by the client
-        expected_error = f'ER Bad Gateway ON POST {er_client.service_root}/{path}. (status_code=502) (response_body={{}})'
+        expected_error = f'ER Bad Gateway ON POST {er_client._er_url(path)}. (status_code=502) (response_body={{}})'
         with pytest.raises(ERClientServiceUnreachable, match=re.escape(expected_error)) as exc_info:
             await er_client.post_camera_trap_report(camera_trap_payload, camera_trap_file)
         assert exc_info.value.status_code == httpx.codes.BAD_GATEWAY
@@ -145,7 +145,7 @@ async def test_post_camera_trap_report_status_forbidden(er_client, camera_trap_p
             await er_client.post_camera_trap_report(camera_trap_payload, camera_trap_file)
         assert exc_info.value.status_code == httpx.codes.FORBIDDEN
         assert json.loads(exc_info.value.response_body) == forbidden_response
-        expected_message = f'ER Forbidden ON POST {er_client.service_root}/{path}. (status_code={httpx.codes.FORBIDDEN})'
+        expected_message = f'ER Forbidden ON POST {er_client._er_url(path)}. (status_code={httpx.codes.FORBIDDEN})'
         assert expected_message in str(exc_info.value)
         assert route.called  # Check that the api endpoint was called
         await er_client.close()

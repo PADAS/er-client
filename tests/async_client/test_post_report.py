@@ -67,7 +67,7 @@ async def test_post_report_status_gateway_timeout(er_client, report):
         route.return_value = httpx.Response(
             httpx.codes.GATEWAY_TIMEOUT, json={})
         # Check that the right exception is raised by the client
-        expected_msg = f'ER Gateway Timeout ON POST {er_client.service_root}/{path}. (status_code={httpx.codes.GATEWAY_TIMEOUT}) (response_body={{}})'
+        expected_msg = f'ER Gateway Timeout ON POST {er_client._er_url(path)}. (status_code={httpx.codes.GATEWAY_TIMEOUT}) (response_body={{}})'
         with pytest.raises(ERClientServiceUnreachable, match=re.escape(expected_msg)) as exc_info:
             await er_client.post_report(report)
         assert exc_info.value.status_code == httpx.codes.GATEWAY_TIMEOUT
@@ -85,7 +85,7 @@ async def test_post_report_status_bad_gateway(er_client, report):
         route = respx_mock.post(path)
         route.return_value = httpx.Response(httpx.codes.BAD_GATEWAY, json={})
         # Check that the right exception is raised by the client
-        expected_msg = f'ER Bad Gateway ON POST {er_client.service_root}/{path}. (status_code={httpx.codes.BAD_GATEWAY}) (response_body={{}})'
+        expected_msg = f'ER Bad Gateway ON POST {er_client._er_url(path)}. (status_code={httpx.codes.BAD_GATEWAY}) (response_body={{}})'
         with pytest.raises(ERClientServiceUnreachable, match=re.escape(expected_msg)) as exc_info:
             await er_client.post_report(report)
         assert exc_info.value.status_code == httpx.codes.BAD_GATEWAY
@@ -111,7 +111,7 @@ async def test_post_report_status_bad_request(er_client, report, bad_request_res
         assert exc_info.value.status_code == httpx.codes.BAD_REQUEST
         # The response body must be stored
         assert json.loads(exc_info.value.response_body) == response_data
-        expected_message = f'ER Bad Request ON POST {er_client.service_root}/activity/events. (status_code={httpx.codes.BAD_REQUEST})'
+        expected_message = f'ER Bad Request ON POST {er_client._er_url("activity/events")}. (status_code={httpx.codes.BAD_REQUEST})'
         assert expected_message in str(exc_info.value)
         assert route.called
 
@@ -133,7 +133,7 @@ async def test_post_report_status_forbidden(er_client, report, forbidden_respons
             await er_client.post_report(report)
         assert exc_info.value.status_code == httpx.codes.FORBIDDEN
         assert json.loads(exc_info.value.response_body) == response_data
-        expected_message = f'ER Forbidden ON POST {er_client.service_root}/activity/events. (status_code={httpx.codes.FORBIDDEN})'
+        expected_message = f'ER Forbidden ON POST {er_client._er_url("activity/events")}. (status_code={httpx.codes.FORBIDDEN})'
         assert expected_message in str(exc_info.value)
         assert route.called
 
@@ -171,6 +171,6 @@ async def test_post_report_status_unauthorized(er_client, report, bad_credential
             await er_client.post_report(report)
         assert exc_info.value.status_code == httpx.codes.UNAUTHORIZED
         assert json.loads(exc_info.value.response_body) == response_data
-        expected_message = f'ER Unauthorized ON POST {er_client.service_root}/activity/events. (status_code={httpx.codes.UNAUTHORIZED})'
+        expected_message = f'ER Unauthorized ON POST {er_client._er_url("activity/events")}. (status_code={httpx.codes.UNAUTHORIZED})'
         assert expected_message in str(exc_info.value)
         assert route.called
