@@ -17,7 +17,8 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from .api_paths import (DEFAULT_VERSION, VERSION_2_0, event_type_detail_path,
-                        event_types_list_path, event_types_patch_path)
+                        event_types_list_path, event_types_patch_path,
+                        normalize_version)
 from .er_errors import (ERClientBadCredentials, ERClientBadRequest,
                         ERClientException, ERClientInternalError,
                         ERClientNotFound, ERClientPermissionDenied,
@@ -154,6 +155,7 @@ class ERClient(object):
 
     def _api_root(self, version=DEFAULT_VERSION):
         """Return the full API root URL for the given version (e.g. {base}/api/v1.0)."""
+        version = normalize_version(version)
         return f"{self.service_root.rstrip('/')}/api/{version}"
 
     def _er_url(self, path, base_url=None):
@@ -1387,6 +1389,7 @@ class AsyncERClient(object):
 
     def _api_root(self, version=DEFAULT_VERSION):
         """Return the full API root URL for the given version (e.g. {base}/api/v1.0)."""
+        version = normalize_version(version)
         return f"{self.service_root.rstrip('/')}/api/{version}"
 
     def _er_url(self, path, base_url=None):

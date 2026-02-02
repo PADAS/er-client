@@ -8,6 +8,9 @@ VERSION_1_0 = "v1.0"
 VERSION_2_0 = "v2.0"
 DEFAULT_VERSION = VERSION_1_0
 
+SUPPORTED_VERSIONS = (VERSION_1_0, VERSION_2_0)
+VERSION_ALIASES = {"v1": VERSION_1_0, "v2": VERSION_2_0}
+
 # Event types: path prefix for list/get/post; patch appends identifier (id for v1.0, value for v2.0).
 EVENT_TYPES_PATHS = {
     VERSION_1_0: "activity/events/eventtypes",
@@ -15,9 +18,25 @@ EVENT_TYPES_PATHS = {
 }
 
 
+def normalize_version(version: str) -> str:
+    """
+    Return the canonical API version string and validate it is supported.
+
+    Normalizes aliases (e.g. "v1" -> "v1.0", "v2" -> "v2.0"). Raises ValueError
+    for unknown or unsupported versions so base URL and path stay consistent.
+    """
+    canonical = VERSION_ALIASES.get(version, version)
+    if canonical not in SUPPORTED_VERSIONS:
+        raise ValueError(
+            f"Unsupported API version {version!r}; supported: {list(SUPPORTED_VERSIONS)}"
+        )
+    return canonical
+
+
 def event_types_list_path(version: str = DEFAULT_VERSION) -> str:
     """Path for listing or posting event types (no trailing segment)."""
-    return EVENT_TYPES_PATHS.get(version, EVENT_TYPES_PATHS[DEFAULT_VERSION])
+    version = normalize_version(version)
+    return EVENT_TYPES_PATHS[version]
 
 
 def event_types_patch_path(version: str, event_type: dict) -> str:
@@ -26,7 +45,8 @@ def event_types_patch_path(version: str, event_type: dict) -> str:
 
     v1.0 uses event_type["id"] in the path; v2.0 uses event_type["value"] (slug).
     """
-    base = event_types_list_path(version)
+    version = normalize_version(version)
+    base = EVENT_TYPES_PATHS[version]
     if version == VERSION_2_0:
         try:
             value = event_type['value']
@@ -48,6 +68,7 @@ def event_type_detail_path(version: str, value: str) -> str:
     v1.0 uses schema path activity/events/schema/eventtype/{value};
     v2.0 uses activity/eventtypes/{value}.
     """
+    version = normalize_version(version)
     if version == VERSION_2_0:
-        return f"{event_types_list_path(version)}/{value}"
+        return f"{EVENT_TYPES_PATHS[version]}/{value}"
     return f"activity/events/schema/eventtype/{value}"
