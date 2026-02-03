@@ -5,6 +5,7 @@ import logging
 import math
 import re
 import time
+import warnings
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from typing import List
@@ -1291,6 +1292,14 @@ class AsyncERClient(object):
             return await self._post_form(camera_trap_report_path, body=camera_trap_payload, files=files)
 
     async def post_report_attachment(self, report_id, file):
+        """
+        Deprecated: Use post_event_file() instead.
+        """
+        warnings.warn(
+            "post_report_attachment is deprecated, use post_event_file instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
         report_attachments_endpoint = f'activity/event/{report_id}/files/'
         files = {'filecontent.file': file}
         return await self._post_form(report_attachments_endpoint, files=files)
