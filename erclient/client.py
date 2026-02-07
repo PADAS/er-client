@@ -1237,6 +1237,17 @@ class AsyncERClient(object):
         async for event in self._get_data(endpoint='activity/events', params=params, batch_size=batch_size):
             yield event
 
+    async def get_event(self, *, event_id=None, include_details=True, include_updates=False, include_notes=False, include_related_events=False, include_files=False):
+        params = {
+            'include_details': include_details,
+            'include_updates': include_updates,
+            'include_notes': include_notes,
+            'include_related_events': include_related_events,
+            'include_files': include_files,
+        }
+        event = await self._get(f'activity/event/{event_id}', params=params)
+        return event
+
     async def get_observations(self, **kwargs):
         """
         Returns an async generator to iterate over observations.
@@ -1511,11 +1522,12 @@ class AsyncERClient(object):
 
     async def patch_event_type(self, event_type, version=DEFAULT_VERSION):
         """Patch an event type."""
-        self.logger.debug('Patching event type: %s', event_type)
+        self.logger.debug('Patching event type: %s (version %s)',
+                          event_type['value'], version)
         path = event_types_patch_path(version, event_type)
         base_url = self._api_root(version)
         result = await self._patch(path, payload=event_type, base_url=base_url)
-        self.logger.debug('Result of event type patch is: %s', result)
+        # self.logger.debug('Result of event type patch is: %s', result)
         return result
 
     async def get_subjectgroups(
