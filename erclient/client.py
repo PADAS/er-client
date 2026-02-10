@@ -327,6 +327,17 @@ class ERClient(object):
     def delete_message(self, message_id):
         self._delete('messages/' + message_id + '/')
 
+    def post_message(self, message):
+        """
+        Post a new message.
+        :param message: dict with message payload (message_type, text, message_time, device_location, etc.)
+        :return: created message data
+        """
+        self.logger.debug('Posting message: %s', message)
+        result = self._post('messages', payload=message)
+        self.logger.debug('Result of message post is: %s', result)
+        return result
+
     def delete_patrol(self, patrol_id):
         self._delete('activity/patrols/' + patrol_id + '/')
 
@@ -576,22 +587,34 @@ class ERClient(object):
     def get_event_categories(self, include_inactive=False):
         return self._get(f'activity/events/categories', params={"include_inactive": include_inactive})
 
-    def get_messages(self):
-
-        results = self._get(path='messages')
+    def get_messages(self, **kwargs):
+        """
+        Get messages as a generator, with automatic pagination.
+        :param kwargs: optional query params (e.g. page_size)
+        :return: generator yielding individual message dicts
+        """
+        params = dict((k, v) for k, v in kwargs.items())
+        results = self._get(path='messages', params=params)
 
         while True:
             if results and results.get('results'):
                 for r in results['results']:
                     yield r
 
-            if results and results['next']:
-                url, params = split_link(results['next'])
-                # FixMe: p is not defined in this context
-                p['page'] = params['page']
-                results = self._get(path='messages')
+            if results and results.get('next'):
+                url, query_params = split_link(results['next'])
+                params['page'] = query_params['page']
+                results = self._get(path='messages', params=params)
             else:
                 break
+
+    def get_message(self, message_id):
+        """
+        Get a single message by ID.
+        :param message_id: UUID of the message
+        :return: message data dict
+        """
+        return self._get(path=f'messages/{message_id}')
 
     def get_event_types(self, include_inactive=False, include_schema=False):
         return self._get('activity/events/eventtypes', params={"include_inactive": include_inactive, "include_schema": include_schema})
@@ -1185,6 +1208,36 @@ class AsyncERClient(object):
         self.logger.debug(f'Posting message: {message}')
         return await self._post('messages', payload=message, params=params)
 
+    async def get_messages(self, **kwargs):
+        """
+        Returns an async generator to iterate over messages.
+        Optional kwargs passed as query params:
+        page_size: Change the page size. Default 100.
+        """
+        params = {**kwargs}
+        if not params.get('page_size'):
+            params['page_size'] = 100
+        async for message in self._get_data(endpoint='messages', params=params):
+            yield message
+
+    async def get_message(self, message_id):
+        """
+        Get a single message by ID.
+        :param message_id: UUID of the message
+        :return: message data dict
+        """
+        self.logger.debug(f'Getting message: {message_id}')
+        return await self._get(f'messages/{message_id}')
+
+    async def delete_message(self, message_id):
+        """
+        Delete a message by ID.
+        :param message_id: UUID of the message
+        :return: response data
+        """
+        self.logger.debug(f'Deleting message: {message_id}')
+        return await self._delete(f'messages/{message_id}/')
+
     async def get_source_by_manufacturer_id(self, manufacturer_id):
         """
         Get a source by manufacturer_id.
@@ -1432,6 +1485,9 @@ class AsyncERClient(object):
     async def _patch(self, path, payload, params=None):
         return await self._call(path, payload, "PATCH", params)
 
+    async def _delete(self, path, params=None):
+        return await self._call(path=path, payload=None, method="DELETE", params=params)
+
     async def _call(self, path, payload, method, params=None):
         try:
             auth_headers = await self.auth_headers()
@@ -1469,6 +1525,8 @@ class AsyncERClient(object):
             except httpx.HTTPStatusError as e:
                 self._handle_http_status_error(path, method, e)
             else:  # Parse the response
+                if response.status_code == 204:
+                    return None
                 json_response = response.json()
                 return json_response.get('data', json_response)
 
