@@ -1085,6 +1085,18 @@ class AsyncERClient(object):
         self.logger.debug('Result of post is: %s', result)
         return result
 
+    async def post_observation(self, observation):
+        """
+        Post a new observation, or a list of observations.
+        """
+        if isinstance(observation, (list, set)):
+            payload = [self._clean_observation(o) for o in observation]
+        else:
+            payload = self._clean_observation(observation)
+
+        self.logger.debug('Posting observation: %s', payload)
+        return await self._post('observations', payload=payload)
+
     async def post_report(self, data):
         payload = self._clean_event(data)
         self.logger.debug(f'Posting report: {payload}', )
