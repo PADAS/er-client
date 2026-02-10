@@ -1393,6 +1393,81 @@ class AsyncERClient(object):
         """
         return await self._get(f"spatialfeaturegroup/{feature_group_id}", params={})
 
+    async def get_subjects(self, **kwargs):
+        """
+        Get the list of subjects to whom the user has access.
+
+        Optional kwargs passed as query params:
+            subject_group: filter to a single subject group.
+            include_inactive: include inactive subjects. Default False.
+
+        Returns:
+            list: list of subject data
+        """
+        params = dict((k, v) for k, v in kwargs.items() if k in
+                      ('subject_group', 'include_inactive'))
+        return await self._get('subjects', params=params)
+
+    async def get_subject(self, subject_id: str):
+        """
+        Get a single subject by subject_id.
+
+        Args:
+            subject_id: the UUID for the subject
+
+        Returns:
+            dict: subject data
+        """
+        return await self._get(f'subject/{subject_id}')
+
+    async def get_subject_tracks(self, subject_id: str, start=None, end=None):
+        """
+        Get the latest tracks for the Subject having the given subject_id.
+
+        Args:
+            subject_id: the UUID for the subject
+            start: optional datetime, filter tracks since this time
+            end: optional datetime, filter tracks until this time
+
+        Returns:
+            dict: track data for the subject
+        """
+        p = {}
+        if start is not None and isinstance(start, datetime):
+            p['since'] = start.isoformat()
+        if end is not None and isinstance(end, datetime):
+            p['until'] = end.isoformat()
+        return await self._get(f'subject/{subject_id}/tracks', params=p)
+
+    async def get_sources(self, **kwargs):
+        """
+        Returns an async generator to iterate over sources (paginated).
+
+        Optional kwargs:
+            page_size: Change the page size. Default 100.
+            batch_size: The generator returns sources in batches (list)
+                        instead of one by one. Default 0 (means no batching).
+        """
+        page_size = kwargs.get('page_size', 100)
+        batch_size = kwargs.get('batch_size', 0)
+        params = {'page_size': page_size}
+        if batch_size and page_size:
+            params['page_size'] = batch_size
+        async for source in self._get_data(endpoint='sources', params=params, batch_size=batch_size):
+            yield source
+
+    async def get_source_by_id(self, source_id: str):
+        """
+        Get a source by its UUID.
+
+        Args:
+            source_id: the source UUID
+
+        Returns:
+            dict: source data
+        """
+        return await self._get(f'source/{source_id}')
+
     async def _get_data(self, endpoint, params, batch_size=0):
         if "page" not in params:  # Use cursor paginator unless the user has specified a page
             params["use_cursor"] = "true"
