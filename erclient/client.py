@@ -145,6 +145,11 @@ class ERClient(object):
     def _er_url(self, path):
         return '/'.join((self.service_root, path))
 
+    def _v2_url(self, path):
+        """Build a URL against the v2.0 API root."""
+        v2_root = re.sub(r'/api/v\d+\.\d+', '/api/v2.0', self.service_root)
+        return '/'.join((v2_root, path))
+
     def _get(self, path, stream=False, max_retries=5, seconds_between_attempts=5, **kwargs):
         headers = {'User-Agent': self.user_agent}
 
@@ -598,6 +603,34 @@ class ERClient(object):
 
     def get_event_schema(self, event_type):
         return self._get(f'activity/events/schema/eventtype/{event_type}')
+
+    def get_event_type_schema(self, event_type_value, pre_render=False):
+        """
+        Get the schema for a single event type (v2 API).
+
+        :param event_type_value: The event type 'value' identifier (e.g. 'rainfall_rep')
+        :param pre_render: If True, return the pre-rendered schema
+        """
+        url = self._v2_url(f'eventtypes/{event_type_value}/schema')
+        return self._get(url, params={'pre_render': pre_render})
+
+    def get_event_type_updates(self, event_type_value):
+        """
+        Get the revision history for a single event type (v2 API).
+
+        :param event_type_value: The event type 'value' identifier
+        """
+        url = self._v2_url(f'eventtypes/{event_type_value}/updates')
+        return self._get(url)
+
+    def get_event_type_schemas(self, pre_render=False):
+        """
+        Get schemas for all event types in bulk (v2 API).
+
+        :param pre_render: If True, return pre-rendered schemas
+        """
+        url = self._v2_url('eventtypes/schemas')
+        return self._get(url, params={'pre_render': pre_render})
 
     def _get_objects_count(self, params):
         params = params.copy()
@@ -1280,6 +1313,11 @@ class AsyncERClient(object):
     def _er_url(self, path):
         return '/'.join((self.service_root, path))
 
+    def _v2_url(self, path):
+        """Build a URL against the v2.0 API root."""
+        v2_root = re.sub(r'/api/v\d+\.\d+', '/api/v2.0', self.service_root)
+        return '/'.join((v2_root, path))
+
     async def _post_form(self, path, body=None, files=None):
 
         try:
@@ -1323,6 +1361,34 @@ class AsyncERClient(object):
             params={"include_inactive": include_inactive,
                     "include_schema": include_schema}
         )
+
+    async def get_event_type_schema(self, event_type_value, pre_render=False):
+        """
+        Get the schema for a single event type (v2 API).
+
+        :param event_type_value: The event type 'value' identifier (e.g. 'rainfall_rep')
+        :param pre_render: If True, return the pre-rendered schema
+        """
+        url = self._v2_url(f'eventtypes/{event_type_value}/schema')
+        return await self._get(url, params={'pre_render': pre_render})
+
+    async def get_event_type_updates(self, event_type_value):
+        """
+        Get the revision history for a single event type (v2 API).
+
+        :param event_type_value: The event type 'value' identifier
+        """
+        url = self._v2_url(f'eventtypes/{event_type_value}/updates')
+        return await self._get(url)
+
+    async def get_event_type_schemas(self, pre_render=False):
+        """
+        Get schemas for all event types in bulk (v2 API).
+
+        :param pre_render: If True, return pre-rendered schemas
+        """
+        url = self._v2_url('eventtypes/schemas')
+        return await self._get(url, params={'pre_render': pre_render})
 
     async def get_subjectgroups(
             self,
@@ -1444,10 +1510,11 @@ class AsyncERClient(object):
                 'User-Agent': self.user_agent,
                 **auth_headers
             }
+            url = path if path.startswith('http') else self._er_url(path)
             try:
                 response = await self._http_session.request(
                     method,
-                    self._er_url(path),
+                    url,
                     # payload is automatically encoded as json data
                     json=payload if method in [
                         "POST", "PUT", "PATCH"] else None,
