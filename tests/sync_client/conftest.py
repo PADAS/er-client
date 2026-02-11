@@ -1,9 +1,8 @@
-from pathlib import Path
-
-import pytest
 import json
+from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
 import requests
 
 from erclient.client import ERClient
@@ -141,6 +140,76 @@ def conflict_response():
 
 @pytest.fixture
 def report_created_response():
+    return {
+        "data": {
+            "id": "9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f",
+            "location": {"latitude": 20.806785, "longitude": -55.784995},
+            "time": "2023-01-11T12:30:02-08:00",
+            "end_time": None,
+            "serial_number": 76819,
+            "message": "",
+            "provenance": "",
+            "event_type": "rainfall_rep",
+            "priority": 0,
+            "priority_label": "Gray",
+            "attributes": {},
+            "comment": None,
+            "title": "Rainfall",
+            "notes": [],
+            "reported_by": None,
+            "state": "new",
+            "event_details": {"height_m": 5, "amount_mm": 8},
+            "contains": [],
+            "is_linked_to": [],
+            "is_contained_in": [],
+            "files": [],
+            "related_subjects": [],
+            "sort_at": "2023-01-12T04:18:25.573925-08:00",
+            "patrol_segments": [],
+            "geometry": None,
+            "updated_at": "2023-01-12T04:18:25.573925-08:00",
+            "created_at": "2023-01-12T04:18:25.574854-08:00",
+            "icon_id": "rainfall_rep",
+            "event_category": "monitoring",
+            "url": "https://fake-site.erdomain.org/api/v1.0/activity/event/9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f",
+            "image_url": "https://fake-site.erdomain.org/static/sprite-src/rainfall_rep.svg",
+            "geojson": {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [-55.784995, 20.806785]},
+                "properties": {
+                    "message": "",
+                    "datetime": "2023-01-11T20:30:02+00:00",
+                    "image": "https://fake-site.erdomain.org/static/sprite-src/rainfall_rep.svg",
+                    "icon": {
+                        "iconUrl": "https://fake-site.erdomain.org/static/sprite-src/rainfall_rep.svg",
+                        "iconSize": [25, 25],
+                        "iconAncor": [12, 12],
+                        "popupAncor": [0, -13],
+                        "className": "dot",
+                    },
+                },
+            },
+            "is_collection": False,
+            "updates": [
+                {
+                    "message": "Added",
+                    "time": "2023-01-12T12:18:25.585183+00:00",
+                    "user": {
+                        "username": "gundi_serviceaccount",
+                        "first_name": "Gundi",
+                        "last_name": "Service Account",
+                        "id": "c925e69e-51cf-43d0-b659-2000ae023664",
+                        "content_type": "accounts.user",
+                    },
+                    "type": "add_event",
+                }
+            ],
+            "patrols": [],
+        },
+        "status": {"code": 201, "message": "Created"},
+    }
+
+
 @pytest.fixture
 def single_event_response():
     """Response from activity/event/{id} -- single event detail."""
@@ -396,6 +465,10 @@ def patch_event_type_response():
             # Add other fields as needed to match your API's response
         },
         "status": {"code": 201, "message": "Created"}
+    }
+
+
+@pytest.fixture
 def single_event_with_notes_response():
     """Response with notes included."""
     return {
@@ -677,9 +750,6 @@ def get_events_response_single_page():
                           'id': 'ddc888bb-d642-455a-a422-7393b4f172be', 'content_type': 'accounts.user'},
                  'type': 'add_event'}], 'patrols': []}
         ]
-                "resetDetected": 0,
-            }
-        },
     }
 
 
@@ -1074,6 +1144,10 @@ def get_observations_response_single_page():
              'created_at': '2023-11-10T06:03:14+00:00', 'exclusion_flags': 0,
              'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}
         ]
+    }
+
+
+@pytest.fixture
 def message_created_response():
     return {
         "data": {
@@ -1133,6 +1207,10 @@ def get_observations_response_page_one():
              'created_at': '2023-11-10T06:03:14+00:00', 'exclusion_flags': 0,
              'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}
         ]
+    }
+
+
+@pytest.fixture
 def message_detail_response():
     return {
         "data": {
@@ -1191,6 +1269,10 @@ def get_observations_response_page_two():
              'created_at': '2023-11-10T06:04:58+00:00', 'exclusion_flags': 0,
              'source': '192b457f-fa25-4674-ae3e-8fae8d775d61', 'observation_details': {}}
         ]
+    }
+
+
+@pytest.fixture
 def get_messages_single_page_response():
     return {
         "data": {
@@ -1328,6 +1410,11 @@ def get_events_types_response_v1():
         "status": {
             "code": 200,
             "message": "OK"
+        }
+    }
+
+
+@pytest.fixture
 def get_messages_page_one_response():
     return {
         "data": {
@@ -1423,6 +1510,9 @@ def events_types_response(request,
         return get_events_types_response_v1
     else:
         return get_events_types_response_v2
+
+
+@pytest.fixture
 def get_messages_page_two_response():
     return {
         "data": {
