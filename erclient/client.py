@@ -984,6 +984,39 @@ class ERClient(object):
             else:
                 break
 
+    # ---- GPX upload ----
+
+    def upload_gpx(self, source_id, filepath=None, file=None):
+        """
+        Upload a GPX file for a source. Returns an async task reference.
+
+        :param source_id: The source UUID
+        :param filepath: Path to a .gpx file on disk (mutually exclusive with file)
+        :param file: An already-opened file-like object (mutually exclusive with filepath)
+        :return: Task data dict (contains task_id for status polling)
+        """
+        self.logger.debug(f'Uploading GPX for source {source_id}')
+        path = f'source/{source_id}/gpxdata'
+        if file:
+            files = {'gpx_file': file}
+            return self._post_form(path, files=files)
+        elif filepath:
+            with open(filepath, 'rb') as f:
+                files = {'gpx_file': f}
+                return self._post_form(path, files=files)
+        else:
+            raise ValueError('Either filepath or file must be provided')
+
+    def get_gpx_upload_status(self, source_id, task_id):
+        """
+        Check the status of a GPX upload task.
+
+        :param source_id: The source UUID
+        :param task_id: The task ID returned from upload_gpx
+        :return: Task status data
+        """
+        return self._get(f'source/{source_id}/gpxdata/status/{task_id}')
+
     def get_users(self):
         return self._get('users')
 
@@ -1392,6 +1425,39 @@ class AsyncERClient(object):
             dict: feature group data
         """
         return await self._get(f"spatialfeaturegroup/{feature_group_id}", params={})
+
+    # ---- GPX upload ----
+
+    async def upload_gpx(self, source_id, filepath=None, file=None):
+        """
+        Upload a GPX file for a source. Returns an async task reference.
+
+        :param source_id: The source UUID
+        :param filepath: Path to a .gpx file on disk (mutually exclusive with file)
+        :param file: An already-opened file-like object (mutually exclusive with filepath)
+        :return: Task data dict (contains task_id for status polling)
+        """
+        self.logger.debug(f'Uploading GPX for source {source_id}')
+        path = f'source/{source_id}/gpxdata'
+        if file:
+            files = {'gpx_file': file}
+            return await self._post_form(path, files=files)
+        elif filepath:
+            with open(filepath, 'rb') as f:
+                files = {'gpx_file': f}
+                return await self._post_form(path, files=files)
+        else:
+            raise ValueError('Either filepath or file must be provided')
+
+    async def get_gpx_upload_status(self, source_id, task_id):
+        """
+        Check the status of a GPX upload task.
+
+        :param source_id: The source UUID
+        :param task_id: The task ID returned from upload_gpx
+        :return: Task status data
+        """
+        return await self._get(f'source/{source_id}/gpxdata/status/{task_id}')
 
     async def _get_data(self, endpoint, params, batch_size=0):
         if "page" not in params:  # Use cursor paginator unless the user has specified a page
