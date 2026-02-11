@@ -14,7 +14,7 @@ async def test_post_observation_single_success(er_client, position, position_cre
     async with respx.mock(
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
-        route = respx_mock.post('/observations')
+        route = respx_mock.post('observations')
         route.return_value = httpx.Response(
             httpx.codes.CREATED, json=position_created_response)
         response = await er_client.post_observation(position)
@@ -29,7 +29,7 @@ async def test_post_observation_list_success(er_client, position, position_creat
     async with respx.mock(
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
-        route = respx_mock.post('/observations')
+        route = respx_mock.post('observations')
         route.return_value = httpx.Response(
             httpx.codes.CREATED, json=position_created_response)
         response = await er_client.post_observation(observations)
@@ -57,7 +57,7 @@ async def test_post_observation_set_input(er_client, position_created_response):
     async with respx.mock(
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
-        route = respx_mock.post('/observations')
+        route = respx_mock.post('observations')
         route.return_value = httpx.Response(
             httpx.codes.CREATED, json=position_created_response)
 
@@ -88,7 +88,7 @@ async def test_post_observation_cleans_datetime(er_client, position_created_resp
     async with respx.mock(
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
-        route = respx_mock.post('/observations')
+        route = respx_mock.post('observations')
         route.return_value = httpx.Response(
             httpx.codes.CREATED, json=position_created_response)
         await er_client.post_observation(observation)
@@ -103,7 +103,7 @@ async def test_post_observation_connect_timeout(er_client, position):
     async with respx.mock(
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
-        route = respx_mock.post('/observations')
+        route = respx_mock.post('observations')
         route.side_effect = httpx.ConnectTimeout
         with pytest.raises(ERClientException):
             await er_client.post_observation(position)
@@ -116,7 +116,7 @@ async def test_post_observation_not_found(er_client, position, not_found_respons
     async with respx.mock(
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
-        route = respx_mock.post('/observations')
+        route = respx_mock.post('observations')
         route.return_value = httpx.Response(
             httpx.codes.NOT_FOUND, json=not_found_response)
         with pytest.raises(ERClientNotFound):
@@ -130,7 +130,7 @@ async def test_post_observation_forbidden(er_client, position, forbidden_respons
     async with respx.mock(
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
-        route = respx_mock.post('/observations')
+        route = respx_mock.post('observations')
         route.return_value = httpx.Response(
             httpx.codes.FORBIDDEN, json=forbidden_response)
         with pytest.raises(ERClientPermissionDenied) as exc_info:
@@ -145,7 +145,7 @@ async def test_post_observation_conflict(er_client, position, conflict_response)
     async with respx.mock(
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
-        route = respx_mock.post('/observations')
+        route = respx_mock.post('observations')
         route.return_value = httpx.Response(
             httpx.codes.CONFLICT, json=conflict_response)
         with pytest.raises(ERClientException) as exc_info:
