@@ -1163,6 +1163,20 @@ class AsyncERClient(object):
         async for observation in self._get_data(endpoint='observations', params=params, batch_size=batch_size):
             yield observation
 
+    async def get_events_export(self, filter=None):
+        """Download events as a CSV export.
+
+        :param filter: Optional JSON-encoded filter string passed as a query
+            parameter.  When *None* no filter is applied.
+        :return: The raw ``httpx.Response`` whose body contains the CSV
+            payload.  This matches the sync client behaviour where the caller
+            can stream or read the body at will.
+        """
+        params = {}
+        if filter:
+            params['filter'] = filter
+        return await self._get_raw('activity/events/export/', params=params)
+
     async def post_camera_trap_report(self, camera_trap_payload, file=None):
         camera_trap_report_path = f'sensors/camera-trap/{self.provider_key}/status/'
 
@@ -1425,6 +1439,49 @@ class AsyncERClient(object):
 
     async def _get(self, path, params=None):
         return await self._call(path=path, payload=None, method="GET", params=params)
+
+    async def _get_raw(self, path, params=None):
+        """Issue a GET and return the raw httpx.Response (no JSON parsing).
+
+        Useful for endpoints that return non-JSON payloads such as CSV file
+        downloads.  Error handling mirrors ``_call``.
+        """
+        try:
+            auth_headers = await self.auth_headers()
+        except httpx.HTTPStatusError as e:
+            self._handle_http_status_error(path, "GET", e)
+        else:
+            params = params or {}
+            headers = {
+                'User-Agent': self.user_agent,
+                **auth_headers
+            }
+            try:
+                response = await self._http_session.request(
+                    "GET",
+                    self._er_url(path),
+                    params=params,
+                    headers=headers,
+                )
+                response.raise_for_status()
+            except httpx.RequestError as e:
+                reason = str(e)
+                self.logger.error(
+                    'Request to ER failed',
+                    extra=dict(
+                        provider_key=self.provider_key,
+                        service=self.service_root,
+                        path=path,
+                        status_code=None,
+                        reason=reason,
+                        text="",
+                    ),
+                )
+                raise ERClientException(f'Request to ER failed: {reason}')
+            except httpx.HTTPStatusError as e:
+                self._handle_http_status_error(path, "GET", e)
+            else:
+                return response
 
     async def _post(self, path, payload, params=None):
         return await self._call(path, payload, "POST", params)
