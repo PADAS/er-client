@@ -131,7 +131,7 @@ async def test_post_observation_forbidden(er_client, position, forbidden_respons
     async with respx.mock(
             base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
-        path = '/observations'
+        path = 'observations'
         route = respx_mock.post(path)
         route.return_value = httpx.Response(
             httpx.codes.FORBIDDEN, json=forbidden_response)
