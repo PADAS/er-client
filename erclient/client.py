@@ -767,6 +767,17 @@ class ERClient(object):
             else:
                 break
 
+    def get_event(self, *, event_id=None, include_details=True, include_updates=False, include_notes=False, include_related_events=False, include_files=False):
+        params = {
+            'include_details': include_details,
+            'include_updates': include_updates,
+            'include_notes': include_notes,
+            'include_related_events': include_related_events,
+            'include_files': include_files,
+        }
+        event = self._get(f'activity/event/{event_id}', params=params)
+        return event
+
     def get_patrols(self, **kwargs):
         params = dict((k, v) for k, v in kwargs.items() if k in
                       ('state', 'page_size', 'page', 'event_type', 'filter'))
