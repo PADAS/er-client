@@ -183,13 +183,16 @@ async def test_get_choice(er_client, choice_detail_response):
 
 @pytest.mark.asyncio
 async def test_download_choice_icons(er_client):
-    response_data = {"data": "binary-zip-placeholder"}
+    binary_content = b"zip-binary-content"
     async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
-        route = m.get("choices/icons/download").respond(httpx.codes.OK, json=response_data)
+        route = m.get("choices/icons/download").respond(
+            httpx.codes.OK, content=binary_content
+        )
 
         result = await er_client.download_choice_icons()
 
         assert route.called
+        assert result.content == binary_content
         await er_client.close()
 
 
@@ -264,13 +267,16 @@ async def test_delete_gear(er_client):
 
 @pytest.mark.asyncio
 async def test_get_sitrep(er_client):
-    response_data = {"data": "binary-docx-placeholder"}
+    binary_content = b"docx-binary-content"
     async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
-        route = m.get("reports/sitrep.docx").respond(httpx.codes.OK, json=response_data)
+        route = m.get("reports/sitrep.docx").respond(
+            httpx.codes.OK, content=binary_content
+        )
 
         result = await er_client.get_sitrep()
 
         assert route.called
+        assert result.content == binary_content
         await er_client.close()
 
 

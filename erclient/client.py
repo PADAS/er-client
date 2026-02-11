@@ -1506,9 +1506,10 @@ class AsyncERClient(object):
     async def download_choice_icons(self):
         """Download the choice icons zip file.
 
-        Returns the raw response bytes.
+        Returns the raw :class:`httpx.Response` so the caller can
+        stream or save the binary content (e.g. response.content).
         """
-        return await self._get('choices/icons/download')
+        return await self._get_raw("choices/icons/download")
 
     # ── Buoy / Gear ──────────────────────────────────────────────
 
@@ -1550,9 +1551,10 @@ class AsyncERClient(object):
     async def get_sitrep(self):
         """Download the situation report (.docx).
 
-        Returns the raw response data.
+        Returns the raw :class:`httpx.Response` so the caller can
+        stream or save the binary content (e.g. response.content).
         """
-        return await self._get('reports/sitrep.docx')
+        return await self._get_raw("reports/sitrep.docx")
 
     async def get_tableau_views(self):
         """List available Tableau views."""
@@ -1609,6 +1611,40 @@ class AsyncERClient(object):
         return await self._call(
             path=path, payload=None, method="DELETE", params=params, base_url=base_url
         )
+
+    async def _get_raw(self, path, params=None):
+        """Perform a GET request and return the raw httpx.Response (for binary downloads)."""
+        try:
+            auth_headers = await self.auth_headers()
+        except httpx.HTTPStatusError as e:
+            self._handle_http_status_error(path, "GET", e)
+        params = params or {}
+        headers = {"User-Agent": self.user_agent, **auth_headers}
+        try:
+            response = await self._http_session.request(
+                "GET",
+                self._er_url(path),
+                params=params,
+                headers=headers,
+            )
+            response.raise_for_status()
+            return response
+        except httpx.RequestError as e:
+            reason = str(e)
+            self.logger.error(
+                "Request to ER failed",
+                extra=dict(
+                    provider_key=self.provider_key,
+                    service=self.service_root,
+                    path=path,
+                    status_code=None,
+                    reason=reason,
+                    text="",
+                ),
+            )
+            raise ERClientException(f"Request to ER failed: {reason}")
+        except httpx.HTTPStatusError as e:
+            self._handle_http_status_error(path, "GET", e)
 
     async def _call(self, path, payload, method, params=None, base_url=None):
         try:
