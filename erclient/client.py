@@ -987,6 +987,93 @@ class ERClient(object):
     def get_users(self):
         return self._get('users')
 
+    # ── Analyzers ─────────────────────────────────────────────────
+
+    def get_analyzers_spatial(self):
+        """List spatial analyzers."""
+        return self._get('analyzers/spatial')
+
+    def get_analyzers_subject(self):
+        """List subject analyzers."""
+        return self._get('analyzers/subject')
+
+    # ── Choices ───────────────────────────────────────────────────
+
+    def get_choices(self):
+        """List all choice sets."""
+        return self._get('choices')
+
+    def get_choice(self, choice_id):
+        """Get a single choice set by ID.
+
+        :param choice_id: UUID of the choice set.
+        """
+        return self._get(f'choices/{choice_id}')
+
+    def download_choice_icons(self):
+        """Download the choice icons zip file.
+
+        Returns the raw :class:`requests.Response` so the caller can
+        stream or save the binary content.
+        """
+        return self._get('choices/icons/download', return_response=True)
+
+    # ── Buoy / Gear ──────────────────────────────────────────────
+
+    def get_gear_list(self):
+        """List all buoy/gear items."""
+        return self._get('buoy/gear')
+
+    def get_gear(self, gear_id):
+        """Get a single gear item by ID.
+
+        :param gear_id: UUID of the gear item.
+        """
+        return self._get(f'buoy/gear/{gear_id}')
+
+    def post_gear(self, gear):
+        """Create a new gear item.
+
+        :param gear: dict with gear payload.
+        """
+        return self._post('buoy/gear', payload=gear)
+
+    def patch_gear(self, gear_id, gear):
+        """Update an existing gear item.
+
+        :param gear_id: UUID of the gear item.
+        :param gear: dict with partial gear payload.
+        """
+        return self._patch(f'buoy/gear/{gear_id}', payload=gear)
+
+    def delete_gear(self, gear_id):
+        """Delete a gear item.
+
+        :param gear_id: UUID of the gear item.
+        """
+        return self._delete(f'buoy/gear/{gear_id}')
+
+    # ── Reports / Tableau ─────────────────────────────────────────
+
+    def get_sitrep(self):
+        """Download the situation report (.docx).
+
+        Returns the raw :class:`requests.Response` so the caller can
+        stream or save the binary content.
+        """
+        return self._get('reports/sitrep.docx', return_response=True)
+
+    def get_tableau_views(self):
+        """List available Tableau views."""
+        return self._get('reports/tableau-views')
+
+    def get_tableau_view(self, view_id):
+        """Get a single Tableau view by ID.
+
+        :param view_id: UUID of the tableau view.
+        """
+        return self._get(f'reports/tableau-views/{view_id}')
+
 
 class AsyncERClient(object):
     """
@@ -1392,6 +1479,91 @@ class AsyncERClient(object):
             dict: feature group data
         """
         return await self._get(f"spatialfeaturegroup/{feature_group_id}", params={})
+
+    # ── Analyzers ─────────────────────────────────────────────────
+
+    async def get_analyzers_spatial(self):
+        """List spatial analyzers."""
+        return await self._get('analyzers/spatial')
+
+    async def get_analyzers_subject(self):
+        """List subject analyzers."""
+        return await self._get('analyzers/subject')
+
+    # ── Choices ───────────────────────────────────────────────────
+
+    async def get_choices(self):
+        """List all choice sets."""
+        return await self._get('choices')
+
+    async def get_choice(self, choice_id):
+        """Get a single choice set by ID.
+
+        :param choice_id: UUID of the choice set.
+        """
+        return await self._get(f'choices/{choice_id}')
+
+    async def download_choice_icons(self):
+        """Download the choice icons zip file.
+
+        Returns the raw response bytes.
+        """
+        return await self._get('choices/icons/download')
+
+    # ── Buoy / Gear ──────────────────────────────────────────────
+
+    async def get_gear_list(self):
+        """List all buoy/gear items."""
+        return await self._get('buoy/gear')
+
+    async def get_gear(self, gear_id):
+        """Get a single gear item by ID.
+
+        :param gear_id: UUID of the gear item.
+        """
+        return await self._get(f'buoy/gear/{gear_id}')
+
+    async def post_gear(self, gear):
+        """Create a new gear item.
+
+        :param gear: dict with gear payload.
+        """
+        return await self._post('buoy/gear', payload=gear)
+
+    async def patch_gear(self, gear_id, gear):
+        """Update an existing gear item.
+
+        :param gear_id: UUID of the gear item.
+        :param gear: dict with partial gear payload.
+        """
+        return await self._patch(f'buoy/gear/{gear_id}', payload=gear)
+
+    async def delete_gear(self, gear_id):
+        """Delete a gear item.
+
+        :param gear_id: UUID of the gear item.
+        """
+        return await self._delete(f'buoy/gear/{gear_id}')
+
+    # ── Reports / Tableau ─────────────────────────────────────────
+
+    async def get_sitrep(self):
+        """Download the situation report (.docx).
+
+        Returns the raw response data.
+        """
+        return await self._get('reports/sitrep.docx')
+
+    async def get_tableau_views(self):
+        """List available Tableau views."""
+        return await self._get('reports/tableau-views')
+
+    async def get_tableau_view(self, view_id):
+        """Get a single Tableau view by ID.
+
+        :param view_id: UUID of the tableau view.
+        """
+        return await self._get(f'reports/tableau-views/{view_id}')
 
     async def _get_data(self, endpoint, params, batch_size=0):
         if "page" not in params:  # Use cursor paginator unless the user has specified a page
