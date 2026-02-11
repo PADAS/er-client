@@ -987,6 +987,68 @@ class ERClient(object):
     def get_users(self):
         return self._get('users')
 
+    # -- Analyzers --
+
+    def get_analyzers_spatial(self):
+        """Get a list of spatial analyzers."""
+        return self._get('analyzers/spatial')
+
+    def get_analyzers_subject(self):
+        """Get a list of subject analyzers."""
+        return self._get('analyzers/subject')
+
+    # -- Choices --
+
+    def get_choices(self):
+        """Get a list of choices."""
+        return self._get('choices')
+
+    def get_choice(self, choice_id):
+        """Get a single choice by ID."""
+        return self._get(f'choices/{choice_id}')
+
+    def download_choice_icons(self):
+        """Download choice icons as a zip file (returns raw response)."""
+        return self._get('choices/icons/download', return_response=True)
+
+    # -- Buoy / Gear --
+
+    def get_gear(self):
+        """Get a list of gear items."""
+        return self._get('buoy/gear')
+
+    def get_gear_item(self, gear_id):
+        """Get a single gear item by ID."""
+        return self._get(f'buoy/gear/{gear_id}')
+
+    def post_gear(self, data):
+        """Create a new gear item."""
+        self.logger.debug('Posting gear: %s', data)
+        return self._post('buoy/gear', payload=data)
+
+    def patch_gear(self, gear_id, data):
+        """Update a gear item."""
+        self.logger.debug('Patching gear %s: %s', gear_id, data)
+        return self._patch(f'buoy/gear/{gear_id}', payload=data)
+
+    def delete_gear(self, gear_id):
+        """Delete a gear item."""
+        return self._delete(f'buoy/gear/{gear_id}/')
+
+    # -- Reports --
+
+    def get_sitrep(self):
+        """Download the situation report (.docx) as a raw response."""
+        return self._get('reports/sitrep.docx', return_response=True)
+
+    def get_tableau_views(self):
+        """Get a list of tableau views."""
+        return self._get('reports/tableau-views')
+
+    def get_tableau_view(self, view_id):
+        """Get a single tableau view by ID."""
+        return self._get(f'reports/tableau-views/{view_id}')
+
 
 class AsyncERClient(object):
     """
@@ -1393,6 +1455,60 @@ class AsyncERClient(object):
         """
         return await self._get(f"spatialfeaturegroup/{feature_group_id}", params={})
 
+    # -- Analyzers --
+
+    async def get_analyzers_spatial(self):
+        """Get a list of spatial analyzers."""
+        return await self._get('analyzers/spatial')
+
+    async def get_analyzers_subject(self):
+        """Get a list of subject analyzers."""
+        return await self._get('analyzers/subject')
+
+    # -- Choices --
+
+    async def get_choices(self):
+        """Get a list of choices."""
+        return await self._get('choices')
+
+    async def get_choice(self, choice_id):
+        """Get a single choice by ID."""
+        return await self._get(f'choices/{choice_id}')
+
+    # -- Buoy / Gear --
+
+    async def get_gear(self):
+        """Get a list of gear items."""
+        return await self._get('buoy/gear')
+
+    async def get_gear_item(self, gear_id):
+        """Get a single gear item by ID."""
+        return await self._get(f'buoy/gear/{gear_id}')
+
+    async def post_gear(self, data):
+        """Create a new gear item."""
+        self.logger.debug(f'Posting gear: {data}')
+        return await self._post('buoy/gear', payload=data)
+
+    async def patch_gear(self, gear_id, data):
+        """Update a gear item."""
+        self.logger.debug(f'Patching gear {gear_id}: {data}')
+        return await self._patch(f'buoy/gear/{gear_id}', payload=data)
+
+    async def delete_gear(self, gear_id):
+        """Delete a gear item."""
+        return await self._delete(f'buoy/gear/{gear_id}/')
+
+    # -- Reports --
+
+    async def get_tableau_views(self):
+        """Get a list of tableau views."""
+        return await self._get('reports/tableau-views')
+
+    async def get_tableau_view(self, view_id):
+        """Get a single tableau view by ID."""
+        return await self._get(f'reports/tableau-views/{view_id}')
+
     async def _get_data(self, endpoint, params, batch_size=0):
         if "page" not in params:  # Use cursor paginator unless the user has specified a page
             params["use_cursor"] = "true"
@@ -1432,6 +1548,9 @@ class AsyncERClient(object):
     async def _patch(self, path, payload, params=None):
         return await self._call(path, payload, "PATCH", params)
 
+    async def _delete(self, path, params=None):
+        return await self._call(path=path, payload=None, method="DELETE", params=params)
+
     async def _call(self, path, payload, method, params=None):
         try:
             auth_headers = await self.auth_headers()
@@ -1469,6 +1588,8 @@ class AsyncERClient(object):
             except httpx.HTTPStatusError as e:
                 self._handle_http_status_error(path, method, e)
             else:  # Parse the response
+                if response.status_code == 204:
+                    return None
                 json_response = response.json()
                 return json_response.get('data', json_response)
 
