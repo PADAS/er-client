@@ -1717,6 +1717,12 @@ class AsyncERClient(object):
     async def _patch(self, path, payload, params=None, base_url=None):
         return await self._call(path, payload, "PATCH", params, base_url=base_url)
 
+    async def _delete(self, path, params=None, base_url=None):
+        """Perform an async DELETE request. Delegates to _call (204/no body handled there)."""
+        return await self._call(
+            path=path, payload=None, method="DELETE", params=params, base_url=base_url
+        )
+
     async def _call(self, path, payload, method, params=None, base_url=None):
         try:
             auth_headers = await self.auth_headers()
@@ -1754,7 +1760,10 @@ class AsyncERClient(object):
             except httpx.HTTPStatusError as e:
                 self._handle_http_status_error(
                     path, method, e, request_url=request_url)
-            else:  # Parse the response
+            else:  # Parse the response (204 No Content has no body)
+                if response.status_code == httpx.codes.NO_CONTENT:
+                    return True  # DELETE/empty success
+
                 json_response = response.json()
                 return json_response.get('data', json_response)
 
