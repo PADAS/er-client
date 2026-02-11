@@ -123,6 +123,112 @@ class TestPatchSubject:
                 )
 
 
+# ---- get_source_subjects tests ----
+
+class TestGetSourceSubjects:
+    def test_get_source_subjects_success(self, er_client):
+        source_subjects_response = {
+            "data": [
+                {
+                    "content_type": "observations.subject",
+                    "id": "d8ad9955-8301-43c4-9000-9a02f1cba675",
+                    "name": "MMVessel",
+                    "subject_type": "vehicle",
+                    "subject_subtype": "vessel",
+                    "is_active": True,
+                }
+            ],
+            "status": {"code": 200, "message": "OK"},
+        }
+        with patch.object(er_client._http_session, 'get') as mock_get:
+            mock_get.return_value = _mock_response(200, source_subjects_response)
+            source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
+            result = er_client.get_source_subjects(source_id)
+            assert result == source_subjects_response["data"]
+            assert mock_get.called
+            url = mock_get.call_args[0][0]
+            assert f"source/{source_id}/subjects" in url
+
+    def test_get_source_subjects_empty(self, er_client):
+        empty_response = {
+            "data": [],
+            "status": {"code": 200, "message": "OK"},
+        }
+        with patch.object(er_client._http_session, 'get') as mock_get:
+            mock_get.return_value = _mock_response(200, empty_response)
+            result = er_client.get_source_subjects("119feb94-a6cc-4485-8614-06fb0abc2a9c")
+            assert result == []
+
+    def test_get_source_subjects_not_found(self, er_client):
+        with patch.object(er_client._http_session, 'get') as mock_get:
+            mock_get.return_value = _mock_response(
+                404, ok=False, text='{"status":{"detail":"not found"}}'
+            )
+            with pytest.raises(ERClientNotFound):
+                er_client.get_source_subjects("nonexistent-id")
+
+    def test_get_source_subjects_forbidden(self, er_client):
+        with patch.object(er_client._http_session, 'get') as mock_get:
+            mock_get.return_value = _mock_response(
+                403, ok=False, text='{"status":{"detail":"forbidden"}}'
+            )
+            with pytest.raises(ERClientPermissionDenied):
+                er_client.get_source_subjects("119feb94-a6cc-4485-8614-06fb0abc2a9c")
+
+
+# ---- get_source_subjects tests ----
+
+class TestGetSourceSubjects:
+    def test_get_source_subjects_success(self, er_client):
+        source_subjects_response = {
+            "data": [
+                {
+                    "content_type": "observations.subject",
+                    "id": "d8ad9955-8301-43c4-9000-9a02f1cba675",
+                    "name": "MMVessel",
+                    "subject_type": "vehicle",
+                    "subject_subtype": "vessel",
+                    "is_active": True,
+                }
+            ],
+            "status": {"code": 200, "message": "OK"},
+        }
+        with patch.object(er_client._http_session, 'get') as mock_get:
+            mock_get.return_value = _mock_response(200, source_subjects_response)
+            source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
+            result = er_client.get_source_subjects(source_id)
+            assert result == source_subjects_response["data"]
+            assert mock_get.called
+            url = mock_get.call_args[0][0]
+            assert f"source/{source_id}/subjects" in url
+
+    def test_get_source_subjects_empty(self, er_client):
+        empty_response = {
+            "data": [],
+            "status": {"code": 200, "message": "OK"},
+        }
+        with patch.object(er_client._http_session, 'get') as mock_get:
+            mock_get.return_value = _mock_response(200, empty_response)
+            result = er_client.get_source_subjects("119feb94-a6cc-4485-8614-06fb0abc2a9c")
+            assert result == []
+
+    def test_get_source_subjects_not_found(self, er_client):
+        with patch.object(er_client._http_session, 'get') as mock_get:
+            mock_get.return_value = _mock_response(
+                404, ok=False, text='{"status":{"detail":"not found"}}'
+            )
+            with pytest.raises(ERClientNotFound):
+                er_client.get_source_subjects("nonexistent-id")
+
+    def test_get_source_subjects_forbidden(self, er_client):
+        with patch.object(er_client._http_session, 'get') as mock_get:
+            mock_get.return_value = _mock_response(
+                403, ok=False, text='{"status":{"detail":"forbidden"}}'
+            )
+            with pytest.raises(ERClientPermissionDenied):
+                er_client.get_source_subjects("119feb94-a6cc-4485-8614-06fb0abc2a9c")
+
+
 # ---- get_source_assignments tests ----
 
 class TestGetSourceAssignments:
