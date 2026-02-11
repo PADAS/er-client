@@ -142,20 +142,22 @@ class ERClient(object):
         self.auth_expires = pytz.utc.localize(datetime.min)
         return False
 
-    def _er_url(self, path):
-        return '/'.join((self.service_root, path))
+    def _api_root(self, version='v1.0'):
+        """Return the full API root URL for the given version (e.g. {base}/api/v1.0)."""
+        base = re.sub(r'/api(/v[^/]+)?/?$', '', self.service_root.rstrip('/'))
+        return f"{base}/api/{version}"
 
-    def _v2_url(self, path):
-        """Build a URL against the v2.0 API root."""
-        v2_root = re.sub(r'/api/v\d+\.\d+', '/api/v2.0', self.service_root)
-        return '/'.join((v2_root, path))
+    def _er_url(self, path, base_url=None):
+        if base_url is None:
+            base_url = self.service_root
+        return '/'.join((base_url.rstrip('/'), path.lstrip('/')))
 
-    def _get(self, path, stream=False, max_retries=5, seconds_between_attempts=5, **kwargs):
+    def _get(self, path, base_url=None, stream=False, max_retries=5, seconds_between_attempts=5, **kwargs):
         headers = {'User-Agent': self.user_agent}
 
         headers.update(self.auth_headers())
         if (not path.startswith("http")):
-            path = self._er_url(path)
+            path = self._er_url(path, base_url)
 
         attempts = 0
         while (attempts <= max_retries):
@@ -207,7 +209,7 @@ class ERClient(object):
                     f"Failed to call ER web service at {response.url} after {attempts} tries. {response.status_code} {response.text}")
             time.sleep(seconds_between_attempts)
 
-    def _call(self, path, payload, method, params=None):
+    def _call(self, path, payload, method, params=None, base_url=None):
         headers = {'Content-Type': 'application/json',
                    'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
@@ -229,7 +231,8 @@ class ERClient(object):
         except KeyError:
             self.logger.error('method must be one of...')
         else:
-            response = fn(self._er_url(path), data=body,
+            url = self._er_url(path, base_url)
+            response = fn(url, data=body,
                           headers=headers, params=params)
 
         if response and response.ok:
@@ -271,11 +274,11 @@ class ERClient(object):
         raise ERClientException(
             f"Failed to {fn} to ER web service. {message}")
 
-    def _post(self, path, payload, params=None):
-        return self._call(path, payload, "POST", params)
+    def _post(self, path, payload, params=None, base_url=None):
+        return self._call(path, payload, "POST", params, base_url=base_url)
 
-    def _patch(self, path, payload, params=None):
-        return self._call(path, payload, "PATCH", params)
+    def _patch(self, path, payload, params=None, base_url=None):
+        return self._call(path, payload, "PATCH", params, base_url=base_url)
 
     def add_event_to_incident(self, event_id, incident_id):
 
@@ -611,8 +614,11 @@ class ERClient(object):
         :param event_type_value: The event type 'value' identifier (e.g. 'rainfall_rep')
         :param pre_render: If True, return the pre-rendered schema
         """
-        url = self._v2_url(f'eventtypes/{event_type_value}/schema')
-        return self._get(url, params={'pre_render': pre_render})
+        return self._get(
+            f'eventtypes/{event_type_value}/schema',
+            base_url=self._api_root('v2.0'),
+            params={'pre_render': pre_render},
+        )
 
     def get_event_type_updates(self, event_type_value):
         """
@@ -620,8 +626,10 @@ class ERClient(object):
 
         :param event_type_value: The event type 'value' identifier
         """
-        url = self._v2_url(f'eventtypes/{event_type_value}/updates')
-        return self._get(url)
+        return self._get(
+            f'eventtypes/{event_type_value}/updates',
+            base_url=self._api_root('v2.0'),
+        )
 
     def get_event_type_schemas(self, pre_render=False):
         """
@@ -629,8 +637,11 @@ class ERClient(object):
 
         :param pre_render: If True, return pre-rendered schemas
         """
-        url = self._v2_url('eventtypes/schemas')
-        return self._get(url, params={'pre_render': pre_render})
+        return self._get(
+            'eventtypes/schemas',
+            base_url=self._api_root('v2.0'),
+            params={'pre_render': pre_render},
+        )
 
     def _get_objects_count(self, params):
         params = params.copy()
@@ -1310,13 +1321,15 @@ class AsyncERClient(object):
             tz=timezone.utc) + timedelta(seconds=expires_in)
         return True
 
-    def _er_url(self, path):
-        return '/'.join((self.service_root, path))
+    def _api_root(self, version='v1.0'):
+        """Return the full API root URL for the given version (e.g. {base}/api/v1.0)."""
+        base = re.sub(r'/api(/v[^/]+)?/?$', '', self.service_root.rstrip('/'))
+        return f"{base}/api/{version}"
 
-    def _v2_url(self, path):
-        """Build a URL against the v2.0 API root."""
-        v2_root = re.sub(r'/api/v\d+\.\d+', '/api/v2.0', self.service_root)
-        return '/'.join((v2_root, path))
+    def _er_url(self, path, base_url=None):
+        if base_url is None:
+            base_url = self.service_root
+        return '/'.join((base_url.rstrip('/'), path.lstrip('/')))
 
     async def _post_form(self, path, body=None, files=None):
 
@@ -1369,8 +1382,11 @@ class AsyncERClient(object):
         :param event_type_value: The event type 'value' identifier (e.g. 'rainfall_rep')
         :param pre_render: If True, return the pre-rendered schema
         """
-        url = self._v2_url(f'eventtypes/{event_type_value}/schema')
-        return await self._get(url, params={'pre_render': pre_render})
+        return await self._get(
+            f'eventtypes/{event_type_value}/schema',
+            base_url=self._api_root('v2.0'),
+            params={'pre_render': pre_render},
+        )
 
     async def get_event_type_updates(self, event_type_value):
         """
@@ -1378,8 +1394,10 @@ class AsyncERClient(object):
 
         :param event_type_value: The event type 'value' identifier
         """
-        url = self._v2_url(f'eventtypes/{event_type_value}/updates')
-        return await self._get(url)
+        return await self._get(
+            f'eventtypes/{event_type_value}/updates',
+            base_url=self._api_root('v2.0'),
+        )
 
     async def get_event_type_schemas(self, pre_render=False):
         """
@@ -1387,8 +1405,11 @@ class AsyncERClient(object):
 
         :param pre_render: If True, return pre-rendered schemas
         """
-        url = self._v2_url('eventtypes/schemas')
-        return await self._get(url, params={'pre_render': pre_render})
+        return await self._get(
+            'eventtypes/schemas',
+            base_url=self._api_root('v2.0'),
+            params={'pre_render': pre_render},
+        )
 
     async def get_subjectgroups(
             self,
@@ -1489,16 +1510,16 @@ class AsyncERClient(object):
             else:
                 break
 
-    async def _get(self, path, params=None):
-        return await self._call(path=path, payload=None, method="GET", params=params)
+    async def _get(self, path, params=None, base_url=None):
+        return await self._call(path=path, payload=None, method="GET", params=params, base_url=base_url)
 
-    async def _post(self, path, payload, params=None):
-        return await self._call(path, payload, "POST", params)
+    async def _post(self, path, payload, params=None, base_url=None):
+        return await self._call(path, payload, "POST", params, base_url=base_url)
 
-    async def _patch(self, path, payload, params=None):
-        return await self._call(path, payload, "PATCH", params)
+    async def _patch(self, path, payload, params=None, base_url=None):
+        return await self._call(path, payload, "PATCH", params, base_url=base_url)
 
-    async def _call(self, path, payload, method, params=None):
+    async def _call(self, path, payload, method, params=None, base_url=None):
         try:
             auth_headers = await self.auth_headers()
         except httpx.HTTPStatusError as e:
@@ -1510,7 +1531,7 @@ class AsyncERClient(object):
                 'User-Agent': self.user_agent,
                 **auth_headers
             }
-            url = path if path.startswith('http') else self._er_url(path)
+            url = path if path.startswith('http') else self._er_url(path, base_url)
             try:
                 response = await self._http_session.request(
                     method,
