@@ -19,7 +19,7 @@ class TestGetEvent:
 
         with patch.object(er_client._http_session, 'get', return_value=mock_response) as mock_get:
             event_id = "9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f"
-            result = er_client.get_event(event_id)
+            result = er_client.get_event(event_id=event_id)
 
             # Verify it called the correct URL
             call_args = mock_get.call_args
@@ -39,7 +39,7 @@ class TestGetEvent:
         mock_response.text = json.dumps(single_event_response)
 
         with patch.object(er_client._http_session, 'get', return_value=mock_response) as mock_get:
-            er_client.get_event("9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f")
+            er_client.get_event(event_id="9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f")
 
             call_args = mock_get.call_args
             params = call_args[1]['params']
@@ -60,7 +60,7 @@ class TestGetEvent:
 
         with patch.object(er_client._http_session, 'get', return_value=mock_response) as mock_get:
             er_client.get_event(
-                "9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f",
+                event_id="9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f",
                 include_details=True,
                 include_updates=True,
                 include_notes=True,
@@ -86,7 +86,7 @@ class TestGetEvent:
 
         with patch.object(er_client._http_session, 'get', return_value=mock_response):
             result = er_client.get_event(
-                "9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f",
+                event_id="9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f",
                 include_notes=True,
             )
 
@@ -102,7 +102,7 @@ class TestGetEvent:
 
         with patch.object(er_client._http_session, 'get', return_value=mock_response) as mock_get:
             er_client.get_event(
-                "9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f",
+                event_id="9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f",
                 include_details=False,
             )
 
@@ -119,7 +119,7 @@ class TestGetEvent:
 
         with patch.object(er_client._http_session, 'get', return_value=mock_response):
             with pytest.raises(ERClientNotFound):
-                er_client.get_event("00000000-0000-0000-0000-000000000000")
+                er_client.get_event(event_id="00000000-0000-0000-0000-000000000000")
 
     def test_get_event_unauthorized(self, er_client):
         """get_event raises ERClientBadCredentials for 401 responses."""
@@ -132,7 +132,7 @@ class TestGetEvent:
 
         with patch.object(er_client._http_session, 'get', return_value=mock_response):
             with pytest.raises(ERClientBadCredentials):
-                er_client.get_event("9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f")
+                er_client.get_event(event_id="9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f")
 
     def test_get_event_forbidden(self, er_client):
         """get_event raises ERClientPermissionDenied for 403 responses."""
@@ -145,7 +145,7 @@ class TestGetEvent:
 
         with patch.object(er_client._http_session, 'get', return_value=mock_response):
             with pytest.raises(ERClientPermissionDenied):
-                er_client.get_event("9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f")
+                er_client.get_event(event_id="9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f")
 
     def test_get_event_returns_event_details(self, er_client, single_event_response):
         """get_event response includes event_details when requested."""
@@ -155,7 +155,7 @@ class TestGetEvent:
         mock_response.text = json.dumps(single_event_response)
 
         with patch.object(er_client._http_session, 'get', return_value=mock_response):
-            result = er_client.get_event("9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f")
+            result = er_client.get_event(event_id="9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f")
 
             assert "event_details" in result
             assert result["event_details"]["height_m"] == 5
@@ -170,7 +170,7 @@ class TestGetEvent:
 
         with patch.object(er_client._http_session, 'get', return_value=mock_response) as mock_get:
             event_id = "9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f"
-            er_client.get_event(event_id)
+            er_client.get_event(event_id=event_id)
 
             call_args = mock_get.call_args
             url = call_args[0][0]

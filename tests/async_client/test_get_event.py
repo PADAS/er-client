@@ -17,7 +17,7 @@ async def test_get_event_basic(er_client, report_created_response):
             json=report_created_response
         )
 
-        result = await er_client.get_event(event_id)
+        result = await er_client.get_event(event_id=event_id)
 
         assert result is not None
         assert result["id"] == event_id
@@ -41,7 +41,7 @@ async def test_get_event_with_all_includes(er_client, report_created_response):
         )
 
         result = await er_client.get_event(
-            event_id,
+            event_id=event_id,
             include_details=True,
             include_updates=True,
             include_notes=True,
@@ -75,7 +75,7 @@ async def test_get_event_default_params(er_client, report_created_response):
             json=report_created_response
         )
 
-        await er_client.get_event(event_id)
+        await er_client.get_event(event_id=event_id)
 
         request = route.calls[0].request
         url_str = str(request.url)
@@ -102,7 +102,7 @@ async def test_get_event_not_found(er_client, not_found_response):
         )
 
         with pytest.raises(ERClientNotFound):
-            await er_client.get_event(event_id)
+            await er_client.get_event(event_id=event_id)
 
         assert route.called
         await er_client.close()
@@ -125,7 +125,7 @@ async def test_get_event_unauthorized(er_client, bad_credentials_response):
         )
 
         with pytest.raises(ERClientBadCredentials):
-            await er_client.get_event(event_id)
+            await er_client.get_event(event_id=event_id)
 
         assert route.called
         await er_client.close()
@@ -148,7 +148,7 @@ async def test_get_event_forbidden(er_client, forbidden_response):
         )
 
         with pytest.raises(ERClientPermissionDenied):
-            await er_client.get_event(event_id)
+            await er_client.get_event(event_id=event_id)
 
         assert route.called
         await er_client.close()
@@ -168,7 +168,7 @@ async def test_get_event_includes_event_details(er_client, report_created_respon
             json=report_created_response
         )
 
-        result = await er_client.get_event(event_id, include_details=True)
+        result = await er_client.get_event(event_id=event_id, include_details=True)
 
         assert "event_details" in result
         assert result["event_details"]["height_m"] == 5
