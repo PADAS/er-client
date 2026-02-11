@@ -187,18 +187,18 @@ def test_get_subject_tracks_v2_ignores_unknown_kwargs(er_client, v2_tracks_respo
         assert "unknown_param" not in params
 
 
-# ── _er_url_versioned helper ──────────────────────────────────────
+# ── _api_root helper ──────────────────────────────────────────────
 
-def test_er_url_versioned_v1(er_client):
-    """_er_url_versioned('path', '1.0') returns the normal v1 URL."""
-    url = er_client._er_url_versioned("subject/abc/tracks", version="1.0")
-    assert url == "https://fake-site.erdomain.org/api/v1.0/subject/abc/tracks"
+def test_api_root_v1(er_client):
+    """_api_root('v1.0') returns the v1 API root URL."""
+    url = er_client._api_root("v1.0")
+    assert url == "https://fake-site.erdomain.org/api/v1.0"
 
 
-def test_er_url_versioned_v2(er_client):
-    """_er_url_versioned('path', '2.0') swaps the version in the URL."""
-    url = er_client._er_url_versioned("subject/abc/tracks/", version="2.0")
-    assert url == "https://fake-site.erdomain.org/api/v2.0/subject/abc/tracks/"
+def test_api_root_v2(er_client):
+    """_api_root('v2.0') returns the v2 API root URL."""
+    url = er_client._api_root("v2.0")
+    assert url == "https://fake-site.erdomain.org/api/v2.0"
 
 
 # ── get_subject_source_tracks ─────────────────────────────────────

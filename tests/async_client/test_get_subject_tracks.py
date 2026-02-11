@@ -124,7 +124,7 @@ async def test_get_subject_tracks_v1_with_dates(er_client, v1_tracks_response):
 @pytest.mark.asyncio
 async def test_get_subject_tracks_v2(er_client, v2_tracks_response):
     """get_subject_tracks(version='2.0') hits the v2 segmented endpoint."""
-    v2_base = er_client.service_root.replace("v1.0", "v2.0")
+    v2_base = er_client._api_root("v2.0")
     async with respx.mock(assert_all_called=False) as respx_mock:
         route = respx_mock.get(
             f"{v2_base}/subject/{SUBJECT_ID}/tracks/"
@@ -142,7 +142,7 @@ async def test_get_subject_tracks_v2(er_client, v2_tracks_response):
 @pytest.mark.asyncio
 async def test_get_subject_tracks_v2_with_dates(er_client, v2_tracks_response):
     """v2 tracks pass since/until when start/end are given."""
-    v2_base = er_client.service_root.replace("v1.0", "v2.0")
+    v2_base = er_client._api_root("v2.0")
     async with respx.mock(assert_all_called=False) as respx_mock:
         route = respx_mock.get(
             f"{v2_base}/subject/{SUBJECT_ID}/tracks/"
@@ -164,7 +164,7 @@ async def test_get_subject_tracks_v2_with_dates(er_client, v2_tracks_response):
 @pytest.mark.asyncio
 async def test_get_subject_tracks_v2_with_extra_params(er_client, v2_tracks_response):
     """v2 tracks forward additional filter params (show_excluded, max_speed_kmh, etc.)."""
-    v2_base = er_client.service_root.replace("v1.0", "v2.0")
+    v2_base = er_client._api_root("v2.0")
     async with respx.mock(assert_all_called=False) as respx_mock:
         route = respx_mock.get(
             f"{v2_base}/subject/{SUBJECT_ID}/tracks/"
@@ -263,7 +263,7 @@ async def test_get_subject_tracks_v2_not_found(er_client, not_found_response):
     """get_subject_tracks(version='2.0') raises ERClientNotFound on 404."""
     from erclient import ERClientNotFound
 
-    v2_base = er_client.service_root.replace("v1.0", "v2.0")
+    v2_base = er_client._api_root("v2.0")
     async with respx.mock(assert_all_called=False) as respx_mock:
         route = respx_mock.get(
             f"{v2_base}/subject/{SUBJECT_ID}/tracks/"
