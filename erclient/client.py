@@ -1686,46 +1686,6 @@ class AsyncERClient(object):
     async def _get(self, path, base_url=None, params=None):
         return await self._call(path=path, payload=None, method="GET", params=params, base_url=base_url)
 
-    async def _delete(self, path, base_url=None):
-        """Issue DELETE request. Returns True on success; raises ERClient* on error."""
-        try:
-            auth_headers = await self.auth_headers()
-        except httpx.HTTPStatusError as e:
-            self._handle_http_status_error(path, "DELETE", e)
-        headers = {'User-Agent': self.user_agent, **auth_headers}
-        if not path.startswith('http'):
-            path = self._er_url(path, base_url)
-        try:
-            response = await self._http_session.delete(path, headers=headers)
-        except httpx.RequestError as e:
-            reason = str(e)
-            self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
-                                                                 url=path,
-                                                                 reason=reason))
-            raise ERClientException(f'Request to ER failed: {reason}')
-        if response.is_success:
-            return True
-        if response.status_code == 404:
-            self.logger.error("404 when calling %s", path)
-            raise ERClientNotFound()
-        if response.status_code == 403:
-            try:
-                reason = response.json().get('status', {}).get('detail', 'unknown reason')
-            except Exception:
-                reason = 'unknown reason'
-            raise ERClientPermissionDenied(reason)
-        if response.status_code == 409:
-            try:
-                detail = response.json().get('detail', response.text)
-            except Exception:
-                detail = response.text
-            raise ERClientException(
-                f'Cannot delete: {detail}',
-            )
-        raise ERClientException(
-            f'Failed to delete: {response.status_code} {response.text}'
-        )
-
     async def get_file(self, url):
         """
         Download a file (e.g. attachment URL). Returns the httpx response; body is read into memory.
