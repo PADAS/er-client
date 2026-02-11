@@ -32,12 +32,12 @@ def sample_schema():
     }
 
 
-# -- service_root_v2 property --
+# -- _api_root() method --
 
 
-def test_service_root_v2(er_client):
-    """Verify the v2 root is derived correctly."""
-    assert er_client.service_root_v2 == "https://fake-site.erdomain.org/api/v2.0"
+def test_api_root_v2(er_client):
+    """Verify the v2 root is derived correctly via _api_root()."""
+    assert er_client._api_root('v2.0') == "https://fake-site.erdomain.org/api/v2.0"
 
 
 # -- Generic get_schema --

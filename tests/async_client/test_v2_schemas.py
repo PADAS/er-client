@@ -26,7 +26,7 @@ def sample_schema():
 @pytest.mark.asyncio
 async def test_get_schema_generic(er_client, sample_schema):
     """Test the generic get_schema() method with an arbitrary schema name."""
-    v2_root = er_client.service_root.replace('/api/v1.0', '/api/v2.0')
+    v2_root = er_client._api_root('v2.0')
     async with respx.mock(assert_all_called=False) as respx_mock:
         route = respx_mock.get(f"{v2_root}/schemas/users.json")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": sample_schema})
@@ -39,7 +39,7 @@ async def test_get_schema_generic(er_client, sample_schema):
 @pytest.mark.asyncio
 async def test_get_schema_not_found(er_client):
     """Test that a 404 for a non-existent schema raises ERClientNotFound."""
-    v2_root = er_client.service_root.replace('/api/v1.0', '/api/v2.0')
+    v2_root = er_client._api_root('v2.0')
     async with respx.mock(assert_all_called=False) as respx_mock:
         route = respx_mock.get(f"{v2_root}/schemas/nonexistent.json")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json={"status": {"code": 404}})
@@ -52,7 +52,7 @@ async def test_get_schema_not_found(er_client):
 @pytest.mark.asyncio
 async def test_get_schema_forbidden(er_client):
     """Test that a 403 for a schema endpoint raises ERClientPermissionDenied."""
-    v2_root = er_client.service_root.replace('/api/v1.0', '/api/v2.0')
+    v2_root = er_client._api_root('v2.0')
     async with respx.mock(assert_all_called=False) as respx_mock:
         route = respx_mock.get(f"{v2_root}/schemas/users.json")
         route.return_value = httpx.Response(httpx.codes.FORBIDDEN, json={"status": {"code": 403}})
@@ -64,7 +64,7 @@ async def test_get_schema_forbidden(er_client):
 
 @pytest.mark.asyncio
 async def test_get_users_schema(er_client, sample_schema):
-    v2_root = er_client.service_root.replace('/api/v1.0', '/api/v2.0')
+    v2_root = er_client._api_root('v2.0')
     async with respx.mock(assert_all_called=False) as respx_mock:
         route = respx_mock.get(f"{v2_root}/schemas/users.json")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": sample_schema})
@@ -76,7 +76,7 @@ async def test_get_users_schema(er_client, sample_schema):
 
 @pytest.mark.asyncio
 async def test_get_sources_schema(er_client, sample_schema):
-    v2_root = er_client.service_root.replace('/api/v1.0', '/api/v2.0')
+    v2_root = er_client._api_root('v2.0')
     async with respx.mock(assert_all_called=False) as respx_mock:
         route = respx_mock.get(f"{v2_root}/schemas/sources.json")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": sample_schema})
@@ -88,7 +88,7 @@ async def test_get_sources_schema(er_client, sample_schema):
 
 @pytest.mark.asyncio
 async def test_get_subjects_schema(er_client, sample_schema):
-    v2_root = er_client.service_root.replace('/api/v1.0', '/api/v2.0')
+    v2_root = er_client._api_root('v2.0')
     async with respx.mock(assert_all_called=False) as respx_mock:
         route = respx_mock.get(f"{v2_root}/schemas/subjects.json")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": sample_schema})
@@ -100,7 +100,7 @@ async def test_get_subjects_schema(er_client, sample_schema):
 
 @pytest.mark.asyncio
 async def test_get_choices_schema(er_client, sample_schema):
-    v2_root = er_client.service_root.replace('/api/v1.0', '/api/v2.0')
+    v2_root = er_client._api_root('v2.0')
     async with respx.mock(assert_all_called=False) as respx_mock:
         route = respx_mock.get(f"{v2_root}/schemas/choices.json")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": sample_schema})
@@ -112,7 +112,7 @@ async def test_get_choices_schema(er_client, sample_schema):
 
 @pytest.mark.asyncio
 async def test_get_spatial_features_schema(er_client, sample_schema):
-    v2_root = er_client.service_root.replace('/api/v1.0', '/api/v2.0')
+    v2_root = er_client._api_root('v2.0')
     async with respx.mock(assert_all_called=False) as respx_mock:
         route = respx_mock.get(f"{v2_root}/schemas/spatial_features.json")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": sample_schema})
@@ -124,7 +124,7 @@ async def test_get_spatial_features_schema(er_client, sample_schema):
 
 @pytest.mark.asyncio
 async def test_get_event_types_schema(er_client, sample_schema):
-    v2_root = er_client.service_root.replace('/api/v1.0', '/api/v2.0')
+    v2_root = er_client._api_root('v2.0')
     async with respx.mock(assert_all_called=False) as respx_mock:
         route = respx_mock.get(f"{v2_root}/schemas/event_types.json")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": sample_schema})

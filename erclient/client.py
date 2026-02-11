@@ -142,20 +142,22 @@ class ERClient(object):
         self.auth_expires = pytz.utc.localize(datetime.min)
         return False
 
-    def _er_url(self, path):
-        return '/'.join((self.service_root, path))
+    def _api_root(self, version='v1.0'):
+        """Return the full API root URL for the given version (e.g. {base}/api/v1.0)."""
+        base = re.sub(r'/api(/v[^/]+)?/?$', '', self.service_root.rstrip('/'))
+        return f"{base}/api/{version}"
 
-    @property
-    def service_root_v2(self):
-        """Derive the v2.0 API root from the configured v1.0 service_root."""
-        return self.service_root.replace('/api/v1.0', '/api/v2.0')
+    def _er_url(self, path, base_url=None):
+        if base_url is None:
+            base_url = self.service_root
+        return '/'.join((base_url.rstrip('/'), path.lstrip('/')))
 
-    def _get(self, path, stream=False, max_retries=5, seconds_between_attempts=5, **kwargs):
+    def _get(self, path, base_url=None, stream=False, max_retries=5, seconds_between_attempts=5, **kwargs):
         headers = {'User-Agent': self.user_agent}
 
         headers.update(self.auth_headers())
         if (not path.startswith("http")):
-            path = self._er_url(path)
+            path = self._er_url(path, base_url)
 
         attempts = 0
         while (attempts <= max_retries):
@@ -207,7 +209,7 @@ class ERClient(object):
                     f"Failed to call ER web service at {response.url} after {attempts} tries. {response.status_code} {response.text}")
             time.sleep(seconds_between_attempts)
 
-    def _call(self, path, payload, method, params=None):
+    def _call(self, path, payload, method, params=None, base_url=None):
         headers = {'Content-Type': 'application/json',
                    'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
@@ -229,7 +231,8 @@ class ERClient(object):
         except KeyError:
             self.logger.error('method must be one of...')
         else:
-            response = fn(self._er_url(path), data=body,
+            url = self._er_url(path, base_url)
+            response = fn(url, data=body,
                           headers=headers, params=params)
 
         if response and response.ok:
@@ -271,11 +274,11 @@ class ERClient(object):
         raise ERClientException(
             f"Failed to {fn} to ER web service. {message}")
 
-    def _post(self, path, payload, params=None):
-        return self._call(path, payload, "POST", params)
+    def _post(self, path, payload, params=None, base_url=None):
+        return self._call(path, payload, "POST", params, base_url=base_url)
 
-    def _patch(self, path, payload, params=None):
-        return self._call(path, payload, "PATCH", params)
+    def _patch(self, path, payload, params=None, base_url=None):
+        return self._call(path, payload, "PATCH", params, base_url=base_url)
 
     def add_event_to_incident(self, event_id, incident_id):
 
@@ -1001,8 +1004,10 @@ class ERClient(object):
                             'choices', 'spatial_features', 'event_types')
         :return: schema dict (JSON Schema)
         """
-        url = f'{self.service_root_v2}/schemas/{schema_name}.json'
-        return self._get(url)
+        return self._get(
+            f'schemas/{schema_name}.json',
+            base_url=self._api_root('v2.0'),
+        )
 
     def get_users_schema(self):
         """Get the users JSON schema from the v2 API."""
@@ -1318,13 +1323,15 @@ class AsyncERClient(object):
             tz=timezone.utc) + timedelta(seconds=expires_in)
         return True
 
-    def _er_url(self, path):
-        return '/'.join((self.service_root, path))
+    def _api_root(self, version='v1.0'):
+        """Return the full API root URL for the given version (e.g. {base}/api/v1.0)."""
+        base = re.sub(r'/api(/v[^/]+)?/?$', '', self.service_root.rstrip('/'))
+        return f"{base}/api/{version}"
 
-    @property
-    def service_root_v2(self):
-        """Derive the v2.0 API root from the configured v1.0 service_root."""
-        return self.service_root.replace('/api/v1.0', '/api/v2.0')
+    def _er_url(self, path, base_url=None):
+        if base_url is None:
+            base_url = self.service_root
+        return '/'.join((base_url.rstrip('/'), path.lstrip('/')))
 
     async def _post_form(self, path, body=None, files=None):
 
@@ -1448,8 +1455,10 @@ class AsyncERClient(object):
                             'choices', 'spatial_features', 'event_types')
         :return: schema dict (JSON Schema)
         """
-        url = f'{self.service_root_v2}/schemas/{schema_name}.json'
-        return await self._get(url)
+        return await self._get(
+            f'schemas/{schema_name}.json',
+            base_url=self._api_root('v2.0'),
+        )
 
     async def get_users_schema(self):
         """Get the users JSON schema from the v2 API."""
@@ -1505,16 +1514,16 @@ class AsyncERClient(object):
             else:
                 break
 
-    async def _get(self, path, params=None):
-        return await self._call(path=path, payload=None, method="GET", params=params)
+    async def _get(self, path, params=None, base_url=None):
+        return await self._call(path=path, payload=None, method="GET", params=params, base_url=base_url)
 
-    async def _post(self, path, payload, params=None):
-        return await self._call(path, payload, "POST", params)
+    async def _post(self, path, payload, params=None, base_url=None):
+        return await self._call(path, payload, "POST", params, base_url=base_url)
 
-    async def _patch(self, path, payload, params=None):
-        return await self._call(path, payload, "PATCH", params)
+    async def _patch(self, path, payload, params=None, base_url=None):
+        return await self._call(path, payload, "PATCH", params, base_url=base_url)
 
-    async def _call(self, path, payload, method, params=None):
+    async def _call(self, path, payload, method, params=None, base_url=None):
         try:
             auth_headers = await self.auth_headers()
         except httpx.HTTPStatusError as e:
@@ -1526,7 +1535,7 @@ class AsyncERClient(object):
                 'User-Agent': self.user_agent,
                 **auth_headers
             }
-            url = path if path.startswith("http") else self._er_url(path)
+            url = path if path.startswith('http') else self._er_url(path, base_url)
             try:
                 response = await self._http_session.request(
                     method,
