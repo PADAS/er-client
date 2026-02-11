@@ -79,8 +79,9 @@ class ERClient(object):
         # Normalize via urlparse: if path contains /api (e.g. /api or /api/v1.0), keep only scheme+netloc+path before /api.
         parsed = urlparse(raw_service_root)
         path = parsed.path.rstrip("/")
-        if "/api" in path:
-            path = path[: path.find("/api")].rstrip("/")
+        api_match = re.search(r'/api(/|$)', path)
+        if api_match:
+            path = path[:api_match.start()].rstrip("/")
         self.service_root = urlunparse(
             (parsed.scheme, parsed.netloc, path, "", "", "")).rstrip("/")
         self.client_id = kwargs.get('client_id')
@@ -615,7 +616,7 @@ class ERClient(object):
         """
         version = normalize_version(version)
         path = event_type_detail_path(version, event_type_name)
-        base_url = self._api_root(version) if version == VERSION_2_0 else None
+        base_url = self._api_root(version)
         params = {
             "include_schema": include_schema} if version == VERSION_2_0 else None
         return self._get(path, base_url=base_url, params=params)
@@ -1099,8 +1100,9 @@ class AsyncERClient(object):
         # Normalize via urlparse: if path contains /api (e.g. /api or /api/v1.0), keep only scheme+netloc+path before /api.
         parsed = urlparse(raw_service_root)
         path = parsed.path.rstrip("/")
-        if "/api" in path:
-            path = path[: path.find("/api")].rstrip("/")
+        api_match = re.search(r'/api(/|$)', path)
+        if api_match:
+            path = path[:api_match.start()].rstrip("/")
         self.service_root = urlunparse(
             (parsed.scheme, parsed.netloc, path, "", "", "")).rstrip("/")
         self.client_id = kwargs.get('client_id')
@@ -1464,7 +1466,8 @@ class AsyncERClient(object):
                                                                      text=""))
                 raise ERClientException(f'Request to ER failed: {reason}')
             except httpx.HTTPStatusError as e:
-                self._handle_http_status_error(path, "POST", e)
+                self._handle_http_status_error(
+                    path, "POST", e, request_url=request_url)
             else:  # Parse the response
                 json_response = response.json()
                 return json_response.get('data', json_response)
@@ -1517,7 +1520,7 @@ class AsyncERClient(object):
         """
         version = normalize_version(version)
         path = event_type_detail_path(version, event_type_name)
-        base_url = self._api_root(version) if version == VERSION_2_0 else None
+        base_url = self._api_root(version)
         params = {
             "include_schema": include_schema} if version == VERSION_2_0 else None
         return await self._get(path, base_url=base_url, params=params)
@@ -1749,7 +1752,8 @@ class AsyncERClient(object):
                                                                      text=""))
                 raise ERClientException(f'Request to ER failed: {reason}')
             except httpx.HTTPStatusError as e:
-                self._handle_http_status_error(path, method, e)
+                self._handle_http_status_error(
+                    path, method, e, request_url=request_url)
             else:  # Parse the response
                 json_response = response.json()
                 return json_response.get('data', json_response)
@@ -1758,11 +1762,14 @@ class AsyncERClient(object):
         for i in range(0, len(data), batch_size):
             yield data[i:i + batch_size]
 
-    def _handle_http_status_error(self, path, method, e):
+    def _handle_http_status_error(self, path, method, e, request_url=None):
         """Handles httpx.HTTPStatusError exceptions."""
         status_name = HTTPStatus(e.response.status_code).phrase
-        request_url = str(
-            e.response.url) if e.response else f"{self.service_root}/{path}"
+        if request_url is None:
+            request_url = str(
+                e.response.url) if e.response else f"{self.service_root}/{path}"
+        else:
+            request_url = str(request_url)
         error_details = f"ER {status_name} ON {method} {request_url}."
         error_details_log = f"{error_details}. Response Body: {e.response.text}"
         self.logger.exception(error_details_log)
