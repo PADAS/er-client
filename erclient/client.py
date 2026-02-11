@@ -1605,14 +1605,15 @@ class AsyncERClient(object):
         """Get files attached to a patrol."""
         return await self._get(f'activity/patrols/{patrol_id}/files')
 
-    async def post_patrol_file(self, patrol_id, file, comment=''):
+    async def post_patrol_file(self, patrol_id, filepath, comment=''):
         """Upload a file to a patrol."""
-        files = {'filecontent.file': file}
-        return await self._post_form(
-            f'activity/patrols/{patrol_id}/files/',
-            body={'comment': comment},
-            files=files,
-        )
+        with open(filepath, 'rb') as f:
+            files = {'filecontent.file': f}
+            return await self._post_form(
+                f'activity/patrols/{patrol_id}/files/',
+                body={'comment': comment},
+                files=files,
+            )
 
     async def get_patrol_file(self, patrol_id, file_id):
         """Get a specific file from a patrol."""

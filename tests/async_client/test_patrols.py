@@ -201,6 +201,19 @@ async def test_get_patrol_not_found(er_client):
             await er_client.get_patrol(PATROL_ID)
 
 
+@pytest.mark.asyncio
+async def test_get_patrol_forbidden(er_client):
+    async with respx.mock(
+        base_url=er_client.service_root, assert_all_called=False
+    ) as respx_mock:
+        respx_mock.get(f"activity/patrols/{PATROL_ID}").respond(
+            status_code=httpx.codes.FORBIDDEN,
+            json={"status": {"code": 403, "detail": "Forbidden"}},
+        )
+        with pytest.raises(ERClientPermissionDenied):
+            await er_client.get_patrol(PATROL_ID)
+
+
 # ============ post_patrol ============
 
 
@@ -270,6 +283,19 @@ async def test_delete_patrol_not_found(er_client):
             status_code=httpx.codes.NOT_FOUND, json={}
         )
         with pytest.raises(ERClientNotFound):
+            await er_client.delete_patrol(PATROL_ID)
+
+
+@pytest.mark.asyncio
+async def test_delete_patrol_forbidden(er_client):
+    async with respx.mock(
+        base_url=er_client.service_root, assert_all_called=False
+    ) as respx_mock:
+        respx_mock.delete(f"activity/patrols/{PATROL_ID}/").respond(
+            status_code=httpx.codes.FORBIDDEN,
+            json={"status": {"code": 403, "detail": "Forbidden"}},
+        )
+        with pytest.raises(ERClientPermissionDenied):
             await er_client.delete_patrol(PATROL_ID)
 
 
@@ -501,10 +527,9 @@ async def test_get_patrol_files(er_client, files_list_response):
 
 
 @pytest.mark.asyncio
-async def test_post_patrol_file(er_client, file_data):
-    import io
-
-    fake_file = io.BytesIO(b"test file content")
+async def test_post_patrol_file(er_client, file_data, tmp_path):
+    upload_file = tmp_path / "upload.pdf"
+    upload_file.write_bytes(b"test file content")
     async with respx.mock(
         base_url=er_client.service_root, assert_all_called=False
     ) as respx_mock:
@@ -515,7 +540,7 @@ async def test_post_patrol_file(er_client, file_data):
             json={"data": file_data},
         )
         result = await er_client.post_patrol_file(
-            PATROL_ID, fake_file, comment="test"
+            PATROL_ID, str(upload_file), comment="test"
         )
         assert route.called
         assert result == file_data

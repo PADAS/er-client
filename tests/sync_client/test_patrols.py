@@ -45,6 +45,20 @@ def test_get_patrol_not_found(er_client):
             er_client.get_patrol(PATROL_ID)
 
 
+def test_get_patrol_forbidden(er_client):
+    with patch.object(
+        er_client._http_session,
+        "get",
+        return_value=_mock_response(
+            {"status": {"code": 403, "detail": "Forbidden"}},
+            status_code=403,
+            ok=False,
+        ),
+    ):
+        with pytest.raises(ERClientPermissionDenied):
+            er_client.get_patrol(PATROL_ID)
+
+
 # ============ patch_patrol ============
 
 
@@ -54,6 +68,42 @@ def test_patch_patrol_success(er_client):
         result = er_client.patch_patrol(PATROL_ID, {"state": "done"})
     assert result["id"] == PATROL_ID
     assert result["state"] == "done"
+
+
+# ============ delete_patrol ============
+
+
+def test_delete_patrol_success(er_client):
+    with patch.object(
+        er_client._http_session,
+        "delete",
+        return_value=_mock_response({}, status_code=204, ok=True),
+    ):
+        er_client.delete_patrol(PATROL_ID)
+
+
+def test_delete_patrol_not_found(er_client):
+    with patch.object(
+        er_client._http_session,
+        "delete",
+        return_value=_mock_response({}, status_code=404, ok=False),
+    ):
+        with pytest.raises(ERClientNotFound):
+            er_client.delete_patrol(PATROL_ID)
+
+
+def test_delete_patrol_forbidden(er_client):
+    with patch.object(
+        er_client._http_session,
+        "delete",
+        return_value=_mock_response(
+            {"status": {"code": 403, "detail": "Forbidden"}},
+            status_code=403,
+            ok=False,
+        ),
+    ):
+        with pytest.raises(ERClientPermissionDenied):
+            er_client.delete_patrol(PATROL_ID)
 
 
 # ============ Patrol Types ============
