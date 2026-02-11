@@ -987,6 +987,48 @@ class ERClient(object):
     def get_users(self):
         return self._get('users')
 
+    # -- User / Account Methods --
+
+    def get_user(self, user_id):
+        """
+        Get a single user by ID (or 'me' for the authenticated user).
+        :param user_id: User UUID or 'me'
+        :return: User data
+        """
+        return self._get(f'user/{user_id}')
+
+    def patch_user(self, user_id, data):
+        """
+        Update a user with partial data.
+        :param user_id: User UUID or 'me'
+        :param data: Partial user data (e.g., {"first_name": "New"})
+        :return: Updated user data
+        """
+        self.logger.debug(f'Patching user {user_id}: {data}')
+        return self._patch(f'user/{user_id}', payload=data)
+
+    def get_user_profiles(self, user_id):
+        """
+        Get profiles for a user.
+        :param user_id: User UUID
+        :return: List of user profiles
+        """
+        return self._get(f'user/{user_id}/profiles')
+
+    def get_eula(self):
+        """
+        Get the active End-User License Agreement.
+        :return: EULA data
+        """
+        return self._get('user/eula')
+
+    def accept_eula(self):
+        """
+        Accept the active End-User License Agreement.
+        :return: Acceptance confirmation
+        """
+        return self._post('user/eula/accept', payload={})
+
 
 class AsyncERClient(object):
     """
@@ -1262,6 +1304,52 @@ class AsyncERClient(object):
 
     async def get_me(self):
         return await self._get('user/me')
+
+    # -- User / Account Methods --
+
+    async def get_users(self):
+        """Get a list of users."""
+        return await self._get('users')
+
+    async def get_user(self, user_id):
+        """
+        Get a single user by ID (or 'me' for the authenticated user).
+        :param user_id: User UUID or 'me'
+        :return: User data
+        """
+        return await self._get(f'user/{user_id}')
+
+    async def patch_user(self, user_id, data):
+        """
+        Update a user with partial data.
+        :param user_id: User UUID or 'me'
+        :param data: Partial user data (e.g., {"first_name": "New"})
+        :return: Updated user data
+        """
+        self.logger.debug(f'Patching user {user_id}: {data}')
+        return await self._patch(f'user/{user_id}', payload=data)
+
+    async def get_user_profiles(self, user_id):
+        """
+        Get profiles for a user.
+        :param user_id: User UUID
+        :return: List of user profiles
+        """
+        return await self._get(f'user/{user_id}/profiles')
+
+    async def get_eula(self):
+        """
+        Get the active End-User License Agreement.
+        :return: EULA data
+        """
+        return await self._get('user/eula')
+
+    async def accept_eula(self):
+        """
+        Accept the active End-User License Agreement.
+        :return: Acceptance confirmation
+        """
+        return await self._post('user/eula/accept', payload={})
 
     async def _token_request(self, payload):
         response = await self._http_session.post(self.token_url, data=payload)
