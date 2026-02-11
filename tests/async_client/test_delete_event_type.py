@@ -165,7 +165,7 @@ async def test_delete_event_type_server_error_raises(er_client):
             text="Internal Server Error"
         )
 
-        with pytest.raises(ERClientException, match="Failed to delete"):
+        with pytest.raises(ERClientException, match="Internal Server Error"):
             await er_client.delete_event_type(slug)
 
         assert route.called
