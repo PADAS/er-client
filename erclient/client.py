@@ -5,6 +5,7 @@ import logging
 import math
 import re
 import time
+import warnings
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from typing import List
@@ -1461,15 +1462,18 @@ class AsyncERClient(object):
 
     async def get_feature_group(self, feature_group_id: str):
         """
-        Get a feature group by id
+        Get a feature group by id.
 
-        Args:
-            feature_group_id (int): id of the feature group
-
-        Returns:
-            dict: feature group data
+        .. deprecated:: 1.x
+            Use :meth:`get_spatialfeaturegroup` instead; the name matches the
+            DAS API path ``spatialfeaturegroup``.
         """
-        return await self._get(f"spatialfeaturegroup/{feature_group_id}", params={})
+        warnings.warn(
+            "get_feature_group() is deprecated; use get_spatialfeaturegroup() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return await self.get_spatialfeaturegroup(feature_group_id)
 
     # -- Mapping / Spatial Feature Methods --
 

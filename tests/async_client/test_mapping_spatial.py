@@ -271,6 +271,21 @@ async def test_get_spatialfeaturegroup_not_found(er_client):
 
 
 @pytest.mark.asyncio
+async def test_get_feature_group_deprecated_delegates_to_get_spatialfeaturegroup(
+    er_client, spatialfeaturegroup_response
+):
+    """get_feature_group is deprecated and delegates to get_spatialfeaturegroup."""
+    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+        route = respx_mock.get("spatialfeaturegroup/sfg-001")
+        route.return_value = httpx.Response(httpx.codes.OK, json={"data": spatialfeaturegroup_response})
+        with pytest.warns(DeprecationWarning, match="get_feature_group.*get_spatialfeaturegroup"):
+            result = await er_client.get_feature_group("sfg-001")
+        assert route.called
+        assert result == spatialfeaturegroup_response
+        await er_client.close()
+
+
+@pytest.mark.asyncio
 async def test_post_spatialfeaturegroup(er_client, spatialfeaturegroup_payload, spatialfeaturegroup_response):
     async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
         route = respx_mock.post("spatialfeaturegroup")
