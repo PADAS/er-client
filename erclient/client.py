@@ -145,6 +145,17 @@ class ERClient(object):
     def _er_url(self, path):
         return '/'.join((self.service_root, path))
 
+    def _er_url_versioned(self, path, version='1.0'):
+        """Build an API URL for a specific API version.
+
+        Replaces the version portion of service_root (e.g. v1.0 -> v2.0).
+        Falls back to the default service_root when version is '1.0'.
+        """
+        if version == '1.0':
+            return self._er_url(path)
+        versioned_root = re.sub(r'/api/v[^/]+', f'/api/v{version}', self.service_root)
+        return '/'.join((versioned_root, path))
+
     def _get(self, path, stream=False, max_retries=5, seconds_between_attempts=5, **kwargs):
         headers = {'User-Agent': self.user_agent}
 
@@ -819,15 +830,34 @@ class ERClient(object):
 
         return None
 
-    def get_subject_tracks(self, subject_id='', start=None, end=None):
+    def get_subject_tracks(self, subject_id='', start=None, end=None, version='1.0', **kwargs):
         """
         Get the latest tracks for the Subject having the given subject_id.
+
+        :param subject_id: The UUID of the subject.
+        :param start: datetime lower-bound filter (sent as ``since``).
+        :param end: datetime upper-bound filter (sent as ``until``).
+        :param version: API version string, either '1.0' (default, legacy flat
+            coordinates) or '2.0' (segmented GeoJSON FeatureCollection).
+        :param kwargs: Extra query params forwarded to the v2 endpoint such as
+            ``show_excluded``, ``group_by_flags``, ``max_speed_kmh``,
+            ``max_gap_ms``, ``max_gap_seconds``, ``max_gap_minutes``.
+        :return: Track data (format varies by version).
         """
         p = {}
         if start is not None and isinstance(start, datetime):
             p['since'] = start.isoformat()
         if end is not None and isinstance(end, datetime):
             p['until'] = end.isoformat()
+
+        if version == '2.0':
+            # v2 supports additional filter params
+            for key in ('show_excluded', 'group_by_flags', 'max_speed_kmh',
+                        'max_gap_ms', 'max_gap_seconds', 'max_gap_minutes'):
+                if key in kwargs:
+                    p[key] = kwargs[key]
+            url = self._er_url_versioned(f'subject/{subject_id}/tracks/', version='2.0')
+            return self._get(path=url, params=p)
 
         return self._get(path='subject/{0}/tracks'.format(subject_id), params=p)
 
@@ -1280,6 +1310,17 @@ class AsyncERClient(object):
     def _er_url(self, path):
         return '/'.join((self.service_root, path))
 
+    def _er_url_versioned(self, path, version='1.0'):
+        """Build an API URL for a specific API version.
+
+        Replaces the version portion of service_root (e.g. v1.0 -> v2.0).
+        Falls back to the default service_root when version is '1.0'.
+        """
+        if version == '1.0':
+            return self._er_url(path)
+        versioned_root = re.sub(r'/api/v[^/]+', f'/api/v{version}', self.service_root)
+        return '/'.join((versioned_root, path))
+
     async def _post_form(self, path, body=None, files=None):
 
         try:
@@ -1381,6 +1422,50 @@ class AsyncERClient(object):
 
         return await self._get(f'subjectsources', params=params)
 
+    async def get_subject_tracks(self, subject_id='', start=None, end=None, version='1.0', **kwargs):
+        """
+        Get tracks for the Subject having the given subject_id.
+
+        :param subject_id: The UUID of the subject.
+        :param start: datetime lower-bound filter (sent as ``since``).
+        :param end: datetime upper-bound filter (sent as ``until``).
+        :param version: API version string, either '1.0' (default, legacy flat
+            coordinates) or '2.0' (segmented GeoJSON FeatureCollection).
+        :param kwargs: Extra query params forwarded to the v2 endpoint such as
+            ``show_excluded``, ``group_by_flags``, ``max_speed_kmh``,
+            ``max_gap_ms``, ``max_gap_seconds``, ``max_gap_minutes``.
+        :return: Track data (format varies by version).
+        """
+        p = {}
+        if start is not None and isinstance(start, datetime):
+            p['since'] = start.isoformat()
+        if end is not None and isinstance(end, datetime):
+            p['until'] = end.isoformat()
+
+        if version == '2.0':
+            for key in ('show_excluded', 'group_by_flags', 'max_speed_kmh',
+                        'max_gap_ms', 'max_gap_seconds', 'max_gap_minutes'):
+                if key in kwargs:
+                    p[key] = kwargs[key]
+            url = self._er_url_versioned(f'subject/{subject_id}/tracks/', version='2.0')
+            return await self._get(path=url, params=p)
+
+        return await self._get(path=f'subject/{subject_id}/tracks', params=p)
+
+    async def get_subject_source_tracks(self, subject_id='', src_id='', start=None):
+        """
+        Get the latest tracks for the Subject having the given subject_id and a source ID.
+
+        :param subject_id: The subject UUID
+        :param src_id: The source UUID
+        :param start: Optional datetime lower-bound filter (sent as ``since``)
+        :return: Track data
+        """
+        p = {}
+        if start and isinstance(start, datetime):
+            p['since'] = start.isoformat()
+        return await self._get(path=f'subject/{subject_id}/source/{src_id}/tracks', params=p)
+
     async def get_feature_group(self, feature_group_id: str):
         """
         Get a feature group by id
@@ -1444,10 +1529,11 @@ class AsyncERClient(object):
                 'User-Agent': self.user_agent,
                 **auth_headers
             }
+            url = path if path.startswith("http") else self._er_url(path)
             try:
                 response = await self._http_session.request(
                     method,
-                    self._er_url(path),
+                    url,
                     # payload is automatically encoded as json data
                     json=payload if method in [
                         "POST", "PUT", "PATCH"] else None,
