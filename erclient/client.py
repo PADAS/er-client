@@ -987,6 +987,102 @@ class ERClient(object):
     def get_users(self):
         return self._get('users')
 
+    # -- GeoJSON endpoints --
+
+    def get_events_geojson(self, **kwargs):
+        """
+        Get events as a GeoJSON FeatureCollection.
+
+        Accepts the same filter kwargs as get_events (state, event_type, filter, etc.).
+        :return: GeoJSON FeatureCollection dict
+        """
+        params = dict((k, v) for k, v in kwargs.items() if k in
+                      ('state', 'page_size', 'page', 'event_type', 'filter',
+                       'include_notes', 'include_related_events', 'include_files',
+                       'include_details', 'updated_since', 'include_updates',
+                       'oldest_update_date', 'event_ids'))
+        return self._get('activity/events/geojson', params=params)
+
+    def get_subjects_geojson(self, **kwargs):
+        """
+        Get subjects as a GeoJSON FeatureCollection.
+
+        :param subject_group: filter by subject group
+        :param include_inactive: include inactive subjects
+        :return: GeoJSON FeatureCollection dict
+        """
+        params = dict((k, v) for k, v in kwargs.items() if k in
+                      ('subject_group', 'include_inactive'))
+        return self._get('subjects/geojson', params=params)
+
+    # -- KML endpoints --
+
+    def get_subjects_kml(self, start=None, end=None, include_inactive=None):
+        """
+        Download the subjects KML/KMZ document.
+
+        :param start: start date string (YYYY-MM-DD)
+        :param end: end date string (YYYY-MM-DD)
+        :param include_inactive: include inactive subjects
+        :return: Response object with binary KMZ content
+        """
+        p = {}
+        if start is not None:
+            p['start'] = start
+        if end is not None:
+            p['end'] = end
+        if include_inactive is not None:
+            p['include_inactive'] = include_inactive
+        return self._get('subjects/kml', params=p, return_response=True)
+
+    def get_subject_kml(self, subject_id, start=None, end=None):
+        """
+        Download the KML/KMZ document for a single subject.
+
+        :param subject_id: UUID of the subject
+        :param start: start date string (YYYY-MM-DD)
+        :param end: end date string (YYYY-MM-DD)
+        :return: Response object with binary KMZ content
+        """
+        p = {}
+        if start is not None:
+            p['start'] = start
+        if end is not None:
+            p['end'] = end
+        return self._get(f'subject/{subject_id}/kml', params=p, return_response=True)
+
+    # -- Vector tile endpoints --
+
+    def get_observation_segment_tiles(self, z, x, y, **kwargs):
+        """
+        Get observation segment vector tiles (MVT/PBF).
+
+        :param z: zoom level
+        :param x: tile x coordinate
+        :param y: tile y coordinate
+        :return: Response object with binary protobuf content
+        """
+        return self._get(
+            f'observations/segments/tiles/{z}/{x}/{y}.pbf',
+            params=kwargs or None,
+            return_response=True,
+        )
+
+    def get_spatial_feature_tiles(self, z, x, y, **kwargs):
+        """
+        Get spatial feature vector tiles (MVT/PBF).
+
+        :param z: zoom level
+        :param x: tile x coordinate
+        :param y: tile y coordinate
+        :return: Response object with binary protobuf content
+        """
+        return self._get(
+            f'spatialfeatures/tiles/{z}/{x}/{y}.pbf',
+            params=kwargs or None,
+            return_response=True,
+        )
+
 
 class AsyncERClient(object):
     """
@@ -1406,6 +1502,100 @@ class AsyncERClient(object):
             dict: feature group data
         """
         return await self._get(f"spatialfeaturegroup/{feature_group_id}", params={})
+
+    # -- GeoJSON endpoints --
+
+    async def get_events_geojson(self, **kwargs):
+        """
+        Get events as a GeoJSON FeatureCollection.
+
+        Accepts the same filter kwargs as get_events (state, event_type, filter, etc.).
+        :return: GeoJSON FeatureCollection dict
+        """
+        params = {k: v for k, v in kwargs.items() if k in
+                  ('state', 'page_size', 'page', 'event_type', 'filter',
+                   'include_notes', 'include_related_events', 'include_files',
+                   'include_details', 'updated_since', 'include_updates',
+                   'oldest_update_date', 'event_ids')}
+        return await self._get('activity/events/geojson', params=params)
+
+    async def get_subjects_geojson(self, **kwargs):
+        """
+        Get subjects as a GeoJSON FeatureCollection.
+
+        :param subject_group: filter by subject group
+        :param include_inactive: include inactive subjects
+        :return: GeoJSON FeatureCollection dict
+        """
+        params = {k: v for k, v in kwargs.items() if k in
+                  ('subject_group', 'include_inactive')}
+        return await self._get('subjects/geojson', params=params)
+
+    # -- KML endpoints --
+
+    async def get_subjects_kml(self, start=None, end=None, include_inactive=None):
+        """
+        Download the subjects KML/KMZ document.
+
+        :param start: start date string (YYYY-MM-DD)
+        :param end: end date string (YYYY-MM-DD)
+        :param include_inactive: include inactive subjects
+        :return: httpx.Response with binary KMZ content
+        """
+        p = {}
+        if start is not None:
+            p['start'] = start
+        if end is not None:
+            p['end'] = end
+        if include_inactive is not None:
+            p['include_inactive'] = include_inactive
+        return await self._get_raw('subjects/kml', params=p)
+
+    async def get_subject_kml(self, subject_id, start=None, end=None):
+        """
+        Download the KML/KMZ document for a single subject.
+
+        :param subject_id: UUID of the subject
+        :param start: start date string (YYYY-MM-DD)
+        :param end: end date string (YYYY-MM-DD)
+        :return: httpx.Response with binary KMZ content
+        """
+        p = {}
+        if start is not None:
+            p['start'] = start
+        if end is not None:
+            p['end'] = end
+        return await self._get_raw(f'subject/{subject_id}/kml', params=p)
+
+    # -- Vector tile endpoints --
+
+    async def get_observation_segment_tiles(self, z, x, y, **kwargs):
+        """
+        Get observation segment vector tiles (MVT/PBF).
+
+        :param z: zoom level
+        :param x: tile x coordinate
+        :param y: tile y coordinate
+        :return: httpx.Response with binary protobuf content
+        """
+        return await self._get_raw(
+            f'observations/segments/tiles/{z}/{x}/{y}.pbf',
+            params=kwargs or None,
+        )
+
+    async def get_spatial_feature_tiles(self, z, x, y, **kwargs):
+        """
+        Get spatial feature vector tiles (MVT/PBF).
+
+        :param z: zoom level
+        :param x: tile x coordinate
+        :param y: tile y coordinate
+        :return: httpx.Response with binary protobuf content
+        """
+        return await self._get_raw(
+            f'spatialfeatures/tiles/{z}/{x}/{y}.pbf',
+            params=kwargs or None,
+        )
 
     async def _get_data(self, endpoint, params, batch_size=0):
         if "page" not in params:  # Use cursor paginator unless the user has specified a page
