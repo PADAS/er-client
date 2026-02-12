@@ -742,7 +742,7 @@ class ERClient(object):
                             logging.warning(
                                 f"Attempt {tries} of {max_retries}: Error occurred loading events: {e}.")
 
-    def get_event(self, event_id, include_details=True, include_updates=False,
+    def get_event(self, *, event_id, include_details=True, include_updates=False,
                   include_notes=False, include_related_events=False,
                   include_files=False):
         """
@@ -1185,7 +1185,7 @@ class AsyncERClient(object):
         self.logger.debug('Result of event patch is: %s', result)
         return result
 
-    async def get_event(self, event_id, include_details=True, include_updates=False,
+    async def get_event(self, *, event_id, include_details=True, include_updates=False,
                         include_notes=False, include_related_events=False,
                         include_files=False):
         """
