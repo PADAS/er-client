@@ -72,7 +72,7 @@ def notification_method_created_response():
 @pytest.mark.asyncio
 async def test_get_notification_methods_success(er_client, notification_method_list_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/notificationmethods")
         route.return_value = httpx.Response(
@@ -94,7 +94,7 @@ async def test_get_notification_methods_empty(er_client):
         "status": {"code": 200, "message": "OK"},
     }
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/notificationmethods")
         route.return_value = httpx.Response(
@@ -110,7 +110,7 @@ async def test_get_notification_methods_empty(er_client):
 @pytest.mark.asyncio
 async def test_get_notification_methods_unauthorized(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/notificationmethods")
         route.return_value = httpx.Response(httpx.codes.UNAUTHORIZED, json={})
@@ -125,7 +125,7 @@ async def test_get_notification_methods_unauthorized(er_client):
 @pytest.mark.asyncio
 async def test_get_notification_methods_forbidden(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/notificationmethods")
         route.return_value = httpx.Response(httpx.codes.FORBIDDEN, json={})
@@ -142,7 +142,7 @@ async def test_get_notification_methods_forbidden(er_client):
 @pytest.mark.asyncio
 async def test_get_notification_method_success(er_client, notification_method_detail_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"activity/notificationmethod/{NM_ID}")
         route.return_value = httpx.Response(
@@ -158,7 +158,7 @@ async def test_get_notification_method_success(er_client, notification_method_de
 @pytest.mark.asyncio
 async def test_get_notification_method_not_found(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"activity/notificationmethod/{NM_ID}")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json={})
@@ -173,7 +173,7 @@ async def test_get_notification_method_not_found(er_client):
 @pytest.mark.asyncio
 async def test_get_notification_method_forbidden(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"activity/notificationmethod/{NM_ID}")
         route.return_value = httpx.Response(httpx.codes.FORBIDDEN, json={})
@@ -190,7 +190,7 @@ async def test_get_notification_method_forbidden(er_client):
 @pytest.mark.asyncio
 async def test_post_notification_method_success(er_client, notification_method_created_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post("activity/notificationmethods")
         route.return_value = httpx.Response(
@@ -209,7 +209,7 @@ async def test_post_notification_method_success(er_client, notification_method_c
 @pytest.mark.asyncio
 async def test_post_notification_method_bad_request(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post("activity/notificationmethods")
         route.return_value = httpx.Response(httpx.codes.BAD_REQUEST, json={})
@@ -224,7 +224,7 @@ async def test_post_notification_method_bad_request(er_client):
 @pytest.mark.asyncio
 async def test_post_notification_method_forbidden(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post("activity/notificationmethods")
         route.return_value = httpx.Response(httpx.codes.FORBIDDEN, json={})
@@ -241,7 +241,7 @@ async def test_post_notification_method_forbidden(er_client):
 @pytest.mark.asyncio
 async def test_patch_notification_method_success(er_client, notification_method_detail_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.patch(f"activity/notificationmethod/{NM_ID}")
         route.return_value = httpx.Response(
@@ -257,7 +257,7 @@ async def test_patch_notification_method_success(er_client, notification_method_
 @pytest.mark.asyncio
 async def test_patch_notification_method_not_found(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.patch(f"activity/notificationmethod/{NM_ID}")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json={})
@@ -272,7 +272,7 @@ async def test_patch_notification_method_not_found(er_client):
 @pytest.mark.asyncio
 async def test_patch_notification_method_bad_request(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.patch(f"activity/notificationmethod/{NM_ID}")
         route.return_value = httpx.Response(httpx.codes.BAD_REQUEST, json={})
@@ -289,7 +289,7 @@ async def test_patch_notification_method_bad_request(er_client):
 @pytest.mark.asyncio
 async def test_delete_notification_method_success(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.delete(f"activity/notificationmethod/{NM_ID}/")
         route.return_value = httpx.Response(httpx.codes.NO_CONTENT)
@@ -303,7 +303,7 @@ async def test_delete_notification_method_success(er_client):
 @pytest.mark.asyncio
 async def test_delete_notification_method_not_found(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.delete(f"activity/notificationmethod/{NM_ID}/")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json={})
@@ -318,7 +318,7 @@ async def test_delete_notification_method_not_found(er_client):
 @pytest.mark.asyncio
 async def test_delete_notification_method_forbidden(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.delete(f"activity/notificationmethod/{NM_ID}/")
         route.return_value = httpx.Response(httpx.codes.FORBIDDEN, json={})
@@ -335,7 +335,7 @@ async def test_delete_notification_method_forbidden(er_client):
 @pytest.mark.asyncio
 async def test_get_notification_methods_internal_server_error(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/notificationmethods")
         route.return_value = httpx.Response(httpx.codes.INTERNAL_SERVER_ERROR, json={})
@@ -350,7 +350,7 @@ async def test_get_notification_methods_internal_server_error(er_client):
 @pytest.mark.asyncio
 async def test_post_notification_method_network_error(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post("activity/notificationmethods")
         route.side_effect = httpx.ConnectTimeout
@@ -365,7 +365,7 @@ async def test_post_notification_method_network_error(er_client):
 @pytest.mark.asyncio
 async def test_delete_notification_method_service_unavailable(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.delete(f"activity/notificationmethod/{NM_ID}/")
         route.return_value = httpx.Response(httpx.codes.SERVICE_UNAVAILABLE, json={})

@@ -69,7 +69,7 @@ def alert_created_response():
 @pytest.mark.asyncio
 async def test_get_alerts_success(er_client, alert_list_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/alerts")
         route.return_value = httpx.Response(
@@ -85,7 +85,7 @@ async def test_get_alerts_success(er_client, alert_list_response):
 @pytest.mark.asyncio
 async def test_get_alerts_empty(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/alerts")
         route.return_value = httpx.Response(
@@ -101,7 +101,7 @@ async def test_get_alerts_empty(er_client):
 @pytest.mark.asyncio
 async def test_get_alerts_unauthorized(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/alerts")
         route.return_value = httpx.Response(httpx.codes.UNAUTHORIZED, json={})
@@ -116,7 +116,7 @@ async def test_get_alerts_unauthorized(er_client):
 @pytest.mark.asyncio
 async def test_get_alerts_forbidden(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/alerts")
         route.return_value = httpx.Response(httpx.codes.FORBIDDEN, json={})
@@ -133,7 +133,7 @@ async def test_get_alerts_forbidden(er_client):
 @pytest.mark.asyncio
 async def test_get_alert_success(er_client, alert_detail_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"activity/alert/{ALERT_ID}")
         route.return_value = httpx.Response(
@@ -149,7 +149,7 @@ async def test_get_alert_success(er_client, alert_detail_response):
 @pytest.mark.asyncio
 async def test_get_alert_not_found(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"activity/alert/{ALERT_ID}")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json={})
@@ -164,7 +164,7 @@ async def test_get_alert_not_found(er_client):
 @pytest.mark.asyncio
 async def test_get_alert_forbidden(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"activity/alert/{ALERT_ID}")
         route.return_value = httpx.Response(httpx.codes.FORBIDDEN, json={})
@@ -181,7 +181,7 @@ async def test_get_alert_forbidden(er_client):
 @pytest.mark.asyncio
 async def test_post_alert_success(er_client, alert_created_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post("activity/alerts")
         route.return_value = httpx.Response(
@@ -200,7 +200,7 @@ async def test_post_alert_success(er_client, alert_created_response):
 @pytest.mark.asyncio
 async def test_post_alert_bad_request(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post("activity/alerts")
         route.return_value = httpx.Response(httpx.codes.BAD_REQUEST, json={})
@@ -215,7 +215,7 @@ async def test_post_alert_bad_request(er_client):
 @pytest.mark.asyncio
 async def test_post_alert_forbidden(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post("activity/alerts")
         route.return_value = httpx.Response(httpx.codes.FORBIDDEN, json={})
@@ -232,7 +232,7 @@ async def test_post_alert_forbidden(er_client):
 @pytest.mark.asyncio
 async def test_patch_alert_success(er_client, alert_detail_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.patch(f"activity/alert/{ALERT_ID}")
         route.return_value = httpx.Response(
@@ -248,7 +248,7 @@ async def test_patch_alert_success(er_client, alert_detail_response):
 @pytest.mark.asyncio
 async def test_patch_alert_not_found(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.patch(f"activity/alert/{ALERT_ID}")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json={})
@@ -263,7 +263,7 @@ async def test_patch_alert_not_found(er_client):
 @pytest.mark.asyncio
 async def test_patch_alert_bad_request(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.patch(f"activity/alert/{ALERT_ID}")
         route.return_value = httpx.Response(httpx.codes.BAD_REQUEST, json={})
@@ -280,7 +280,7 @@ async def test_patch_alert_bad_request(er_client):
 @pytest.mark.asyncio
 async def test_delete_alert_success(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.delete(f"activity/alert/{ALERT_ID}/")
         route.return_value = httpx.Response(httpx.codes.NO_CONTENT)
@@ -294,7 +294,7 @@ async def test_delete_alert_success(er_client):
 @pytest.mark.asyncio
 async def test_delete_alert_not_found(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.delete(f"activity/alert/{ALERT_ID}/")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json={})
@@ -309,7 +309,7 @@ async def test_delete_alert_not_found(er_client):
 @pytest.mark.asyncio
 async def test_delete_alert_forbidden(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.delete(f"activity/alert/{ALERT_ID}/")
         route.return_value = httpx.Response(httpx.codes.FORBIDDEN, json={})
@@ -333,7 +333,7 @@ async def test_get_alert_conditions_success(er_client):
         "status": {"code": 200, "message": "OK"},
     }
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/alerts/conditions")
         route.return_value = httpx.Response(
@@ -349,7 +349,7 @@ async def test_get_alert_conditions_success(er_client):
 @pytest.mark.asyncio
 async def test_get_alert_conditions_empty(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/alerts/conditions")
         route.return_value = httpx.Response(
@@ -365,7 +365,7 @@ async def test_get_alert_conditions_empty(er_client):
 @pytest.mark.asyncio
 async def test_get_alert_conditions_forbidden(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/alerts/conditions")
         route.return_value = httpx.Response(httpx.codes.FORBIDDEN, json={})
@@ -382,7 +382,7 @@ async def test_get_alert_conditions_forbidden(er_client):
 @pytest.mark.asyncio
 async def test_get_alerts_internal_server_error(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/alerts")
         route.return_value = httpx.Response(httpx.codes.INTERNAL_SERVER_ERROR, json={})
@@ -397,7 +397,7 @@ async def test_get_alerts_internal_server_error(er_client):
 @pytest.mark.asyncio
 async def test_post_alert_network_error(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post("activity/alerts")
         route.side_effect = httpx.ConnectTimeout
@@ -412,7 +412,7 @@ async def test_post_alert_network_error(er_client):
 @pytest.mark.asyncio
 async def test_delete_alert_service_unavailable(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.delete(f"activity/alert/{ALERT_ID}/")
         route.return_value = httpx.Response(httpx.codes.SERVICE_UNAVAILABLE, json={})
