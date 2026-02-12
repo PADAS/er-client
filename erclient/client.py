@@ -1054,6 +1054,102 @@ class ERClient(object):
     def get_users(self):
         return self._get('users')
 
+    # -- GeoJSON endpoints --
+
+    def get_events_geojson(self, **kwargs):
+        """
+        Get events as a GeoJSON FeatureCollection.
+
+        Accepts the same filter kwargs as get_events (state, event_type, filter, etc.).
+        :return: GeoJSON FeatureCollection dict
+        """
+        params = dict((k, v) for k, v in kwargs.items() if k in
+                      ('state', 'page_size', 'page', 'event_type', 'filter',
+                       'include_notes', 'include_related_events', 'include_files',
+                       'include_details', 'updated_since', 'include_updates',
+                       'oldest_update_date', 'event_ids'))
+        return self._get('activity/events/geojson', params=params)
+
+    def get_subjects_geojson(self, **kwargs):
+        """
+        Get subjects as a GeoJSON FeatureCollection.
+
+        :param subject_group: filter by subject group
+        :param include_inactive: include inactive subjects
+        :return: GeoJSON FeatureCollection dict
+        """
+        params = dict((k, v) for k, v in kwargs.items() if k in
+                      ('subject_group', 'include_inactive'))
+        return self._get('subjects/geojson', params=params)
+
+    # -- KML endpoints --
+
+    def get_subjects_kml(self, start=None, end=None, include_inactive=None):
+        """
+        Download the subjects KML/KMZ document.
+
+        :param start: start date string (YYYY-MM-DD)
+        :param end: end date string (YYYY-MM-DD)
+        :param include_inactive: include inactive subjects
+        :return: Response object with binary KMZ content
+        """
+        p = {}
+        if start is not None:
+            p['start'] = start
+        if end is not None:
+            p['end'] = end
+        if include_inactive is not None:
+            p['include_inactive'] = include_inactive
+        return self._get('subjects/kml', params=p, return_response=True)
+
+    def get_subject_kml(self, subject_id, start=None, end=None):
+        """
+        Download the KML/KMZ document for a single subject.
+
+        :param subject_id: UUID of the subject
+        :param start: start date string (YYYY-MM-DD)
+        :param end: end date string (YYYY-MM-DD)
+        :return: Response object with binary KMZ content
+        """
+        p = {}
+        if start is not None:
+            p['start'] = start
+        if end is not None:
+            p['end'] = end
+        return self._get(f'subject/{subject_id}/kml', params=p, return_response=True)
+
+    # -- Vector tile endpoints --
+
+    def get_observation_segment_tiles(self, z, x, y, **kwargs):
+        """
+        Get observation segment vector tiles (MVT/PBF).
+
+        :param z: zoom level
+        :param x: tile x coordinate
+        :param y: tile y coordinate
+        :return: Response object with binary protobuf content
+        """
+        return self._get(
+            f'observations/segments/tiles/{z}/{x}/{y}.pbf',
+            params=kwargs or None,
+            return_response=True,
+        )
+
+    def get_spatial_feature_tiles(self, z, x, y, **kwargs):
+        """
+        Get spatial feature vector tiles (MVT/PBF).
+
+        :param z: zoom level
+        :param x: tile x coordinate
+        :param y: tile y coordinate
+        :return: Response object with binary protobuf content
+        """
+        return self._get(
+            f'spatialfeatures/tiles/{z}/{x}/{y}.pbf',
+            params=kwargs or None,
+            return_response=True,
+        )
+
 
 class AsyncERClient(object):
     """
@@ -1301,6 +1397,20 @@ class AsyncERClient(object):
             params['page_size'] = batch_size
         async for observation in self._get_data(endpoint='observations', params=params, batch_size=batch_size):
             yield observation
+
+    async def get_events_export(self, filter=None):
+        """Download events as a CSV export.
+
+        :param filter: Optional JSON-encoded filter string passed as a query
+            parameter.  When *None* no filter is applied.
+        :return: The raw ``httpx.Response`` whose body contains the CSV
+            payload.  This matches the sync client behaviour where the caller
+            can stream or read the body at will.
+        """
+        params = {}
+        if filter:
+            params['filter'] = filter
+        return await self._get_raw('activity/events/export/', params=params)
 
     async def post_camera_trap_report(self, camera_trap_payload, file=None):
         camera_trap_report_path = f'sensors/camera-trap/{self.provider_key}/status/'
@@ -1613,6 +1723,100 @@ class AsyncERClient(object):
         """
         return await self._get(f"spatialfeaturegroup/{feature_group_id}", params={})
 
+    # -- GeoJSON endpoints --
+
+    async def get_events_geojson(self, **kwargs):
+        """
+        Get events as a GeoJSON FeatureCollection.
+
+        Accepts the same filter kwargs as get_events (state, event_type, filter, etc.).
+        :return: GeoJSON FeatureCollection dict
+        """
+        params = {k: v for k, v in kwargs.items() if k in
+                  ('state', 'page_size', 'page', 'event_type', 'filter',
+                   'include_notes', 'include_related_events', 'include_files',
+                   'include_details', 'updated_since', 'include_updates',
+                   'oldest_update_date', 'event_ids')}
+        return await self._get('activity/events/geojson', params=params)
+
+    async def get_subjects_geojson(self, **kwargs):
+        """
+        Get subjects as a GeoJSON FeatureCollection.
+
+        :param subject_group: filter by subject group
+        :param include_inactive: include inactive subjects
+        :return: GeoJSON FeatureCollection dict
+        """
+        params = {k: v for k, v in kwargs.items() if k in
+                  ('subject_group', 'include_inactive')}
+        return await self._get('subjects/geojson', params=params)
+
+    # -- KML endpoints --
+
+    async def get_subjects_kml(self, start=None, end=None, include_inactive=None):
+        """
+        Download the subjects KML/KMZ document.
+
+        :param start: start date string (YYYY-MM-DD)
+        :param end: end date string (YYYY-MM-DD)
+        :param include_inactive: include inactive subjects
+        :return: httpx.Response with binary KMZ content
+        """
+        p = {}
+        if start is not None:
+            p['start'] = start
+        if end is not None:
+            p['end'] = end
+        if include_inactive is not None:
+            p['include_inactive'] = include_inactive
+        return await self._get_raw('subjects/kml', params=p)
+
+    async def get_subject_kml(self, subject_id, start=None, end=None):
+        """
+        Download the KML/KMZ document for a single subject.
+
+        :param subject_id: UUID of the subject
+        :param start: start date string (YYYY-MM-DD)
+        :param end: end date string (YYYY-MM-DD)
+        :return: httpx.Response with binary KMZ content
+        """
+        p = {}
+        if start is not None:
+            p['start'] = start
+        if end is not None:
+            p['end'] = end
+        return await self._get_raw(f'subject/{subject_id}/kml', params=p)
+
+    # -- Vector tile endpoints --
+
+    async def get_observation_segment_tiles(self, z, x, y, **kwargs):
+        """
+        Get observation segment vector tiles (MVT/PBF).
+
+        :param z: zoom level
+        :param x: tile x coordinate
+        :param y: tile y coordinate
+        :return: httpx.Response with binary protobuf content
+        """
+        return await self._get_raw(
+            f'observations/segments/tiles/{z}/{x}/{y}.pbf',
+            params=kwargs or None,
+        )
+
+    async def get_spatial_feature_tiles(self, z, x, y, **kwargs):
+        """
+        Get spatial feature vector tiles (MVT/PBF).
+
+        :param z: zoom level
+        :param x: tile x coordinate
+        :param y: tile y coordinate
+        :return: httpx.Response with binary protobuf content
+        """
+        return await self._get_raw(
+            f'spatialfeatures/tiles/{z}/{x}/{y}.pbf',
+            params=kwargs or None,
+        )
+
     async def _get_data(self, endpoint, params, batch_size=0):
         if "page" not in params:  # Use cursor paginator unless the user has specified a page
             params["use_cursor"] = "true"
@@ -1646,37 +1850,37 @@ class AsyncERClient(object):
     async def _get(self, path, base_url=None, params=None):
         return await self._call(path=path, payload=None, method="GET", params=params, base_url=base_url)
 
-    async def _delete(self, path):
-        """Issue DELETE request. Returns True on success; raises ERClient* on error."""
+    async def _get_raw(self, path, params=None, base_url=None):
+        """Issue a GET and return the raw httpx.Response (no JSON parsing).
+
+        Useful for endpoints that return non-JSON payloads (e.g. CSV, GeoJSON, KML).
+        Error handling mirrors ``_call``.
+        """
         try:
             auth_headers = await self.auth_headers()
         except httpx.HTTPStatusError as e:
-            self._handle_http_status_error(path, "DELETE", e)
-        headers = {'User-Agent': self.user_agent, **auth_headers}
-        if not path.startswith('http'):
-            path = self._er_url(path)
-        try:
-            response = await self._http_session.delete(path, headers=headers)
-        except httpx.RequestError as e:
-            reason = str(e)
-            self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
-                                                                 url=path,
-                                                                 reason=reason))
-            raise ERClientException(f'Request to ER failed: {reason}')
-        if response.is_success:
-            return True
-        if response.status_code == 404:
-            self.logger.error("404 when calling %s", path)
-            raise ERClientNotFound()
-        if response.status_code == 403:
+            self._handle_http_status_error(path, "GET", e)
+        else:
+            params = params or {}
+            headers = {'User-Agent': self.user_agent, **auth_headers}
+            request_url = self._er_url(path, base_url)
             try:
-                reason = response.json().get('status', {}).get('detail', 'unknown reason')
-            except Exception:
-                reason = 'unknown reason'
-            raise ERClientPermissionDenied(reason)
-        raise ERClientException(
-            f'Failed to delete: {response.status_code} {response.text}'
-        )
+                response = await self._http_session.request(
+                    "GET", request_url, params=params, headers=headers,
+                )
+                response.raise_for_status()
+            except httpx.RequestError as e:
+                reason = str(e)
+                self.logger.error(
+                    'Request to ER failed',
+                    extra=dict(provider_key=self.provider_key, path=path,
+                              status_code=None, reason=reason, text=""),
+                )
+                raise ERClientException(f'Request to ER failed: {reason}')
+            except httpx.HTTPStatusError as e:
+                self._handle_http_status_error(path, "GET", e, request_url=request_url)
+            else:
+                return response
 
     async def get_file(self, url):
         """
