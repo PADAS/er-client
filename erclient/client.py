@@ -1302,6 +1302,20 @@ class AsyncERClient(object):
         async for observation in self._get_data(endpoint='observations', params=params, batch_size=batch_size):
             yield observation
 
+    async def get_events_export(self, filter=None):
+        """Download events as a CSV export.
+
+        :param filter: Optional JSON-encoded filter string passed as a query
+            parameter.  When *None* no filter is applied.
+        :return: The raw ``httpx.Response`` whose body contains the CSV
+            payload.  This matches the sync client behaviour where the caller
+            can stream or read the body at will.
+        """
+        params = {}
+        if filter:
+            params['filter'] = filter
+        return await self._get_raw('activity/events/export/', params=params)
+
     async def post_camera_trap_report(self, camera_trap_payload, file=None):
         camera_trap_report_path = f'sensors/camera-trap/{self.provider_key}/status/'
 
@@ -1646,37 +1660,49 @@ class AsyncERClient(object):
     async def _get(self, path, base_url=None, params=None):
         return await self._call(path=path, payload=None, method="GET", params=params, base_url=base_url)
 
-    async def _delete(self, path):
-        """Issue DELETE request. Returns True on success; raises ERClient* on error."""
+    async def _get_raw(self, path, params=None, base_url=None):
+        """Issue a GET and return the raw httpx.Response (no JSON parsing).
+
+        Useful for endpoints that return non-JSON payloads such as CSV file
+        downloads.  Error handling mirrors ``_call``.
+        """
         try:
             auth_headers = await self.auth_headers()
         except httpx.HTTPStatusError as e:
-            self._handle_http_status_error(path, "DELETE", e)
-        headers = {'User-Agent': self.user_agent, **auth_headers}
-        if not path.startswith('http'):
-            path = self._er_url(path)
-        try:
-            response = await self._http_session.delete(path, headers=headers)
-        except httpx.RequestError as e:
-            reason = str(e)
-            self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
-                                                                 url=path,
-                                                                 reason=reason))
-            raise ERClientException(f'Request to ER failed: {reason}')
-        if response.is_success:
-            return True
-        if response.status_code == 404:
-            self.logger.error("404 when calling %s", path)
-            raise ERClientNotFound()
-        if response.status_code == 403:
+            self._handle_http_status_error(path, "GET", e)
+        else:
+            params = params or {}
+            headers = {
+                'User-Agent': self.user_agent,
+                **auth_headers
+            }
+            request_url = self._er_url(path, base_url)
             try:
-                reason = response.json().get('status', {}).get('detail', 'unknown reason')
-            except Exception:
-                reason = 'unknown reason'
-            raise ERClientPermissionDenied(reason)
-        raise ERClientException(
-            f'Failed to delete: {response.status_code} {response.text}'
-        )
+                response = await self._http_session.request(
+                    "GET",
+                    request_url,
+                    params=params,
+                    headers=headers,
+                )
+                response.raise_for_status()
+            except httpx.RequestError as e:
+                reason = str(e)
+                self.logger.error(
+                    'Request to ER failed',
+                    extra=dict(
+                        provider_key=self.provider_key,
+                        service=self.service_root,
+                        path=path,
+                        status_code=None,
+                        reason=reason,
+                        text="",
+                    ),
+                )
+                raise ERClientException(f'Request to ER failed: {reason}')
+            except httpx.HTTPStatusError as e:
+                self._handle_http_status_error(path, "GET", e, request_url=request_url)
+            else:
+                return response
 
     async def get_file(self, url):
         """
