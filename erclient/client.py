@@ -871,11 +871,48 @@ class ERClient(object):
         """
         return self._get('status')
 
+    def patch_subject(self, subject_id, data):
+        """
+        Update a subject with partial data.
+
+        :param subject_id: The subject UUID
+        :param data: Partial subject data (e.g., {"is_active": False})
+        :return: Updated subject data
+        """
+        self.logger.debug(f'Patching subject {subject_id}: {data}')
+        return self._patch(f'subject/{subject_id}', payload=data)
+
     def get_subject_sources(self, subject_id):
         return self._get(path=f'subject/{subject_id}/sources')
 
     def get_subjectsources(self, subject_id):
         return self._get(path=f'subject/{subject_id}/subjectsources')
+
+    def get_source_subjects(self, source_id):
+        """
+        Get all subjects linked to a source.
+
+        :param source_id: The source UUID
+        :return: List of subject data
+        """
+        self.logger.debug(f'Getting subjects for source: {source_id}')
+        return self._get(path=f'source/{source_id}/subjects')
+
+    def get_source_assignments(self, subject_ids=None, source_ids=None):
+        """
+        Get the source assignments (aka subject_sources). Optionally filter
+        by subject_ids or source_ids.
+
+        :param subject_ids: Optional list of subject UUIDs to filter by
+        :param source_ids: Optional list of source UUIDs to filter by
+        :return: Source assignment data
+        """
+        params = {}
+        if subject_ids:
+            params['subjects'] = ','.join(subject_ids)
+        if source_ids:
+            params['sources'] = ','.join(source_ids)
+        return self._get(path='subjectsources', params=params)
 
     def get_source_provider(self, provider_key):
         results = self.get_objects(object="sourceproviders")
@@ -1612,6 +1649,46 @@ class AsyncERClient(object):
             dict: feature group data
         """
         return await self._get(f"spatialfeaturegroup/{feature_group_id}", params={})
+
+    async def post_subject(self, subject):
+        """
+        Create a new subject.
+
+        :param subject: Subject payload dict
+        :return: Created subject data
+        """
+        self.logger.debug(f"Posting subject {subject.get('name')}")
+        return await self._post('subjects', payload=subject)
+
+    async def delete_subject(self, subject_id):
+        """
+        Delete a subject by ID.
+
+        :param subject_id: The subject UUID
+        :return: True on success
+        """
+        self.logger.debug(f'Deleting subject {subject_id}')
+        return await self._delete(f'subject/{subject_id}/')
+
+    async def post_source(self, source):
+        """
+        Create a new source.
+
+        :param source: Source payload dict
+        :return: Created source data
+        """
+        self.logger.debug(f"Posting source for manufacturer_id: {source.get('manufacturer_id')}")
+        return await self._post('sources', payload=source)
+
+    async def delete_source(self, source_id):
+        """
+        Delete a source by ID.
+
+        :param source_id: The source UUID
+        :return: True on success
+        """
+        self.logger.debug(f'Deleting source {source_id}')
+        return await self._delete(f'source/{source_id}/')
 
     async def _get_data(self, endpoint, params, batch_size=0):
         if "page" not in params:  # Use cursor paginator unless the user has specified a page
