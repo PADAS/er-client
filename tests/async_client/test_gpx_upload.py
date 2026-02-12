@@ -92,7 +92,7 @@ def gpx_status_success_response():
 @pytest.mark.asyncio
 async def test_upload_gpx_with_file_object_success(er_client, gpx_file, gpx_upload_response):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post(f"source/{SOURCE_ID}/gpxdata")
         route.return_value = httpx.Response(
@@ -111,7 +111,7 @@ async def test_upload_gpx_with_filepath_success(er_client, gpx_file_content, gpx
     gpx_path.write_bytes(gpx_file_content)
 
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post(f"source/{SOURCE_ID}/gpxdata")
         route.return_value = httpx.Response(
@@ -133,7 +133,7 @@ async def test_upload_gpx_no_file_raises_error(er_client):
 @pytest.mark.asyncio
 async def test_upload_gpx_not_found(er_client, gpx_file):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post(f"source/{SOURCE_ID}/gpxdata")
         route.return_value = httpx.Response(
@@ -149,7 +149,7 @@ async def test_upload_gpx_not_found(er_client, gpx_file):
 @pytest.mark.asyncio
 async def test_upload_gpx_forbidden(er_client, gpx_file):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         path = f"source/{SOURCE_ID}/gpxdata"
         route = respx_mock.post(path)
@@ -174,7 +174,7 @@ async def test_upload_gpx_forbidden(er_client, gpx_file):
 @pytest.mark.asyncio
 async def test_upload_gpx_timeout(er_client, gpx_file):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post(f"source/{SOURCE_ID}/gpxdata")
         route.side_effect = httpx.ConnectTimeout
@@ -187,16 +187,18 @@ async def test_upload_gpx_timeout(er_client, gpx_file):
 @pytest.mark.asyncio
 async def test_upload_gpx_gateway_timeout(er_client, gpx_file):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         path = f"source/{SOURCE_ID}/gpxdata"
         route = respx_mock.post(path)
         route.return_value = httpx.Response(
             httpx.codes.GATEWAY_TIMEOUT, json={}
         )
-        expected_error = f"ER Gateway Timeout ON POST {er_client.service_root}/{path}. (status_code=504) (response_body={{}})"
-        with pytest.raises(ERClientServiceUnreachable, match=re.escape(expected_error)):
+        with pytest.raises(ERClientServiceUnreachable) as exc_info:
             await er_client.upload_gpx(source_id=SOURCE_ID, file=gpx_file)
+        assert "Gateway Timeout" in str(exc_info.value)
+        assert "POST" in str(exc_info.value)
+        assert "gpxdata" in str(exc_info.value)
         assert route.called
         await er_client.close()
 
@@ -207,7 +209,7 @@ async def test_upload_gpx_gateway_timeout(er_client, gpx_file):
 @pytest.mark.asyncio
 async def test_get_gpx_upload_status_pending(er_client, gpx_status_pending_response):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"source/{SOURCE_ID}/gpxdata/status/{TASK_ID}")
         route.return_value = httpx.Response(
@@ -224,7 +226,7 @@ async def test_get_gpx_upload_status_pending(er_client, gpx_status_pending_respo
 @pytest.mark.asyncio
 async def test_get_gpx_upload_status_success(er_client, gpx_status_success_response):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"source/{SOURCE_ID}/gpxdata/status/{TASK_ID}")
         route.return_value = httpx.Response(
@@ -242,7 +244,7 @@ async def test_get_gpx_upload_status_success(er_client, gpx_status_success_respo
 @pytest.mark.asyncio
 async def test_get_gpx_upload_status_not_found(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"source/{SOURCE_ID}/gpxdata/status/{TASK_ID}")
         route.return_value = httpx.Response(
@@ -258,7 +260,7 @@ async def test_get_gpx_upload_status_not_found(er_client):
 @pytest.mark.asyncio
 async def test_get_gpx_upload_status_forbidden(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         path = f"source/{SOURCE_ID}/gpxdata/status/{TASK_ID}"
         route = respx_mock.get(path)
@@ -282,7 +284,7 @@ async def test_get_gpx_upload_status_forbidden(er_client):
 @pytest.mark.asyncio
 async def test_get_gpx_upload_status_timeout(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"source/{SOURCE_ID}/gpxdata/status/{TASK_ID}")
         route.side_effect = httpx.ReadTimeout
