@@ -1054,6 +1054,126 @@ class ERClient(object):
     def get_users(self):
         return self._get('users')
 
+    # ---- Alert Rules ----
+
+    def get_alerts(self):
+        """
+        Get a list of alert rules for the current user.
+
+        :return: List of alert rule data
+        """
+        self.logger.debug('Getting alerts')
+        return self._get('activity/alerts')
+
+    def get_alert(self, alert_id):
+        """
+        Get a single alert rule by its UUID.
+
+        :param alert_id: The alert rule UUID
+        :return: Alert rule data
+        """
+        self.logger.debug(f'Getting alert {alert_id}')
+        return self._get(f'activity/alert/{alert_id}')
+
+    def post_alert(self, data):
+        """
+        Create a new alert rule.
+
+        :param data: Alert rule data dict
+        :return: Created alert rule data
+        """
+        self.logger.debug('Posting alert: %s', data)
+        return self._post('activity/alerts', payload=data)
+
+    def patch_alert(self, alert_id, data):
+        """
+        Update an alert rule with partial data.
+
+        :param alert_id: The alert rule UUID
+        :param data: Partial alert rule data
+        :return: Updated alert rule data
+        """
+        self.logger.debug(f'Patching alert {alert_id}: {data}')
+        return self._patch(f'activity/alert/{alert_id}', payload=data)
+
+    def delete_alert(self, alert_id):
+        """
+        Delete an alert rule by its UUID.
+
+        :param alert_id: The alert rule UUID
+        """
+        self.logger.debug(f'Deleting alert {alert_id}')
+        return self._delete(f'activity/alert/{alert_id}/')
+
+    # ---- Alert Conditions ----
+
+    def get_alert_conditions(self, **kwargs):
+        """
+        Get alert conditions (event types eligible for alerting).
+
+        :param event_type: Optional event type filter
+        :param only_common_factors: Optional bool to limit to common factors
+        :return: List of alert condition data
+        """
+        params = {}
+        if kwargs.get('event_type'):
+            params['event_type'] = kwargs['event_type']
+        if kwargs.get('only_common_factors'):
+            params['only_common_factors'] = kwargs['only_common_factors']
+        self.logger.debug('Getting alert conditions')
+        return self._get('activity/alerts/conditions', params=params)
+
+    # ---- Notification Methods ----
+
+    def get_notification_methods(self):
+        """
+        Get a list of notification methods for the current user.
+
+        :return: List of notification method data
+        """
+        self.logger.debug('Getting notification methods')
+        return self._get('activity/notificationmethods')
+
+    def get_notification_method(self, notification_method_id):
+        """
+        Get a single notification method by its UUID.
+
+        :param notification_method_id: The notification method UUID
+        :return: Notification method data
+        """
+        self.logger.debug(f'Getting notification method {notification_method_id}')
+        return self._get(f'activity/notificationmethod/{notification_method_id}')
+
+    def post_notification_method(self, data):
+        """
+        Create a new notification method.
+
+        :param data: Notification method data dict
+        :return: Created notification method data
+        """
+        self.logger.debug('Posting notification method: %s', data)
+        return self._post('activity/notificationmethods', payload=data)
+
+    def patch_notification_method(self, notification_method_id, data):
+        """
+        Update a notification method with partial data.
+
+        :param notification_method_id: The notification method UUID
+        :param data: Partial notification method data
+        :return: Updated notification method data
+        """
+        self.logger.debug(f'Patching notification method {notification_method_id}: {data}')
+        return self._patch(f'activity/notificationmethod/{notification_method_id}', payload=data)
+
+    def delete_notification_method(self, notification_method_id):
+        """
+        Delete a notification method by its UUID.
+
+        :param notification_method_id: The notification method UUID
+        """
+        self.logger.debug(f'Deleting notification method {notification_method_id}')
+        return self._delete(f'activity/notificationmethod/{notification_method_id}/')
+
 
 class AsyncERClient(object):
     """
@@ -1363,6 +1483,126 @@ class AsyncERClient(object):
         """
         self.logger.debug(f'Patching subject {subject_id}: {data}')
         return await self._patch(f'subject/{subject_id}', payload=data)
+
+    # ---- Alert Rules ----
+
+    async def get_alerts(self):
+        """
+        Get a list of alert rules for the current user.
+
+        :return: List of alert rule data
+        """
+        self.logger.debug('Getting alerts')
+        return await self._get('activity/alerts')
+
+    async def get_alert(self, alert_id):
+        """
+        Get a single alert rule by its UUID.
+
+        :param alert_id: The alert rule UUID
+        :return: Alert rule data
+        """
+        self.logger.debug(f'Getting alert {alert_id}')
+        return await self._get(f'activity/alert/{alert_id}')
+
+    async def post_alert(self, data):
+        """
+        Create a new alert rule.
+
+        :param data: Alert rule data dict
+        :return: Created alert rule data
+        """
+        self.logger.debug('Posting alert: %s', data)
+        return await self._post('activity/alerts', payload=data)
+
+    async def patch_alert(self, alert_id, data):
+        """
+        Update an alert rule with partial data.
+
+        :param alert_id: The alert rule UUID
+        :param data: Partial alert rule data
+        :return: Updated alert rule data
+        """
+        self.logger.debug(f'Patching alert {alert_id}: {data}')
+        return await self._patch(f'activity/alert/{alert_id}', payload=data)
+
+    async def delete_alert(self, alert_id):
+        """
+        Delete an alert rule by its UUID.
+
+        :param alert_id: The alert rule UUID
+        """
+        self.logger.debug(f'Deleting alert {alert_id}')
+        return await self._delete(f'activity/alert/{alert_id}/')
+
+    # ---- Alert Conditions ----
+
+    async def get_alert_conditions(self, **kwargs):
+        """
+        Get alert conditions (event types eligible for alerting).
+
+        :param event_type: Optional event type filter
+        :param only_common_factors: Optional bool to limit to common factors
+        :return: List of alert condition data
+        """
+        params = {}
+        if kwargs.get('event_type'):
+            params['event_type'] = kwargs['event_type']
+        if kwargs.get('only_common_factors'):
+            params['only_common_factors'] = kwargs['only_common_factors']
+        self.logger.debug('Getting alert conditions')
+        return await self._get('activity/alerts/conditions', params=params)
+
+    # ---- Notification Methods ----
+
+    async def get_notification_methods(self):
+        """
+        Get a list of notification methods for the current user.
+
+        :return: List of notification method data
+        """
+        self.logger.debug('Getting notification methods')
+        return await self._get('activity/notificationmethods')
+
+    async def get_notification_method(self, notification_method_id):
+        """
+        Get a single notification method by its UUID.
+
+        :param notification_method_id: The notification method UUID
+        :return: Notification method data
+        """
+        self.logger.debug(f'Getting notification method {notification_method_id}')
+        return await self._get(f'activity/notificationmethod/{notification_method_id}')
+
+    async def post_notification_method(self, data):
+        """
+        Create a new notification method.
+
+        :param data: Notification method data dict
+        :return: Created notification method data
+        """
+        self.logger.debug('Posting notification method: %s', data)
+        return await self._post('activity/notificationmethods', payload=data)
+
+    async def patch_notification_method(self, notification_method_id, data):
+        """
+        Update a notification method with partial data.
+
+        :param notification_method_id: The notification method UUID
+        :param data: Partial notification method data
+        :return: Updated notification method data
+        """
+        self.logger.debug(f'Patching notification method {notification_method_id}: {data}')
+        return await self._patch(f'activity/notificationmethod/{notification_method_id}', payload=data)
+
+    async def delete_notification_method(self, notification_method_id):
+        """
+        Delete a notification method by its UUID.
+
+        :param notification_method_id: The notification method UUID
+        """
+        self.logger.debug(f'Deleting notification method {notification_method_id}')
+        return await self._delete(f'activity/notificationmethod/{notification_method_id}/')
 
     def _clean_observation(self, observation):
         if hasattr(observation['recorded_at'], 'isoformat'):
