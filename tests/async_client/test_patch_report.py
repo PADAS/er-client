@@ -6,7 +6,7 @@ import respx
 @pytest.mark.asyncio
 async def test_patch_report_success(er_client, report_updated_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a successful response
         event_id = "fake-id"
