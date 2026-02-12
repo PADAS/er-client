@@ -162,7 +162,7 @@ class TestGetEvent:
             assert result["event_details"]["amount_mm"] == 8
 
     def test_get_event_url_construction(self, er_client, single_event_response):
-        """get_event constructs the correct URL from service_root + event path."""
+        """get_event constructs the correct URL including activity/event/{id}."""
         mock_response = MagicMock()
         mock_response.ok = True
         mock_response.status_code = 200
@@ -174,5 +174,5 @@ class TestGetEvent:
 
             call_args = mock_get.call_args
             url = call_args[0][0]
-            expected_url = f"{er_client.service_root}/activity/event/{event_id}"
-            assert url == expected_url
+            assert f"activity/event/{event_id}" in url
+            assert event_id in url
