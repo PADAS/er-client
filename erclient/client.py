@@ -1054,6 +1054,15 @@ class ERClient(object):
     def get_users(self):
         return self._get('users')
 
+    def get_task_status(self, task_id):
+        """
+        Get the status of an async background task.
+
+        :param task_id: the task ID returned by an async operation (e.g. GPX upload)
+        :return: dict with task_id, status, result, and location
+        """
+        return self._get(f'core/taskstatus/{task_id}/')
+
 
 class AsyncERClient(object):
     """
@@ -1612,6 +1621,15 @@ class AsyncERClient(object):
             dict: feature group data
         """
         return await self._get(f"spatialfeaturegroup/{feature_group_id}", params={})
+
+    async def get_task_status(self, task_id):
+        """
+        Get the status of an async background task.
+
+        :param task_id: the task ID returned by an async operation (e.g. GPX upload)
+        :return: dict with task_id, status, result, and location
+        """
+        return await self._get(f'core/taskstatus/{task_id}/')
 
     async def _get_data(self, endpoint, params, batch_size=0):
         if "page" not in params:  # Use cursor paginator unless the user has specified a page
