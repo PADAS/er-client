@@ -449,6 +449,37 @@ class ERClient(object):
 
         return created
 
+    # ---- Event sub-resources ----
+
+    def get_event_geometry(self, event_id):
+        """
+        Get the geometry for an event.
+
+        :param event_id: The event UUID
+        :return: Geometry data (GeoJSON)
+        """
+        return self._get(f'activity/event/{event_id}/geometry')
+
+    def post_event_state(self, event_id, state):
+        """
+        Transition an event to a new state.
+
+        :param event_id: The event UUID
+        :param state: State payload dict (e.g., {"state": "active"})
+        :return: Updated event state data
+        """
+        self.logger.debug(f'Posting state for event {event_id}')
+        return self._post(f'activity/event/{event_id}/state', payload=state)
+
+    def get_event_segments(self, event_id):
+        """
+        Get the patrol segments linked to an event.
+
+        :param event_id: The event UUID
+        :return: List of patrol segment data
+        """
+        return self._get(f'activity/event/{event_id}/segments')
+
     def get_me(self):
         """
         Get details for the 'me', the current ER user.
@@ -1612,6 +1643,37 @@ class AsyncERClient(object):
             dict: feature group data
         """
         return await self._get(f"spatialfeaturegroup/{feature_group_id}", params={})
+
+    # ---- Event sub-resources ----
+
+    async def get_event_geometry(self, event_id):
+        """
+        Get the geometry for an event.
+
+        :param event_id: The event UUID
+        :return: Geometry data (GeoJSON)
+        """
+        return await self._get(f'activity/event/{event_id}/geometry')
+
+    async def post_event_state(self, event_id, state):
+        """
+        Transition an event to a new state.
+
+        :param event_id: The event UUID
+        :param state: State payload dict (e.g., {"state": "active"})
+        :return: Updated event state data
+        """
+        self.logger.debug(f'Posting state for event {event_id}')
+        return await self._post(f'activity/event/{event_id}/state', payload=state)
+
+    async def get_event_segments(self, event_id):
+        """
+        Get the patrol segments linked to an event.
+
+        :param event_id: The event UUID
+        :return: List of patrol segment data
+        """
+        return await self._get(f'activity/event/{event_id}/segments')
 
     async def _get_data(self, endpoint, params, batch_size=0):
         if "page" not in params:  # Use cursor paginator unless the user has specified a page
