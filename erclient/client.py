@@ -5,9 +5,11 @@ import logging
 import math
 import re
 import time
+import warnings
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from typing import List
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 import pytz
@@ -15,6 +17,9 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from .api_paths import (DEFAULT_VERSION, VERSION_2_0, event_type_detail_path,
+                        event_types_list_path, event_types_patch_path,
+                        normalize_version)
 from .er_errors import (ERClientBadCredentials, ERClientBadRequest,
                         ERClientException, ERClientInternalError,
                         ERClientNotFound, ERClientPermissionDenied,
@@ -47,7 +52,7 @@ class ERClient(object):
         """
         Initialize an ERClient instance.
 
-        :param service_root: The root of the ER API (Ex. https://sandbox.pamdas.org/api/v1.0)
+        :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org) or full API root (Ex. https://sandbox.pamdas.org/api/v1.0) for backward compatibility. The client assembles the API root as {base}/api/{version} (default version v1.0).
 
         :param username: username
         :param password: password
@@ -70,7 +75,15 @@ class ERClient(object):
         self._http_session = None
         self.max_retries = kwargs.get('max_http_retries', 5)
 
-        self.service_root = kwargs.get('service_root')
+        raw_service_root = kwargs.get('service_root') or ""
+        # Normalize via urlparse: if path contains /api (e.g. /api or /api/v1.0), keep only scheme+netloc+path before /api.
+        parsed = urlparse(raw_service_root)
+        path = parsed.path.rstrip("/")
+        api_match = re.search(r'/api(/|$)', path)
+        if api_match:
+            path = path[:api_match.start()].rstrip("/")
+        self.service_root = urlunparse(
+            (parsed.scheme, parsed.netloc, path, "", "", "")).rstrip("/")
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
@@ -142,15 +155,22 @@ class ERClient(object):
         self.auth_expires = pytz.utc.localize(datetime.min)
         return False
 
-    def _er_url(self, path):
-        return '/'.join((self.service_root, path))
+    def _api_root(self, version=DEFAULT_VERSION):
+        """Return the full API root URL for the given version (e.g. {base}/api/v1.0)."""
+        version = normalize_version(version)
+        return f"{self.service_root.rstrip('/')}/api/{version}"
 
-    def _get(self, path, stream=False, max_retries=5, seconds_between_attempts=5, **kwargs):
+    def _er_url(self, path, base_url=None):
+        if base_url is None:
+            base_url = self._api_root(DEFAULT_VERSION)
+        return '/'.join((base_url.rstrip('/'), path.lstrip('/')))
+
+    def _get(self, path, base_url=None, stream=False, max_retries=5, seconds_between_attempts=5, **kwargs):
         headers = {'User-Agent': self.user_agent}
 
         headers.update(self.auth_headers())
         if (not path.startswith("http")):
-            path = self._er_url(path)
+            path = self._er_url(path, base_url)
 
         attempts = 0
         while (attempts <= max_retries):
@@ -202,7 +222,7 @@ class ERClient(object):
                     f"Failed to call ER web service at {response.url} after {attempts} tries. {response.status_code} {response.text}")
             time.sleep(seconds_between_attempts)
 
-    def _call(self, path, payload, method, params=None):
+    def _call(self, path, payload, method, params=None, base_url=None):
         headers = {'Content-Type': 'application/json',
                    'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
@@ -224,7 +244,8 @@ class ERClient(object):
         except KeyError:
             self.logger.error('method must be one of...')
         else:
-            response = fn(self._er_url(path), data=body,
+            url = self._er_url(path, base_url)
+            response = fn(url, data=body,
                           headers=headers, params=params)
 
         if response and response.ok:
@@ -266,11 +287,11 @@ class ERClient(object):
         raise ERClientException(
             f"Failed to {fn} to ER web service. {message}")
 
-    def _post(self, path, payload, params=None):
-        return self._call(path, payload, "POST", params)
+    def _post(self, path, payload, params=None, base_url=None):
+        return self._call(path, payload, "POST", params, base_url=base_url)
 
-    def _patch(self, path, payload, params=None):
-        return self._call(path, payload, "PATCH", params)
+    def _patch(self, path, payload, params=None, base_url=None):
+        return self._call(path, payload, "PATCH", params, base_url=base_url)
 
     def add_event_to_incident(self, event_id, incident_id):
 
@@ -411,18 +432,19 @@ class ERClient(object):
     def post_event_note(self, event_id, notes):
 
         created = []
+        event_id_str = str(event_id)
 
         if (not isinstance(notes, list)):
             notes = [notes, ]
 
         for note in notes:
             notesRequest = {
-                'event': event_id,
+                'event': event_id_str,
                 'text': note
             }
 
-            result = self._post('activity/event/' +
-                                event_id + '/notes', notesRequest)
+            result = self._post(
+                f'activity/event/{event_id_str}/notes', notesRequest)
             created.append(result)
 
         return created
@@ -510,16 +532,29 @@ class ERClient(object):
         self.logger.debug('Result of patrol post is: %s', result)
         return result
 
-    def patch_event_type(self, event_type):
+    def patch_event_type(self, event_type, version=DEFAULT_VERSION):
+        """
+        Patch an event type.
+
+        :param version: API version segment (e.g. "v1.0", "v2.0"). v2.0 uses event_type["value"] (slug) in the path; v1.0 uses event_type["id"].
+        """
         self.logger.debug('Patching event type: %s', event_type)
-        result = self._patch(
-            f"activity/events/eventtypes/{event_type['id']}", payload=event_type)
+        path = event_types_patch_path(version, event_type)
+        base_url = self._api_root(version)
+        result = self._patch(path, payload=event_type, base_url=base_url)
         self.logger.debug('Result of event type patch is: %s', result)
         return result
 
-    def post_event_type(self, event_type):
+    def post_event_type(self, event_type, version=DEFAULT_VERSION):
+        """
+        Post a new event type.
+
+        :param version: API version segment (e.g. "v1.0", "v2.0").
+        """
         self.logger.debug('Posting event type: %s', event_type)
-        result = self._post('activity/events/eventtypes/', payload=event_type)
+        path = event_types_list_path(version)
+        base_url = self._api_root(version)
+        result = self._post(path, payload=event_type, base_url=base_url)
         self.logger.debug('Result of event type post is: %s', result)
         return result
 
@@ -570,8 +605,21 @@ class ERClient(object):
     def get_file(self, url):
         return self._get(url, stream=True, return_response=True)
 
-    def get_event_type(self, event_type_name):
-        return self._get(f'activity/events/schema/eventtype/{event_type_name}')
+    def get_event_type(self, event_type_name, version=DEFAULT_VERSION, include_schema=False):
+        """
+        Get a single event type by name/slug.
+
+        :param event_type_name: Event type value (slug) or name.
+        :param version: API version segment (e.g. "v1.0", "v2.0"). v2.0 uses
+            activity/eventtypes/{name}; v1.0 uses activity/events/schema/eventtype/{name}.
+        :param include_schema: If True and version is v2.0, request includes schema in the response.
+        """
+        version = normalize_version(version)
+        path = event_type_detail_path(version, event_type_name)
+        base_url = self._api_root(version)
+        params = {
+            "include_schema": include_schema} if version == VERSION_2_0 else None
+        return self._get(path, base_url=base_url, params=params)
 
     def get_event_categories(self, include_inactive=False):
         return self._get(f'activity/events/categories', params={"include_inactive": include_inactive})
@@ -593,8 +641,16 @@ class ERClient(object):
             else:
                 break
 
-    def get_event_types(self, include_inactive=False, include_schema=False):
-        return self._get('activity/events/eventtypes', params={"include_inactive": include_inactive, "include_schema": include_schema})
+    def get_event_types(self, include_inactive=False, include_schema=False, version=DEFAULT_VERSION):
+        """
+        Get event types.
+
+        :param version: API version segment (e.g. "v1.0", "v2.0").
+        """
+        path = event_types_list_path(version)
+        base_url = self._api_root(version)
+        return self._get(path, base_url=base_url,
+                         params={"include_inactive": include_inactive, "include_schema": include_schema})
 
     def get_event_schema(self, event_type):
         return self._get(f'activity/events/schema/eventtype/{event_type}')
@@ -711,6 +767,17 @@ class ERClient(object):
                 events = self._get(url)
             else:
                 break
+
+    def get_event(self, *, event_id=None, include_details=True, include_updates=False, include_notes=False, include_related_events=False, include_files=False):
+        params = {
+            'include_details': include_details,
+            'include_updates': include_updates,
+            'include_notes': include_notes,
+            'include_related_events': include_related_events,
+            'include_files': include_files,
+        }
+        event = self._get(f'activity/event/{event_id}', params=params)
+        return event
 
     def get_patrols(self, **kwargs):
         params = dict((k, v) for k, v in kwargs.items() if k in
@@ -1123,7 +1190,7 @@ class AsyncERClient(object):
         """
         Initialize an ERClient instance.
 
-        :param service_root: The root of the ER API (Ex. https://sandbox.pamdas.org/api/v1.0)
+        :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org) or full API root (Ex. https://sandbox.pamdas.org/api/v1.0) for backward compatibility. The client assembles the API root as {base}/api/{version} (default version v1.0).
 
         :param username: username
         :param password: password
@@ -1149,7 +1216,15 @@ class AsyncERClient(object):
         self.max_retries = kwargs.get(
             'max_http_retries', self.DEFAULT_CONNECTION_RETRIES)
 
-        self.service_root = kwargs.get('service_root')
+        raw_service_root = kwargs.get('service_root') or ""
+        # Normalize via urlparse: if path contains /api (e.g. /api or /api/v1.0), keep only scheme+netloc+path before /api.
+        parsed = urlparse(raw_service_root)
+        path = parsed.path.rstrip("/")
+        api_match = re.search(r'/api(/|$)', path)
+        if api_match:
+            path = path[:api_match.start()].rstrip("/")
+        self.service_root = urlunparse(
+            (parsed.scheme, parsed.netloc, path, "", "", "")).rstrip("/")
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
@@ -1218,6 +1293,59 @@ class AsyncERClient(object):
         self.logger.debug('Result of event patch is: %s', result)
         return result
 
+    async def post_event(self, event):
+        """Post a new event (alias for post_report)."""
+        return await self.post_report(event)
+
+    async def patch_event(self, event_id, payload):
+        """Patch an event (alias for patch_report)."""
+        return await self.patch_report(event_id, payload)
+
+    async def post_event_file(self, event_id, filepath=None, comment=''):
+        """Upload a file to an event. filepath is the path to the file on disk."""
+        documents_path = f'activity/event/{str(event_id)}/files/'
+        with open(filepath, 'rb') as f:
+            files = {'filecontent.file': f}
+            return await self._post_form(documents_path, body={'comment': comment}, files=files)
+
+    async def post_event_note(self, event_id, notes):
+        """Add one or more notes to an event. notes can be a single string or a list of strings."""
+        created = []
+        event_id_str = str(event_id)
+        if not isinstance(notes, list):
+            notes = [notes]
+        for note in notes:
+            notes_request = {'event': event_id_str, 'text': note}
+            result = await self._post(f'activity/event/{event_id_str}/notes', notes_request)
+            created.append(result)
+        return created
+
+    async def delete_event_file(self, event_id, file_id):
+        """Remove a file from an event."""
+        await self._delete(f"activity/event/{event_id}/file/{file_id}")
+
+    async def delete_event_note(self, event_id, note_id):
+        """Remove a note from an event."""
+        await self._delete(f"activity/event/{event_id}/note/{note_id}")
+
+    async def add_event_to_incident(self, event_id, incident_id):
+        """Link an event to an incident (relationship type 'contains')."""
+        payload = {'to_event_id': event_id, 'type': 'contains'}
+        return await self._post(
+            'activity/event/' + incident_id + '/relationships',
+            payload=payload
+        )
+
+    async def remove_event_from_incident(self, event_id, incident_id, relationship_type='contains'):
+        """Unlink an event from an incident."""
+        return await self._delete(
+            f'activity/event/{incident_id}/relationship/{relationship_type}/{event_id}/'
+        )
+
+    async def delete_event(self, event_id):
+        """Delete an event."""
+        await self._delete('activity/event/' + event_id + '/')
+
     async def get_events(self, **kwargs):
         """
         Returns an async generator to iterate over events.
@@ -1241,6 +1369,17 @@ class AsyncERClient(object):
             params['page_size'] = 100
         async for event in self._get_data(endpoint='activity/events', params=params, batch_size=batch_size):
             yield event
+
+    async def get_event(self, *, event_id=None, include_details=True, include_updates=False, include_notes=False, include_related_events=False, include_files=False):
+        params = {
+            'include_details': include_details,
+            'include_updates': include_updates,
+            'include_notes': include_notes,
+            'include_related_events': include_related_events,
+            'include_files': include_files,
+        }
+        event = await self._get(f'activity/event/{event_id}', params=params)
+        return event
 
     async def get_observations(self, **kwargs):
         """
@@ -1297,6 +1436,14 @@ class AsyncERClient(object):
             return await self._post_form(camera_trap_report_path, body=camera_trap_payload, files=files)
 
     async def post_report_attachment(self, report_id, file):
+        """
+        Deprecated: Use post_event_file() instead.
+        """
+        warnings.warn(
+            "post_report_attachment is deprecated, use post_event_file instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
         report_attachments_endpoint = f'activity/event/{report_id}/files/'
         files = {'filecontent.file': file}
         return await self._post_form(report_attachments_endpoint, files=files)
@@ -1517,10 +1664,17 @@ class AsyncERClient(object):
             tz=timezone.utc) + timedelta(seconds=expires_in)
         return True
 
-    def _er_url(self, path):
-        return '/'.join((self.service_root, path))
+    def _api_root(self, version=DEFAULT_VERSION):
+        """Return the full API root URL for the given version (e.g. {base}/api/v1.0)."""
+        version = normalize_version(version)
+        return f"{self.service_root.rstrip('/')}/api/{version}"
 
-    async def _post_form(self, path, body=None, files=None):
+    def _er_url(self, path, base_url=None):
+        if base_url is None:
+            base_url = self._api_root(DEFAULT_VERSION)
+        return '/'.join((base_url.rstrip('/'), path.lstrip('/')))
+
+    async def _post_form(self, path, body=None, files=None, base_url=None):
 
         try:
             auth_headers = await self.auth_headers()
@@ -1532,9 +1686,10 @@ class AsyncERClient(object):
                 'User-Agent': self.user_agent,
                 **auth_headers
             }
+            request_url = self._er_url(path, base_url)
             try:
                 response = await self._http_session.post(
-                    self._er_url(path),
+                    request_url,
                     data=body,  # # payload is automatically encoded as form data
                     headers=headers,
                     files=files
@@ -1545,24 +1700,89 @@ class AsyncERClient(object):
                 # ToDo: Check if we want a more granular error handling defining more specific exception classes
                 reason = str(e)
                 self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
-                                                                     service=self.service_root,
-                                                                     path=path,
+                                                                     url=request_url,
                                                                      status_code=None,
                                                                      reason=reason,
                                                                      text=""))
                 raise ERClientException(f'Request to ER failed: {reason}')
             except httpx.HTTPStatusError as e:
-                self._handle_http_status_error(path, "POST", e)
+                self._handle_http_status_error(
+                    path, "POST", e, request_url=request_url)
             else:  # Parse the response
                 json_response = response.json()
                 return json_response.get('data', json_response)
 
-    async def get_event_types(self, include_inactive=False, include_schema=False):
+    async def get_event_types(self, include_inactive=False, include_schema=False, version=DEFAULT_VERSION):
+        """
+        Get event types.
+
+        :param version: API version segment (e.g. "v1.0", "v2.0").
+        """
+        path = event_types_list_path(version)
+        base_url = self._api_root(version)
         return await self._get(
-            'activity/events/eventtypes',
+            path,
+            base_url=base_url,
             params={"include_inactive": include_inactive,
                     "include_schema": include_schema}
         )
+
+    async def get_event_categories(self, include_inactive=False):
+        """Get event categories."""
+        return await self._get(
+            'activity/events/categories',
+            params={"include_inactive": include_inactive}
+        )
+
+    async def post_event_category(self, data):
+        """Create an event category."""
+        self.logger.debug('Posting event category: %s', data)
+        result = await self._post('activity/events/categories', payload=data)
+        self.logger.debug('Result of event category post is: %s', result)
+        return result
+
+    async def patch_event_category(self, data):
+        """Update an event category."""
+        self.logger.debug('Patching event category: %s', data)
+        result = await self._patch(
+            f'activity/events/categories/{data["id"]}', payload=data
+        )
+        self.logger.debug('Result of event category patch is: %s', result)
+        return result
+
+    async def get_event_type(self, event_type_name, version=DEFAULT_VERSION, include_schema=False):
+        """
+        Get a single event type by name/slug.
+
+        :param event_type_name: Event type value (slug) or name.
+        :param version: API version segment (e.g. "v1.0", "v2.0").
+        :param include_schema: If True and version is v2.0, request includes schema in the response.
+        """
+        version = normalize_version(version)
+        path = event_type_detail_path(version, event_type_name)
+        base_url = self._api_root(version)
+        params = {
+            "include_schema": include_schema} if version == VERSION_2_0 else None
+        return await self._get(path, base_url=base_url, params=params)
+
+    async def post_event_type(self, event_type, version=DEFAULT_VERSION):
+        """Post a new event type."""
+        self.logger.debug('Posting event type: %s', event_type)
+        path = event_types_list_path(version)
+        base_url = self._api_root(version)
+        result = await self._post(path, payload=event_type, base_url=base_url)
+        self.logger.debug('Result of event type post is: %s', result)
+        return result
+
+    async def patch_event_type(self, event_type, version=DEFAULT_VERSION):
+        """Patch an event type."""
+        self.logger.debug('Patching event type: %s (version %s)',
+                          event_type['value'], version)
+        path = event_types_patch_path(version, event_type)
+        base_url = self._api_root(version)
+        result = await self._patch(path, payload=event_type, base_url=base_url)
+        # self.logger.debug('Result of event type patch is: %s', result)
+        return result
 
     async def get_subjectgroups(
             self,
@@ -1663,14 +1883,79 @@ class AsyncERClient(object):
             else:
                 break
 
-    async def _get(self, path, params=None):
-        return await self._call(path=path, payload=None, method="GET", params=params)
+    async def _get(self, path, base_url=None, params=None):
+        return await self._call(path=path, payload=None, method="GET", params=params, base_url=base_url)
 
-    async def _post(self, path, payload, params=None):
-        return await self._call(path, payload, "POST", params)
+    async def _delete(self, path):
+        """Issue DELETE request. Returns True on success; raises ERClient* on error."""
+        try:
+            auth_headers = await self.auth_headers()
+        except httpx.HTTPStatusError as e:
+            self._handle_http_status_error(path, "DELETE", e)
+        headers = {'User-Agent': self.user_agent, **auth_headers}
+        if not path.startswith('http'):
+            path = self._er_url(path)
+        try:
+            response = await self._http_session.delete(path, headers=headers)
+        except httpx.RequestError as e:
+            reason = str(e)
+            self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
+                                                                 url=path,
+                                                                 reason=reason))
+            raise ERClientException(f'Request to ER failed: {reason}')
+        if response.is_success:
+            return True
+        if response.status_code == 404:
+            self.logger.error("404 when calling %s", path)
+            raise ERClientNotFound()
+        if response.status_code == 403:
+            try:
+                reason = response.json().get('status', {}).get('detail', 'unknown reason')
+            except Exception:
+                reason = 'unknown reason'
+            raise ERClientPermissionDenied(reason)
+        raise ERClientException(
+            f'Failed to delete: {response.status_code} {response.text}'
+        )
 
-    async def _patch(self, path, payload, params=None):
-        return await self._call(path, payload, "PATCH", params)
+    async def get_file(self, url):
+        """
+        Download a file (e.g. attachment URL). Returns the httpx response; body is read into memory.
+        Caller can use response.content or response.read().
+        """
+        try:
+            auth_headers = await self.auth_headers()
+        except httpx.HTTPStatusError as e:
+            self._handle_http_status_error(url, "GET", e)
+        headers = {'User-Agent': self.user_agent, **auth_headers}
+        if not url.startswith('http'):
+            url = self._er_url(url)
+        response = await self._http_session.get(url, headers=headers)
+        if response.is_success:
+            return response
+        if response.status_code == 404:
+            self.logger.error("404 when calling %s", url)
+            raise ERClientNotFound()
+        if response.status_code == 401:
+            try:
+                reason = response.json().get('status', {}).get('detail', 'unknown reason')
+            except Exception:
+                reason = 'unknown reason'
+            raise ERClientBadCredentials(reason)
+        if response.status_code == 403:
+            try:
+                reason = response.json().get('status', {}).get('detail', 'unknown reason')
+            except Exception:
+                reason = 'unknown reason'
+            raise ERClientPermissionDenied(reason)
+        raise ERClientException(
+            f'Failed to get file: {response.status_code} {response.text}')
+
+    async def _post(self, path, payload, params=None, base_url=None):
+        return await self._call(path, payload, "POST", params, base_url=base_url)
+
+    async def _patch(self, path, payload, params=None, base_url=None):
+        return await self._call(path, payload, "PATCH", params, base_url=base_url)
 
     async def _delete(self, path, params=None, base_url=None):
         """Perform an async DELETE request. Delegates to _call (204/no body handled there)."""
@@ -1690,11 +1975,7 @@ class AsyncERClient(object):
                 'User-Agent': self.user_agent,
                 **auth_headers
             }
-            request_url = (
-                f"{base_url.rstrip('/')}/{path.lstrip('/')}"
-                if base_url is not None
-                else self._er_url(path)
-            )
+            request_url = self._er_url(path, base_url)
             try:
                 response = await self._http_session.request(
                     method,
@@ -1711,17 +1992,18 @@ class AsyncERClient(object):
                 # ToDo: Check if we want a more granular error handling defining more specific exception classes
                 reason = str(e)
                 self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
-                                                                     service=self.service_root,
-                                                                     path=path,
+                                                                     url=request_url,
                                                                      status_code=None,
                                                                      reason=reason,
                                                                      text=""))
                 raise ERClientException(f'Request to ER failed: {reason}')
             except httpx.HTTPStatusError as e:
-                self._handle_http_status_error(path, method, e)
+                self._handle_http_status_error(
+                    path, method, e, request_url=request_url)
             else:  # Parse the response (204 No Content has no body)
                 if response.status_code == httpx.codes.NO_CONTENT:
                     return True  # DELETE/empty success
+
                 json_response = response.json()
                 return json_response.get('data', json_response)
 
@@ -1729,10 +2011,15 @@ class AsyncERClient(object):
         for i in range(0, len(data), batch_size):
             yield data[i:i + batch_size]
 
-    def _handle_http_status_error(self, path, method, e):
+    def _handle_http_status_error(self, path, method, e, request_url=None):
         """Handles httpx.HTTPStatusError exceptions."""
         status_name = HTTPStatus(e.response.status_code).phrase
-        error_details = f"ER {status_name} ON {method} {self.service_root}/{path}."
+        if request_url is None:
+            request_url = str(
+                e.response.url) if e.response else f"{self.service_root}/{path}"
+        else:
+            request_url = str(request_url)
+        error_details = f"ER {status_name} ON {method} {request_url}."
         error_details_log = f"{error_details}. Response Body: {e.response.text}"
         self.logger.exception(error_details_log)
 
