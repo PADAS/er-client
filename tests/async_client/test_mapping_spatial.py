@@ -138,7 +138,7 @@ def spatialfeatures_list_response(spatialfeature_response):
 
 @pytest.mark.asyncio
 async def test_get_features(er_client, features_list_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get("features")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": features_list_response})
         result = await er_client.get_features()
@@ -149,7 +149,7 @@ async def test_get_features(er_client, features_list_response):
 
 @pytest.mark.asyncio
 async def test_get_feature(er_client, feature_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get("feature/fp-001")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": feature_response})
         result = await er_client.get_feature("fp-001")
@@ -160,7 +160,7 @@ async def test_get_feature(er_client, feature_response):
 
 @pytest.mark.asyncio
 async def test_get_feature_not_found(er_client):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get("feature/nonexistent")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json={"status": {"code": 404}})
         with pytest.raises(ERClientNotFound):
@@ -171,7 +171,7 @@ async def test_get_feature_not_found(er_client):
 
 @pytest.mark.asyncio
 async def test_get_featuresets(er_client, featuresets_list_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get("featureset")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": featuresets_list_response})
         result = await er_client.get_featuresets()
@@ -182,7 +182,7 @@ async def test_get_featuresets(er_client, featuresets_list_response):
 
 @pytest.mark.asyncio
 async def test_get_featureset(er_client, featureset_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get("featureset/fs-001")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": featureset_response})
         result = await er_client.get_featureset("fs-001")
@@ -193,7 +193,7 @@ async def test_get_featureset(er_client, featureset_response):
 
 @pytest.mark.asyncio
 async def test_get_maps(er_client, maps_list_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get("maps")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": maps_list_response})
         result = await er_client.get_maps()
@@ -204,7 +204,7 @@ async def test_get_maps(er_client, maps_list_response):
 
 @pytest.mark.asyncio
 async def test_get_layers(er_client, layers_list_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get("layers")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": layers_list_response})
         result = await er_client.get_layers()
@@ -215,7 +215,7 @@ async def test_get_layers(er_client, layers_list_response):
 
 @pytest.mark.asyncio
 async def test_get_layer(er_client, layer_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get("layer/layer-001")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": layer_response})
         result = await er_client.get_layer("layer-001")
@@ -226,7 +226,7 @@ async def test_get_layer(er_client, layer_response):
 
 @pytest.mark.asyncio
 async def test_get_featureclasses(er_client, featureclasses_list_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get("featureclass")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": featureclasses_list_response})
         result = await er_client.get_featureclasses()
@@ -239,7 +239,7 @@ async def test_get_featureclasses(er_client, featureclasses_list_response):
 
 @pytest.mark.asyncio
 async def test_get_spatialfeaturegroups(er_client, spatialfeaturegroups_list_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get("spatialfeaturegroup")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": spatialfeaturegroups_list_response})
         result = await er_client.get_spatialfeaturegroups()
@@ -250,7 +250,7 @@ async def test_get_spatialfeaturegroups(er_client, spatialfeaturegroups_list_res
 
 @pytest.mark.asyncio
 async def test_get_spatialfeaturegroup(er_client, spatialfeaturegroup_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get("spatialfeaturegroup/sfg-001")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": spatialfeaturegroup_response})
         result = await er_client.get_spatialfeaturegroup("sfg-001")
@@ -261,7 +261,7 @@ async def test_get_spatialfeaturegroup(er_client, spatialfeaturegroup_response):
 
 @pytest.mark.asyncio
 async def test_get_spatialfeaturegroup_not_found(er_client):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get("spatialfeaturegroup/nonexistent")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json={"status": {"code": 404}})
         with pytest.raises(ERClientNotFound):
@@ -275,7 +275,7 @@ async def test_get_feature_group_deprecated_delegates_to_get_spatialfeaturegroup
     er_client, spatialfeaturegroup_response
 ):
     """get_feature_group is deprecated and delegates to get_spatialfeaturegroup."""
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get("spatialfeaturegroup/sfg-001")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": spatialfeaturegroup_response})
         with pytest.warns(DeprecationWarning, match="get_feature_group.*get_spatialfeaturegroup"):
@@ -287,7 +287,7 @@ async def test_get_feature_group_deprecated_delegates_to_get_spatialfeaturegroup
 
 @pytest.mark.asyncio
 async def test_post_spatialfeaturegroup(er_client, spatialfeaturegroup_payload, spatialfeaturegroup_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.post("spatialfeaturegroup")
         route.return_value = httpx.Response(httpx.codes.CREATED, json={"data": spatialfeaturegroup_response})
         result = await er_client.post_spatialfeaturegroup(spatialfeaturegroup_payload)
@@ -298,7 +298,7 @@ async def test_post_spatialfeaturegroup(er_client, spatialfeaturegroup_payload, 
 
 @pytest.mark.asyncio
 async def test_post_spatialfeaturegroup_forbidden(er_client, spatialfeaturegroup_payload):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.post("spatialfeaturegroup")
         route.return_value = httpx.Response(httpx.codes.FORBIDDEN, json={"status": {"code": 403}})
         with pytest.raises(ERClientPermissionDenied):
@@ -309,7 +309,7 @@ async def test_post_spatialfeaturegroup_forbidden(er_client, spatialfeaturegroup
 
 @pytest.mark.asyncio
 async def test_patch_spatialfeaturegroup(er_client, spatialfeaturegroup_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.patch("spatialfeaturegroup/sfg-001")
         updated = {**spatialfeaturegroup_response, "name": "Updated Name"}
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": updated})
@@ -321,7 +321,7 @@ async def test_patch_spatialfeaturegroup(er_client, spatialfeaturegroup_response
 
 @pytest.mark.asyncio
 async def test_patch_spatialfeaturegroup_not_found(er_client):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.patch("spatialfeaturegroup/nonexistent")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json={"status": {"code": 404}})
         with pytest.raises(ERClientNotFound):
@@ -332,18 +332,18 @@ async def test_patch_spatialfeaturegroup_not_found(er_client):
 
 @pytest.mark.asyncio
 async def test_delete_spatialfeaturegroup(er_client):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.delete("spatialfeaturegroup/sfg-001/")
         route.return_value = httpx.Response(httpx.codes.NO_CONTENT)
         result = await er_client.delete_spatialfeaturegroup("sfg-001")
         assert route.called
-        assert result is None
+        assert result is True  # 204 No Content returns True (canonical _delete behavior)
         await er_client.close()
 
 
 @pytest.mark.asyncio
 async def test_delete_spatialfeaturegroup_not_found(er_client):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.delete("spatialfeaturegroup/nonexistent/")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json={"status": {"code": 404}})
         with pytest.raises(ERClientNotFound):
@@ -356,7 +356,7 @@ async def test_delete_spatialfeaturegroup_not_found(er_client):
 
 @pytest.mark.asyncio
 async def test_get_spatialfeatures(er_client, spatialfeatures_list_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get("spatialfeature")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": spatialfeatures_list_response})
         result = await er_client.get_spatialfeatures()
@@ -367,7 +367,7 @@ async def test_get_spatialfeatures(er_client, spatialfeatures_list_response):
 
 @pytest.mark.asyncio
 async def test_get_spatialfeature(er_client, spatialfeature_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get("spatialfeature/sf-001")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": spatialfeature_response})
         result = await er_client.get_spatialfeature("sf-001")
@@ -378,7 +378,7 @@ async def test_get_spatialfeature(er_client, spatialfeature_response):
 
 @pytest.mark.asyncio
 async def test_get_spatialfeature_not_found(er_client):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get("spatialfeature/nonexistent")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json={"status": {"code": 404}})
         with pytest.raises(ERClientNotFound):
@@ -389,7 +389,7 @@ async def test_get_spatialfeature_not_found(er_client):
 
 @pytest.mark.asyncio
 async def test_post_spatialfeature(er_client, spatialfeature_payload, spatialfeature_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.post("spatialfeature")
         route.return_value = httpx.Response(httpx.codes.CREATED, json={"data": spatialfeature_response})
         result = await er_client.post_spatialfeature(spatialfeature_payload)
@@ -400,7 +400,7 @@ async def test_post_spatialfeature(er_client, spatialfeature_payload, spatialfea
 
 @pytest.mark.asyncio
 async def test_post_spatialfeature_forbidden(er_client, spatialfeature_payload):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.post("spatialfeature")
         route.return_value = httpx.Response(httpx.codes.FORBIDDEN, json={"status": {"code": 403}})
         with pytest.raises(ERClientPermissionDenied):
@@ -411,7 +411,7 @@ async def test_post_spatialfeature_forbidden(er_client, spatialfeature_payload):
 
 @pytest.mark.asyncio
 async def test_patch_spatialfeature(er_client, spatialfeature_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.patch("spatialfeature/sf-001")
         updated = {**spatialfeature_response, "name": "Updated Park"}
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": updated})
@@ -423,7 +423,7 @@ async def test_patch_spatialfeature(er_client, spatialfeature_response):
 
 @pytest.mark.asyncio
 async def test_patch_spatialfeature_not_found(er_client):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.patch("spatialfeature/nonexistent")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json={"status": {"code": 404}})
         with pytest.raises(ERClientNotFound):
@@ -434,18 +434,18 @@ async def test_patch_spatialfeature_not_found(er_client):
 
 @pytest.mark.asyncio
 async def test_delete_spatialfeature(er_client):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.delete("spatialfeature/sf-001/")
         route.return_value = httpx.Response(httpx.codes.NO_CONTENT)
         result = await er_client.delete_spatialfeature("sf-001")
         assert route.called
-        assert result is None
+        assert result is True  # 204 No Content returns True (canonical _delete behavior)
         await er_client.close()
 
 
 @pytest.mark.asyncio
 async def test_delete_spatialfeature_not_found(er_client):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.delete("spatialfeature/nonexistent/")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json={"status": {"code": 404}})
         with pytest.raises(ERClientNotFound):
