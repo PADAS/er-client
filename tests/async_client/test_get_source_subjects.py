@@ -79,7 +79,7 @@ def empty_source_subjects_response():
 async def test_get_source_subjects_success(er_client, source_subjects_response):
     """Test get_source_subjects with successful response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
         route = respx_mock.get(f'source/{source_id}/subjects')
@@ -98,7 +98,7 @@ async def test_get_source_subjects_success(er_client, source_subjects_response):
 async def test_get_source_subjects_empty(er_client, empty_source_subjects_response):
     """Test get_source_subjects with empty response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
         route = respx_mock.get(f'source/{source_id}/subjects')
@@ -117,7 +117,7 @@ async def test_get_source_subjects_empty(er_client, empty_source_subjects_respon
 async def test_get_source_subjects_not_found(er_client):
     """Test get_source_subjects with 404 Not Found response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "nonexistent-id"
         route = respx_mock.get(f'source/{source_id}/subjects')
@@ -136,7 +136,7 @@ async def test_get_source_subjects_not_found(er_client):
 async def test_get_source_subjects_unauthorized(er_client):
     """Test get_source_subjects with 401 Unauthorized response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
         route = respx_mock.get(f'source/{source_id}/subjects')
@@ -155,7 +155,7 @@ async def test_get_source_subjects_unauthorized(er_client):
 async def test_get_source_subjects_forbidden(er_client):
     """Test get_source_subjects with 403 Forbidden response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
         route = respx_mock.get(f'source/{source_id}/subjects')
@@ -174,7 +174,7 @@ async def test_get_source_subjects_forbidden(er_client):
 async def test_get_source_subjects_bad_request(er_client):
     """Test get_source_subjects with 400 Bad Request response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
         route = respx_mock.get(f'source/{source_id}/subjects')
@@ -193,7 +193,7 @@ async def test_get_source_subjects_bad_request(er_client):
 async def test_get_source_subjects_internal_server_error(er_client):
     """Test get_source_subjects with 500 Internal Server Error response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
         route = respx_mock.get(f'source/{source_id}/subjects')
@@ -212,7 +212,7 @@ async def test_get_source_subjects_internal_server_error(er_client):
 async def test_get_source_subjects_service_unavailable(er_client):
     """Test get_source_subjects with 503 Service Unavailable response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
         route = respx_mock.get(f'source/{source_id}/subjects')
@@ -231,7 +231,7 @@ async def test_get_source_subjects_service_unavailable(er_client):
 async def test_get_source_subjects_bad_gateway(er_client):
     """Test get_source_subjects with 502 Bad Gateway response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
         route = respx_mock.get(f'source/{source_id}/subjects')
@@ -250,7 +250,7 @@ async def test_get_source_subjects_bad_gateway(er_client):
 async def test_get_source_subjects_gateway_timeout(er_client):
     """Test get_source_subjects with 504 Gateway Timeout response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
         route = respx_mock.get(f'source/{source_id}/subjects')
@@ -269,7 +269,7 @@ async def test_get_source_subjects_gateway_timeout(er_client):
 async def test_get_source_subjects_rate_limit_exceeded(er_client):
     """Test get_source_subjects with 429 Too Many Requests response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
         route = respx_mock.get(f'source/{source_id}/subjects')
@@ -288,7 +288,7 @@ async def test_get_source_subjects_rate_limit_exceeded(er_client):
 async def test_get_source_subjects_network_error(er_client):
     """Test get_source_subjects with network connection error"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
         route = respx_mock.get(f'source/{source_id}/subjects')
@@ -305,7 +305,7 @@ async def test_get_source_subjects_network_error(er_client):
 async def test_get_source_subjects_read_timeout(er_client):
     """Test get_source_subjects with read timeout error"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
         route = respx_mock.get(f'source/{source_id}/subjects')
