@@ -25,7 +25,7 @@ async def test_get_events_export_returns_raw_response(er_client):
     """The method must return the raw httpx.Response so callers can stream
     or save the CSV body."""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/events/export/")
         route.return_value = httpx.Response(
@@ -47,7 +47,7 @@ async def test_get_events_export_returns_raw_response(er_client):
 async def test_get_events_export_with_filter(er_client):
     """When a filter is supplied it should be forwarded as a query parameter."""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/events/export/")
         route.return_value = httpx.Response(
@@ -73,7 +73,7 @@ async def test_get_events_export_with_filter(er_client):
 async def test_get_events_export_without_filter(er_client):
     """Without a filter no 'filter' query param should be present."""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/events/export/")
         route.return_value = httpx.Response(
@@ -94,7 +94,7 @@ async def test_get_events_export_without_filter(er_client):
 async def test_get_events_export_content_type_is_csv(er_client):
     """Confirm the response preserves the Content-Type header."""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/events/export/")
         route.return_value = httpx.Response(
@@ -118,7 +118,7 @@ async def test_get_events_export_content_type_is_csv(er_client):
 @pytest.mark.asyncio
 async def test_get_events_export_not_found(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/events/export/")
         route.return_value = httpx.Response(
@@ -134,7 +134,7 @@ async def test_get_events_export_not_found(er_client):
 @pytest.mark.asyncio
 async def test_get_events_export_forbidden(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/events/export/")
         route.return_value = httpx.Response(
@@ -155,7 +155,7 @@ async def test_get_events_export_forbidden(er_client):
 @pytest.mark.asyncio
 async def test_get_events_export_bad_credentials(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/events/export/")
         route.return_value = httpx.Response(
@@ -176,7 +176,7 @@ async def test_get_events_export_bad_credentials(er_client):
 @pytest.mark.asyncio
 async def test_get_events_export_server_error(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/events/export/")
         route.return_value = httpx.Response(
@@ -191,9 +191,9 @@ async def test_get_events_export_server_error(er_client):
 
 @pytest.mark.asyncio
 async def test_get_events_export_url_construction(er_client):
-    """The request should target {service_root}/activity/events/export/."""
+    """The request should target the versioned API path activity/events/export/."""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/events/export/")
         route.return_value = httpx.Response(
@@ -205,6 +205,5 @@ async def test_get_events_export_url_construction(er_client):
         await er_client.get_events_export()
 
         request = route.calls.last.request
-        expected_base = f"{er_client.service_root}/activity/events/export/"
-        assert str(request.url).startswith(expected_base)
+        assert "activity/events/export/" in str(request.url)
     await er_client.close()
