@@ -4,11 +4,10 @@ from datetime import datetime, timedelta
 from erclient import ERClient
 
 if __name__ == '__main__':
-    MY_SERVICE_ROOT = 'https://<your_site>.pamdas.org/api/v1.0'
-    MY_TOKEN = 'https://<your_site>.pamdas.org/oauth2/token'
+    MY_SERVICE_ROOT = 'https://<your_site>.pamdas.org'
 
     er_client = ERClient(service_root=MY_SERVICE_ROOT,
-                         token=MY_TOKEN)
+                         token='<your_bearer_token>')
 
     # Example 1: use the pulse() function be sure you can reach the API.
     print("Example 1 - Check status\n########")
