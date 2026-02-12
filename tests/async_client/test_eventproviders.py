@@ -135,7 +135,7 @@ def eventsource_patched_response():
 
 @pytest.mark.asyncio
 async def test_post_eventprovider_success(er_client, eventprovider_payload, eventprovider_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.post("activity/eventproviders/")
         route.return_value = httpx.Response(httpx.codes.CREATED, json=eventprovider_response)
         result = await er_client.post_eventprovider(eventprovider_payload)
@@ -146,7 +146,7 @@ async def test_post_eventprovider_success(er_client, eventprovider_payload, even
 
 @pytest.mark.asyncio
 async def test_post_eventprovider_forbidden(er_client, eventprovider_payload, forbidden_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.post("activity/eventproviders/")
         route.return_value = httpx.Response(httpx.codes.FORBIDDEN, json=forbidden_response)
         with pytest.raises(ERClientPermissionDenied):
@@ -157,7 +157,7 @@ async def test_post_eventprovider_forbidden(er_client, eventprovider_payload, fo
 
 @pytest.mark.asyncio
 async def test_get_eventproviders_success(er_client, eventproviders_list_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get("activity/eventproviders")
         route.return_value = httpx.Response(httpx.codes.OK, json=eventproviders_list_response)
         result = await er_client.get_eventproviders()
@@ -169,7 +169,7 @@ async def test_get_eventproviders_success(er_client, eventproviders_list_respons
 
 @pytest.mark.asyncio
 async def test_get_eventprovider_success(er_client, eventprovider_detail_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get(f"activity/eventprovider/{EVENTPROVIDER_ID}")
         route.return_value = httpx.Response(httpx.codes.OK, json=eventprovider_detail_response)
         result = await er_client.get_eventprovider(EVENTPROVIDER_ID)
@@ -181,7 +181,7 @@ async def test_get_eventprovider_success(er_client, eventprovider_detail_respons
 
 @pytest.mark.asyncio
 async def test_get_eventprovider_not_found(er_client, not_found_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get(f"activity/eventprovider/{EVENTPROVIDER_ID}")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json=not_found_response)
         with pytest.raises(ERClientNotFound):
@@ -192,7 +192,7 @@ async def test_get_eventprovider_not_found(er_client, not_found_response):
 
 @pytest.mark.asyncio
 async def test_patch_eventprovider_success(er_client, eventprovider_patched_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.patch(f"activity/eventprovider/{EVENTPROVIDER_ID}")
         route.return_value = httpx.Response(httpx.codes.OK, json=eventprovider_patched_response)
         result = await er_client.patch_eventprovider(
@@ -206,7 +206,7 @@ async def test_patch_eventprovider_success(er_client, eventprovider_patched_resp
 
 @pytest.mark.asyncio
 async def test_patch_eventprovider_not_found(er_client, not_found_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.patch(f"activity/eventprovider/{EVENTPROVIDER_ID}")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json=not_found_response)
         with pytest.raises(ERClientNotFound):
@@ -220,7 +220,7 @@ async def test_patch_eventprovider_not_found(er_client, not_found_response):
 
 @pytest.mark.asyncio
 async def test_post_eventsource_success(er_client, eventsource_payload, eventsource_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.post(f"activity/eventprovider/{EVENTPROVIDER_ID}/eventsources")
         route.return_value = httpx.Response(httpx.codes.CREATED, json=eventsource_response)
         result = await er_client.post_eventsource(EVENTPROVIDER_ID, eventsource_payload)
@@ -231,7 +231,7 @@ async def test_post_eventsource_success(er_client, eventsource_payload, eventsou
 
 @pytest.mark.asyncio
 async def test_post_eventsource_provider_not_found(er_client, eventsource_payload, not_found_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.post(f"activity/eventprovider/{EVENTPROVIDER_ID}/eventsources")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json=not_found_response)
         with pytest.raises(ERClientNotFound):
@@ -242,7 +242,7 @@ async def test_post_eventsource_provider_not_found(er_client, eventsource_payloa
 
 @pytest.mark.asyncio
 async def test_get_eventsources_success(er_client, eventsources_list_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get(f"activity/eventprovider/{EVENTPROVIDER_ID}/eventsources")
         route.return_value = httpx.Response(httpx.codes.OK, json=eventsources_list_response)
         result = await er_client.get_eventsources(EVENTPROVIDER_ID)
@@ -254,7 +254,7 @@ async def test_get_eventsources_success(er_client, eventsources_list_response):
 
 @pytest.mark.asyncio
 async def test_get_eventsource_success(er_client, eventsource_detail_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get(f"activity/eventsource/{EVENTSOURCE_ID}")
         route.return_value = httpx.Response(httpx.codes.OK, json=eventsource_detail_response)
         result = await er_client.get_eventsource(EVENTSOURCE_ID)
@@ -266,7 +266,7 @@ async def test_get_eventsource_success(er_client, eventsource_detail_response):
 
 @pytest.mark.asyncio
 async def test_get_eventsource_not_found(er_client, not_found_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.get(f"activity/eventsource/{EVENTSOURCE_ID}")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json=not_found_response)
         with pytest.raises(ERClientNotFound):
@@ -277,7 +277,7 @@ async def test_get_eventsource_not_found(er_client, not_found_response):
 
 @pytest.mark.asyncio
 async def test_patch_eventsource_success(er_client, eventsource_patched_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.patch(f"activity/eventsource/{EVENTSOURCE_ID}")
         route.return_value = httpx.Response(httpx.codes.OK, json=eventsource_patched_response)
         result = await er_client.patch_eventsource(
@@ -291,7 +291,7 @@ async def test_patch_eventsource_success(er_client, eventsource_patched_response
 
 @pytest.mark.asyncio
 async def test_patch_eventsource_not_found(er_client, not_found_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as respx_mock:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as respx_mock:
         route = respx_mock.patch(f"activity/eventsource/{EVENTSOURCE_ID}")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json=not_found_response)
         with pytest.raises(ERClientNotFound):
