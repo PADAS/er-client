@@ -742,6 +742,29 @@ class ERClient(object):
                             logging.warning(
                                 f"Attempt {tries} of {max_retries}: Error occurred loading events: {e}.")
 
+    def get_event(self, *, event_id, include_details=True, include_updates=False,
+                  include_notes=False, include_related_events=False,
+                  include_files=False):
+        """
+        Get a single event by its ID.
+
+        :param event_id: UUID of the event to retrieve
+        :param include_details: Include event_details in response. Default True.
+        :param include_updates: Include update history. Default False.
+        :param include_notes: Include notes. Default False.
+        :param include_related_events: Include related events. Default False.
+        :param include_files: Include attached files. Default False.
+        :return: Event data dict
+        """
+        params = {
+            'include_details': include_details,
+            'include_updates': include_updates,
+            'include_notes': include_notes,
+            'include_related_events': include_related_events,
+            'include_files': include_files,
+        }
+        return self._get(f'activity/event/{event_id}', params=params)
+
     def get_events(self, **kwargs):
         params = dict((k, v) for k, v in kwargs.items() if k in
                       ('state', 'page_size', 'page', 'event_type', 'filter', 'include_notes',
@@ -767,17 +790,6 @@ class ERClient(object):
                 events = self._get(url)
             else:
                 break
-
-    def get_event(self, *, event_id=None, include_details=True, include_updates=False, include_notes=False, include_related_events=False, include_files=False):
-        params = {
-            'include_details': include_details,
-            'include_updates': include_updates,
-            'include_notes': include_notes,
-            'include_related_events': include_related_events,
-            'include_files': include_files,
-        }
-        event = self._get(f'activity/event/{event_id}', params=params)
-        return event
 
     def get_patrols(self, **kwargs):
         params = dict((k, v) for k, v in kwargs.items() if k in
@@ -1173,6 +1185,29 @@ class AsyncERClient(object):
         self.logger.debug('Result of event patch is: %s', result)
         return result
 
+    async def get_event(self, *, event_id, include_details=True, include_updates=False,
+                        include_notes=False, include_related_events=False,
+                        include_files=False):
+        """
+        Get a single event by its ID.
+
+        :param event_id: UUID of the event to retrieve
+        :param include_details: Include event_details in response. Default True.
+        :param include_updates: Include update history. Default False.
+        :param include_notes: Include notes. Default False.
+        :param include_related_events: Include related events. Default False.
+        :param include_files: Include attached files. Default False.
+        :return: Event data dict
+        """
+        params = {
+            'include_details': include_details,
+            'include_updates': include_updates,
+            'include_notes': include_notes,
+            'include_related_events': include_related_events,
+            'include_files': include_files,
+        }
+        return await self._get(f'activity/event/{event_id}', params=params)
+
     async def post_event(self, event):
         """Post a new event (alias for post_report)."""
         return await self.post_report(event)
@@ -1249,17 +1284,6 @@ class AsyncERClient(object):
             params['page_size'] = 100
         async for event in self._get_data(endpoint='activity/events', params=params, batch_size=batch_size):
             yield event
-
-    async def get_event(self, *, event_id=None, include_details=True, include_updates=False, include_notes=False, include_related_events=False, include_files=False):
-        params = {
-            'include_details': include_details,
-            'include_updates': include_updates,
-            'include_notes': include_notes,
-            'include_related_events': include_related_events,
-            'include_files': include_files,
-        }
-        event = await self._get(f'activity/event/{event_id}', params=params)
-        return event
 
     async def get_observations(self, **kwargs):
         """
