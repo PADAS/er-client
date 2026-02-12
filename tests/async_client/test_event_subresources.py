@@ -72,7 +72,7 @@ def event_segments_response():
 @pytest.mark.asyncio
 async def test_get_event_geometry_success(er_client, event_geometry_response):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"activity/event/{EVENT_ID}/geometry")
         route.return_value = httpx.Response(
@@ -87,7 +87,7 @@ async def test_get_event_geometry_success(er_client, event_geometry_response):
 @pytest.mark.asyncio
 async def test_get_event_geometry_not_found(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"activity/event/{EVENT_ID}/geometry")
         route.return_value = httpx.Response(
@@ -103,7 +103,7 @@ async def test_get_event_geometry_not_found(er_client):
 @pytest.mark.asyncio
 async def test_get_event_geometry_forbidden(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"activity/event/{EVENT_ID}/geometry")
         route.return_value = httpx.Response(
@@ -120,7 +120,7 @@ async def test_get_event_geometry_forbidden(er_client):
 async def test_get_event_geometry_no_geometry(er_client):
     """Event exists but has no geometry attached."""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"activity/event/{EVENT_ID}/geometry")
         route.return_value = httpx.Response(
@@ -138,7 +138,7 @@ async def test_get_event_geometry_no_geometry(er_client):
 @pytest.mark.asyncio
 async def test_post_event_state_success(er_client, event_state_response):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post(f"activity/event/{EVENT_ID}/state")
         route.return_value = httpx.Response(
@@ -155,7 +155,7 @@ async def test_post_event_state_success(er_client, event_state_response):
 @pytest.mark.asyncio
 async def test_post_event_state_not_found(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post(f"activity/event/{EVENT_ID}/state")
         route.return_value = httpx.Response(
@@ -171,7 +171,7 @@ async def test_post_event_state_not_found(er_client):
 @pytest.mark.asyncio
 async def test_post_event_state_bad_request(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post(f"activity/event/{EVENT_ID}/state")
         route.return_value = httpx.Response(
@@ -187,7 +187,7 @@ async def test_post_event_state_bad_request(er_client):
 @pytest.mark.asyncio
 async def test_post_event_state_forbidden(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post(f"activity/event/{EVENT_ID}/state")
         route.return_value = httpx.Response(
@@ -203,7 +203,7 @@ async def test_post_event_state_forbidden(er_client):
 @pytest.mark.asyncio
 async def test_post_event_state_timeout(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post(f"activity/event/{EVENT_ID}/state")
         route.side_effect = httpx.ConnectTimeout
@@ -218,7 +218,7 @@ async def test_post_event_state_timeout(er_client):
 @pytest.mark.asyncio
 async def test_get_event_segments_success(er_client, event_segments_response):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"activity/event/{EVENT_ID}/segments")
         route.return_value = httpx.Response(
@@ -233,7 +233,7 @@ async def test_get_event_segments_success(er_client, event_segments_response):
 @pytest.mark.asyncio
 async def test_get_event_segments_empty(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"activity/event/{EVENT_ID}/segments")
         route.return_value = httpx.Response(
@@ -249,7 +249,7 @@ async def test_get_event_segments_empty(er_client):
 @pytest.mark.asyncio
 async def test_get_event_segments_not_found(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"activity/event/{EVENT_ID}/segments")
         route.return_value = httpx.Response(
@@ -265,7 +265,7 @@ async def test_get_event_segments_not_found(er_client):
 @pytest.mark.asyncio
 async def test_get_event_segments_forbidden(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"activity/event/{EVENT_ID}/segments")
         route.return_value = httpx.Response(
