@@ -133,7 +133,7 @@ def tableau_view_detail_response():
 
 @pytest.mark.asyncio
 async def test_get_analyzers_spatial(er_client, analyzers_spatial_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.get("analyzers/spatial").respond(httpx.codes.OK, json=analyzers_spatial_response)
 
         result = await er_client.get_analyzers_spatial()
@@ -145,7 +145,7 @@ async def test_get_analyzers_spatial(er_client, analyzers_spatial_response):
 
 @pytest.mark.asyncio
 async def test_get_analyzers_subject(er_client, analyzers_subject_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.get("analyzers/subject").respond(httpx.codes.OK, json=analyzers_subject_response)
 
         result = await er_client.get_analyzers_subject()
@@ -159,7 +159,7 @@ async def test_get_analyzers_subject(er_client, analyzers_subject_response):
 
 @pytest.mark.asyncio
 async def test_get_choices(er_client, choices_list_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.get("choices").respond(httpx.codes.OK, json=choices_list_response)
 
         result = await er_client.get_choices()
@@ -171,7 +171,7 @@ async def test_get_choices(er_client, choices_list_response):
 
 @pytest.mark.asyncio
 async def test_get_choice(er_client, choice_detail_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.get(f"choices/{CHOICE_ID}").respond(httpx.codes.OK, json=choice_detail_response)
 
         result = await er_client.get_choice(CHOICE_ID)
@@ -184,7 +184,7 @@ async def test_get_choice(er_client, choice_detail_response):
 @pytest.mark.asyncio
 async def test_download_choice_icons(er_client):
     binary_content = b"zip-binary-content"
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.get("choices/icons/download").respond(
             httpx.codes.OK, content=binary_content
         )
@@ -200,7 +200,7 @@ async def test_download_choice_icons(er_client):
 
 @pytest.mark.asyncio
 async def test_get_gear_list(er_client, gear_list_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.get("buoy/gear").respond(httpx.codes.OK, json=gear_list_response)
 
         result = await er_client.get_gear_list()
@@ -212,7 +212,7 @@ async def test_get_gear_list(er_client, gear_list_response):
 
 @pytest.mark.asyncio
 async def test_get_gear(er_client, gear_detail_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.get(f"buoy/gear/{GEAR_ID}").respond(httpx.codes.OK, json=gear_detail_response)
 
         result = await er_client.get_gear(GEAR_ID)
@@ -224,7 +224,7 @@ async def test_get_gear(er_client, gear_detail_response):
 
 @pytest.mark.asyncio
 async def test_post_gear(er_client, gear_created_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.post("buoy/gear").respond(httpx.codes.CREATED, json=gear_created_response)
 
         result = await er_client.post_gear({"name": "New Buoy", "gear_type": "buoy"})
@@ -236,7 +236,7 @@ async def test_post_gear(er_client, gear_created_response):
 
 @pytest.mark.asyncio
 async def test_patch_gear(er_client, gear_updated_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.patch(f"buoy/gear/{GEAR_ID}").respond(httpx.codes.OK, json=gear_updated_response)
 
         result = await er_client.patch_gear(GEAR_ID, {"name": "Updated Buoy"})
@@ -248,7 +248,7 @@ async def test_patch_gear(er_client, gear_updated_response):
 
 @pytest.mark.asyncio
 async def test_delete_gear(er_client):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.delete(f"buoy/gear/{GEAR_ID}").respond(httpx.codes.NO_CONTENT)
 
         # DELETE returns None from _call (no json body on 204)
@@ -268,7 +268,7 @@ async def test_delete_gear(er_client):
 @pytest.mark.asyncio
 async def test_get_sitrep(er_client):
     binary_content = b"docx-binary-content"
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.get("reports/sitrep.docx").respond(
             httpx.codes.OK, content=binary_content
         )
@@ -282,7 +282,7 @@ async def test_get_sitrep(er_client):
 
 @pytest.mark.asyncio
 async def test_get_tableau_views(er_client, tableau_views_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.get("reports/tableau-views").respond(httpx.codes.OK, json=tableau_views_response)
 
         result = await er_client.get_tableau_views()
@@ -294,7 +294,7 @@ async def test_get_tableau_views(er_client, tableau_views_response):
 
 @pytest.mark.asyncio
 async def test_get_tableau_view(er_client, tableau_view_detail_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.get(f"reports/tableau-views/{VIEW_ID}").respond(
             httpx.codes.OK, json=tableau_view_detail_response
         )
@@ -312,7 +312,7 @@ async def test_get_tableau_view(er_client, tableau_view_detail_response):
 async def test_get_gear_not_found(er_client, not_found_response):
     from erclient import ERClientNotFound
 
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         m.get(f"buoy/gear/{GEAR_ID}").respond(httpx.codes.NOT_FOUND, json=not_found_response)
 
         with pytest.raises(ERClientNotFound):
@@ -325,7 +325,7 @@ async def test_get_gear_not_found(er_client, not_found_response):
 async def test_get_analyzers_forbidden(er_client, forbidden_response):
     from erclient import ERClientPermissionDenied
 
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         m.get("analyzers/spatial").respond(httpx.codes.FORBIDDEN, json=forbidden_response)
 
         with pytest.raises(ERClientPermissionDenied):
