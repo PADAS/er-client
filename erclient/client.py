@@ -655,6 +655,42 @@ class ERClient(object):
     def get_event_schema(self, event_type):
         return self._get(f'activity/events/schema/eventtype/{event_type}')
 
+    def get_event_type_schema(self, event_type_value, pre_render=False):
+        """
+        Get the schema for a single event type (v2 API).
+
+        :param event_type_value: The event type 'value' identifier (e.g. 'rainfall_rep')
+        :param pre_render: If True, return the pre-rendered schema
+        """
+        return self._get(
+            f'eventtypes/{event_type_value}/schema',
+            base_url=self._api_root('v2.0'),
+            params={'pre_render': pre_render},
+        )
+
+    def get_event_type_updates(self, event_type_value):
+        """
+        Get the revision history for a single event type (v2 API).
+
+        :param event_type_value: The event type 'value' identifier
+        """
+        return self._get(
+            f'eventtypes/{event_type_value}/updates',
+            base_url=self._api_root('v2.0'),
+        )
+
+    def get_event_type_schemas(self, pre_render=False):
+        """
+        Get schemas for all event types in bulk (v2 API).
+
+        :param pre_render: If True, return pre-rendered schemas
+        """
+        return self._get(
+            'eventtypes/schemas',
+            base_url=self._api_root('v2.0'),
+            params={'pre_render': pre_render},
+        )
+
     def _get_objects_count(self, params):
         params = params.copy()
         params["page"] = 1
@@ -1544,6 +1580,42 @@ class AsyncERClient(object):
         # self.logger.debug('Result of event type patch is: %s', result)
         return result
 
+    async def get_event_type_schema(self, event_type_value, pre_render=False):
+        """
+        Get the schema for a single event type (v2 API).
+
+        :param event_type_value: The event type 'value' identifier (e.g. 'rainfall_rep')
+        :param pre_render: If True, return the pre-rendered schema
+        """
+        return await self._get(
+            f'eventtypes/{event_type_value}/schema',
+            base_url=self._api_root(VERSION_2_0),
+            params={'pre_render': pre_render},
+        )
+
+    async def get_event_type_updates(self, event_type_value):
+        """
+        Get the revision history for a single event type (v2 API).
+
+        :param event_type_value: The event type 'value' identifier
+        """
+        return await self._get(
+            f'eventtypes/{event_type_value}/updates',
+            base_url=self._api_root(VERSION_2_0),
+        )
+
+    async def get_event_type_schemas(self, pre_render=False):
+        """
+        Get schemas for all event types in bulk (v2 API).
+
+        :param pre_render: If True, return pre-rendered schemas
+        """
+        return await self._get(
+            'eventtypes/schemas',
+            base_url=self._api_root(VERSION_2_0),
+            params={'pre_render': pre_render},
+        )
+
     async def get_subjectgroups(
             self,
             include_inactive=False,
@@ -1646,38 +1718,6 @@ class AsyncERClient(object):
     async def _get(self, path, base_url=None, params=None):
         return await self._call(path=path, payload=None, method="GET", params=params, base_url=base_url)
 
-    async def _delete(self, path):
-        """Issue DELETE request. Returns True on success; raises ERClient* on error."""
-        try:
-            auth_headers = await self.auth_headers()
-        except httpx.HTTPStatusError as e:
-            self._handle_http_status_error(path, "DELETE", e)
-        headers = {'User-Agent': self.user_agent, **auth_headers}
-        if not path.startswith('http'):
-            path = self._er_url(path)
-        try:
-            response = await self._http_session.delete(path, headers=headers)
-        except httpx.RequestError as e:
-            reason = str(e)
-            self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
-                                                                 url=path,
-                                                                 reason=reason))
-            raise ERClientException(f'Request to ER failed: {reason}')
-        if response.is_success:
-            return True
-        if response.status_code == 404:
-            self.logger.error("404 when calling %s", path)
-            raise ERClientNotFound()
-        if response.status_code == 403:
-            try:
-                reason = response.json().get('status', {}).get('detail', 'unknown reason')
-            except Exception:
-                reason = 'unknown reason'
-            raise ERClientPermissionDenied(reason)
-        raise ERClientException(
-            f'Failed to delete: {response.status_code} {response.text}'
-        )
-
     async def get_file(self, url):
         """
         Download a file (e.g. attachment URL). Returns the httpx response; body is read into memory.
@@ -1722,7 +1762,6 @@ class AsyncERClient(object):
         return await self._call(
             path=path, payload=None, method="DELETE", params=params, base_url=base_url
         )
-
     async def _call(self, path, payload, method, params=None, base_url=None):
         try:
             auth_headers = await self.auth_headers()
