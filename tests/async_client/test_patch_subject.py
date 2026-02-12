@@ -71,7 +71,7 @@ def subject_updated_response():
 async def test_patch_subject_success(er_client, subject_updated_response):
     """Test patch_subject with successful response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.patch(f'subject/{subject_id}')
@@ -93,7 +93,7 @@ async def test_patch_subject_success(er_client, subject_updated_response):
 async def test_patch_subject_multiple_fields(er_client, subject_updated_response):
     """Test patch_subject with multiple fields"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.patch(f'subject/{subject_id}')
@@ -118,7 +118,7 @@ async def test_patch_subject_multiple_fields(er_client, subject_updated_response
 async def test_patch_subject_not_found(er_client):
     """Test patch_subject with 404 Not Found response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "nonexistent-id"
         route = respx_mock.patch(f'subject/{subject_id}')
@@ -140,7 +140,7 @@ async def test_patch_subject_not_found(er_client):
 async def test_patch_subject_unauthorized(er_client):
     """Test patch_subject with 401 Unauthorized response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.patch(f'subject/{subject_id}')
@@ -162,7 +162,7 @@ async def test_patch_subject_unauthorized(er_client):
 async def test_patch_subject_forbidden(er_client):
     """Test patch_subject with 403 Forbidden response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.patch(f'subject/{subject_id}')
@@ -184,7 +184,7 @@ async def test_patch_subject_forbidden(er_client):
 async def test_patch_subject_bad_request(er_client):
     """Test patch_subject with 400 Bad Request response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.patch(f'subject/{subject_id}')
@@ -206,7 +206,7 @@ async def test_patch_subject_bad_request(er_client):
 async def test_patch_subject_internal_server_error(er_client):
     """Test patch_subject with 500 Internal Server Error response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.patch(f'subject/{subject_id}')
@@ -228,7 +228,7 @@ async def test_patch_subject_internal_server_error(er_client):
 async def test_patch_subject_service_unavailable(er_client):
     """Test patch_subject with 503 Service Unavailable response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.patch(f'subject/{subject_id}')
@@ -250,7 +250,7 @@ async def test_patch_subject_service_unavailable(er_client):
 async def test_patch_subject_bad_gateway(er_client):
     """Test patch_subject with 502 Bad Gateway response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.patch(f'subject/{subject_id}')
@@ -272,7 +272,7 @@ async def test_patch_subject_bad_gateway(er_client):
 async def test_patch_subject_gateway_timeout(er_client):
     """Test patch_subject with 504 Gateway Timeout response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.patch(f'subject/{subject_id}')
@@ -294,7 +294,7 @@ async def test_patch_subject_gateway_timeout(er_client):
 async def test_patch_subject_rate_limit_exceeded(er_client):
     """Test patch_subject with 429 Too Many Requests response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.patch(f'subject/{subject_id}')
@@ -316,7 +316,7 @@ async def test_patch_subject_rate_limit_exceeded(er_client):
 async def test_patch_subject_network_error(er_client):
     """Test patch_subject with network connection error"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.patch(f'subject/{subject_id}')
@@ -336,7 +336,7 @@ async def test_patch_subject_network_error(er_client):
 async def test_patch_subject_read_timeout(er_client):
     """Test patch_subject with read timeout error"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.patch(f'subject/{subject_id}')

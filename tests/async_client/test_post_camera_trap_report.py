@@ -12,7 +12,7 @@ from erclient import (ERClientException, ERClientNotFound,
 @pytest.mark.asyncio
 async def test_post_camera_trap_report_success(er_client, camera_trap_payload, camera_trap_file, camera_trap_report_created_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a successful response
         route = respx_mock.post(
@@ -30,7 +30,7 @@ async def test_post_camera_trap_report_success(er_client, camera_trap_payload, c
 @pytest.mark.asyncio
 async def test_post_camera_trap_report_status_conflict(er_client, camera_trap_payload, camera_trap_file, camera_trap_conflict_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a "conflict" (409) response
         # This status is returned when a file with the same name already exists in ER
@@ -48,7 +48,7 @@ async def test_post_camera_trap_report_status_conflict(er_client, camera_trap_pa
 @pytest.mark.asyncio
 async def test_post_camera_trap_report_connect_timeout(er_client, camera_trap_payload, camera_trap_file):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a connection timeout error
         route = respx_mock.post(
@@ -64,7 +64,7 @@ async def test_post_camera_trap_report_connect_timeout(er_client, camera_trap_pa
 @pytest.mark.asyncio
 async def test_post_camera_trap_report_response_timeout(er_client, camera_trap_payload, camera_trap_file):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a read timeout error
         route = respx_mock.post(
@@ -80,7 +80,7 @@ async def test_post_camera_trap_report_response_timeout(er_client, camera_trap_p
 @pytest.mark.asyncio
 async def test_post_camera_trap_report_status_gateway_timeout(er_client, camera_trap_payload, camera_trap_file):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a gateway timeout
         path = f'sensors/camera-trap/{er_client.provider_key}/status/'
@@ -88,7 +88,7 @@ async def test_post_camera_trap_report_status_gateway_timeout(er_client, camera_
         route.return_value = httpx.Response(
             httpx.codes.GATEWAY_TIMEOUT, json={})
         # Check that the right exception is raised by the client
-        expected_error = f'ER Gateway Timeout ON POST {er_client.service_root}/{path}. (status_code=504) (response_body={{}})'
+        expected_error = f'ER Gateway Timeout ON POST {er_client._er_url(path)}. (status_code=504) (response_body={{}})'
         with pytest.raises(ERClientServiceUnreachable, match=re.escape(expected_error)):
             await er_client.post_camera_trap_report(camera_trap_payload, camera_trap_file)
         assert route.called  # Check that the api endpoint was called
@@ -98,14 +98,14 @@ async def test_post_camera_trap_report_status_gateway_timeout(er_client, camera_
 @pytest.mark.asyncio
 async def test_post_camera_trap_report_status_bad_gateway(er_client, camera_trap_payload, camera_trap_file):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a bad gateway error
         path = f'sensors/camera-trap/{er_client.provider_key}/status/'
         route = respx_mock.post(path)
         route.return_value = httpx.Response(httpx.codes.BAD_GATEWAY, json={})
         # Check that the right exception is raised by the client
-        expected_error = f'ER Bad Gateway ON POST {er_client.service_root}/{path}. (status_code=502) (response_body={{}})'
+        expected_error = f'ER Bad Gateway ON POST {er_client._er_url(path)}. (status_code=502) (response_body={{}})'
         with pytest.raises(ERClientServiceUnreachable, match=re.escape(expected_error)) as exc_info:
             await er_client.post_camera_trap_report(camera_trap_payload, camera_trap_file)
         assert exc_info.value.status_code == httpx.codes.BAD_GATEWAY
@@ -116,7 +116,7 @@ async def test_post_camera_trap_report_status_bad_gateway(er_client, camera_trap
 @pytest.mark.asyncio
 async def test_post_camera_trap_report_status_bad_request(er_client, camera_trap_payload, camera_trap_file, bad_request_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a client error
         route = respx_mock.post(
@@ -133,7 +133,7 @@ async def test_post_camera_trap_report_status_bad_request(er_client, camera_trap
 @pytest.mark.asyncio
 async def test_post_camera_trap_report_status_forbidden(er_client, camera_trap_payload, camera_trap_file, forbidden_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a permissions error
         path = f'sensors/camera-trap/{er_client.provider_key}/status/'
@@ -145,7 +145,7 @@ async def test_post_camera_trap_report_status_forbidden(er_client, camera_trap_p
             await er_client.post_camera_trap_report(camera_trap_payload, camera_trap_file)
         assert exc_info.value.status_code == httpx.codes.FORBIDDEN
         assert json.loads(exc_info.value.response_body) == forbidden_response
-        expected_message = f'ER Forbidden ON POST {er_client.service_root}/{path}. (status_code={httpx.codes.FORBIDDEN})'
+        expected_message = f'ER Forbidden ON POST {er_client._er_url(path)}. (status_code={httpx.codes.FORBIDDEN})'
         assert expected_message in str(exc_info.value)
         assert route.called  # Check that the api endpoint was called
         await er_client.close()
@@ -154,7 +154,7 @@ async def test_post_camera_trap_report_status_forbidden(er_client, camera_trap_p
 @pytest.mark.asyncio
 async def test_post_camera_trap_report_status_not_found(er_client, camera_trap_payload, camera_trap_file, not_found_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a not found response
         route = respx_mock.post(
