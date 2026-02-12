@@ -81,7 +81,7 @@ SUBJECT_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 async def test_get_subject_tracks_v1_default(er_client, v1_tracks_response):
     """get_subject_tracks() with default version hits the v1 endpoint."""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"subject/{SUBJECT_ID}/tracks")
         route.return_value = httpx.Response(
@@ -99,7 +99,7 @@ async def test_get_subject_tracks_v1_default(er_client, v1_tracks_response):
 async def test_get_subject_tracks_v1_with_dates(er_client, v1_tracks_response):
     """v1 tracks pass since/until params when start/end are given."""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"subject/{SUBJECT_ID}/tracks")
         route.return_value = httpx.Response(
@@ -194,7 +194,7 @@ async def test_get_subject_source_tracks(er_client, v1_tracks_response):
     """get_subject_source_tracks() hits the correct endpoint."""
     source_id = "bbbb1111-2222-3333-4444-555566667777"
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(
             f"subject/{SUBJECT_ID}/source/{source_id}/tracks"
@@ -217,7 +217,7 @@ async def test_get_subject_source_tracks_with_since(er_client, v1_tracks_respons
     """get_subject_source_tracks() passes since param."""
     source_id = "bbbb1111-2222-3333-4444-555566667777"
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(
             f"subject/{SUBJECT_ID}/source/{source_id}/tracks"
@@ -245,7 +245,7 @@ async def test_get_subject_tracks_not_found(er_client, not_found_response):
     from erclient import ERClientNotFound
 
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"subject/{SUBJECT_ID}/tracks")
         route.return_value = httpx.Response(

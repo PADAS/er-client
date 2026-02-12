@@ -8,7 +8,7 @@ async def test_post_report_attachment_success(
         er_client, report_created_response, camera_trap_file, attachment_created_response
 ):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # Mock the call to the ER API and simulate a successful response
         # id of a previously-created report
