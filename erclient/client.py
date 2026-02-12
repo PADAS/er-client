@@ -1054,6 +1054,84 @@ class ERClient(object):
     def get_users(self):
         return self._get('users')
 
+    # -- Mapping / Spatial Feature Methods --
+
+    def get_features(self):
+        """Get a list of features (GeoJSON)."""
+        return self._get('features')
+
+    def get_feature(self, feature_id):
+        """Get a single feature by ID (GeoJSON)."""
+        return self._get(f'feature/{feature_id}')
+
+    def get_featuresets(self):
+        """Get a list of feature sets."""
+        return self._get('featureset')
+
+    def get_featureset(self, featureset_id):
+        """Get a single feature set by ID (GeoJSON)."""
+        return self._get(f'featureset/{featureset_id}')
+
+    def get_maps(self):
+        """Get a list of maps."""
+        return self._get('maps')
+
+    def get_layers(self):
+        """Get a list of map layers."""
+        return self._get('layers')
+
+    def get_layer(self, layer_id):
+        """Get a single map layer by ID."""
+        return self._get(f'layer/{layer_id}')
+
+    def get_featureclasses(self):
+        """Get a list of spatial feature types (feature classes)."""
+        return self._get('featureclass')
+
+    def get_spatialfeaturegroups(self):
+        """Get a list of spatial feature groups."""
+        return self._get('spatialfeaturegroup')
+
+    def get_spatialfeaturegroup(self, group_id):
+        """Get a single spatial feature group by ID."""
+        return self._get(f'spatialfeaturegroup/{group_id}')
+
+    def post_spatialfeaturegroup(self, data):
+        """Create a new spatial feature group."""
+        self.logger.debug('Posting spatial feature group: %s', data)
+        return self._post('spatialfeaturegroup', payload=data)
+
+    def patch_spatialfeaturegroup(self, group_id, data):
+        """Update a spatial feature group."""
+        self.logger.debug('Patching spatial feature group %s: %s', group_id, data)
+        return self._patch(f'spatialfeaturegroup/{group_id}', payload=data)
+
+    def delete_spatialfeaturegroup(self, group_id):
+        """Delete a spatial feature group."""
+        return self._delete(f'spatialfeaturegroup/{group_id}/')
+
+    def get_spatialfeatures(self):
+        """Get a list of spatial features."""
+        return self._get('spatialfeature')
+
+    def get_spatialfeature(self, feature_id):
+        """Get a single spatial feature by ID."""
+        return self._get(f'spatialfeature/{feature_id}')
+
+    def post_spatialfeature(self, data):
+        """Create a new spatial feature."""
+        self.logger.debug('Posting spatial feature: %s', data)
+        return self._post('spatialfeature', payload=data)
+
+    def patch_spatialfeature(self, feature_id, data):
+        """Update a spatial feature."""
+        self.logger.debug('Patching spatial feature %s: %s', feature_id, data)
+        return self._patch(f'spatialfeature/{feature_id}', payload=data)
+
+    def delete_spatialfeature(self, feature_id):
+        """Delete a spatial feature."""
+        return self._delete(f'spatialfeature/{feature_id}/')
+
 
 class AsyncERClient(object):
     """
@@ -1603,15 +1681,96 @@ class AsyncERClient(object):
 
     async def get_feature_group(self, feature_group_id: str):
         """
-        Get a feature group by id
+        Get a feature group by id.
 
-        Args:
-            feature_group_id (int): id of the feature group
-
-        Returns:
-            dict: feature group data
+        .. deprecated:: 1.x
+            Use :meth:`get_spatialfeaturegroup` instead; the name matches the
+            DAS API path ``spatialfeaturegroup``.
         """
-        return await self._get(f"spatialfeaturegroup/{feature_group_id}", params={})
+        warnings.warn(
+            "get_feature_group() is deprecated; use get_spatialfeaturegroup() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return await self.get_spatialfeaturegroup(feature_group_id)
+
+    # -- Mapping / Spatial Feature Methods --
+
+    async def get_features(self):
+        """Get a list of features (GeoJSON)."""
+        return await self._get('features')
+
+    async def get_feature(self, feature_id):
+        """Get a single feature by ID (GeoJSON)."""
+        return await self._get(f'feature/{feature_id}')
+
+    async def get_featuresets(self):
+        """Get a list of feature sets."""
+        return await self._get('featureset')
+
+    async def get_featureset(self, featureset_id):
+        """Get a single feature set by ID (GeoJSON)."""
+        return await self._get(f'featureset/{featureset_id}')
+
+    async def get_maps(self):
+        """Get a list of maps."""
+        return await self._get('maps')
+
+    async def get_layers(self):
+        """Get a list of map layers."""
+        return await self._get('layers')
+
+    async def get_layer(self, layer_id):
+        """Get a single map layer by ID."""
+        return await self._get(f'layer/{layer_id}')
+
+    async def get_featureclasses(self):
+        """Get a list of spatial feature types (feature classes)."""
+        return await self._get('featureclass')
+
+    async def get_spatialfeaturegroups(self):
+        """Get a list of spatial feature groups."""
+        return await self._get('spatialfeaturegroup')
+
+    async def get_spatialfeaturegroup(self, group_id):
+        """Get a single spatial feature group by ID."""
+        return await self._get(f'spatialfeaturegroup/{group_id}')
+
+    async def post_spatialfeaturegroup(self, data):
+        """Create a new spatial feature group."""
+        self.logger.debug(f'Posting spatial feature group: {data}')
+        return await self._post('spatialfeaturegroup', payload=data)
+
+    async def patch_spatialfeaturegroup(self, group_id, data):
+        """Update a spatial feature group."""
+        self.logger.debug(f'Patching spatial feature group {group_id}: {data}')
+        return await self._patch(f'spatialfeaturegroup/{group_id}', payload=data)
+
+    async def delete_spatialfeaturegroup(self, group_id):
+        """Delete a spatial feature group."""
+        return await self._delete(f'spatialfeaturegroup/{group_id}/')
+
+    async def get_spatialfeatures(self):
+        """Get a list of spatial features."""
+        return await self._get('spatialfeature')
+
+    async def get_spatialfeature(self, feature_id):
+        """Get a single spatial feature by ID."""
+        return await self._get(f'spatialfeature/{feature_id}')
+
+    async def post_spatialfeature(self, data):
+        """Create a new spatial feature."""
+        self.logger.debug(f'Posting spatial feature: {data}')
+        return await self._post('spatialfeature', payload=data)
+
+    async def patch_spatialfeature(self, feature_id, data):
+        """Update a spatial feature."""
+        self.logger.debug(f'Patching spatial feature {feature_id}: {data}')
+        return await self._patch(f'spatialfeature/{feature_id}', payload=data)
+
+    async def delete_spatialfeature(self, feature_id):
+        """Delete a spatial feature."""
+        return await self._delete(f'spatialfeature/{feature_id}/')
 
     async def _get_data(self, endpoint, params, batch_size=0):
         if "page" not in params:  # Use cursor paginator unless the user has specified a page
