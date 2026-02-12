@@ -35,7 +35,7 @@ def source_response():
 async def test_get_source_by_manufacturer_id_success(er_client, source_response):
     """Test get_source_by_manufacturer_id with successful response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         manufacturer_id = "42"
         route = respx_mock.get(f'source/{manufacturer_id}/')
@@ -54,7 +54,7 @@ async def test_get_source_by_manufacturer_id_success(er_client, source_response)
 async def test_get_source_by_manufacturer_id_not_found(er_client):
     """Test get_source_by_manufacturer_id with 404 Not Found response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         manufacturer_id = "nonexistent-id"
         route = respx_mock.get(f'source/{manufacturer_id}/')
@@ -73,7 +73,7 @@ async def test_get_source_by_manufacturer_id_not_found(er_client):
 async def test_get_source_by_manufacturer_id_unauthorized(er_client):
     """Test get_source_by_manufacturer_id with 401 Unauthorized response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         manufacturer_id = "42"
         route = respx_mock.get(f'source/{manufacturer_id}/')
@@ -92,7 +92,7 @@ async def test_get_source_by_manufacturer_id_unauthorized(er_client):
 async def test_get_source_by_manufacturer_id_forbidden(er_client):
     """Test get_source_by_manufacturer_id with 403 Forbidden response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         manufacturer_id = "42"
         route = respx_mock.get(f'source/{manufacturer_id}/')
@@ -111,7 +111,7 @@ async def test_get_source_by_manufacturer_id_forbidden(er_client):
 async def test_get_source_by_manufacturer_id_bad_request(er_client):
     """Test get_source_by_manufacturer_id with 400 Bad Request response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         manufacturer_id = "42"
         route = respx_mock.get(f'source/{manufacturer_id}/')
@@ -130,7 +130,7 @@ async def test_get_source_by_manufacturer_id_bad_request(er_client):
 async def test_get_source_by_manufacturer_id_internal_server_error(er_client):
     """Test get_source_by_manufacturer_id with 500 Internal Server Error response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         manufacturer_id = "42"
         route = respx_mock.get(f'source/{manufacturer_id}/')
@@ -149,7 +149,7 @@ async def test_get_source_by_manufacturer_id_internal_server_error(er_client):
 async def test_get_source_by_manufacturer_id_service_unavailable(er_client):
     """Test get_source_by_manufacturer_id with 503 Service Unavailable response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         manufacturer_id = "42"
         route = respx_mock.get(f'source/{manufacturer_id}/')
@@ -168,7 +168,7 @@ async def test_get_source_by_manufacturer_id_service_unavailable(er_client):
 async def test_get_source_by_manufacturer_id_bad_gateway(er_client):
     """Test get_source_by_manufacturer_id with 502 Bad Gateway response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         manufacturer_id = "42"
         route = respx_mock.get(f'source/{manufacturer_id}/')
@@ -187,7 +187,7 @@ async def test_get_source_by_manufacturer_id_bad_gateway(er_client):
 async def test_get_source_by_manufacturer_id_gateway_timeout(er_client):
     """Test get_source_by_manufacturer_id with 504 Gateway Timeout response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         manufacturer_id = "42"
         route = respx_mock.get(f'source/{manufacturer_id}/')
@@ -206,7 +206,7 @@ async def test_get_source_by_manufacturer_id_gateway_timeout(er_client):
 async def test_get_source_by_manufacturer_id_rate_limit_exceeded(er_client):
     """Test get_source_by_manufacturer_id with 429 Too Many Requests response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         manufacturer_id = "42"
         route = respx_mock.get(f'source/{manufacturer_id}/')
@@ -225,7 +225,7 @@ async def test_get_source_by_manufacturer_id_rate_limit_exceeded(er_client):
 async def test_get_source_by_manufacturer_id_network_error(er_client):
     """Test get_source_by_manufacturer_id with network connection error"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         manufacturer_id = "42"
         route = respx_mock.get(f'source/{manufacturer_id}/')
@@ -242,7 +242,7 @@ async def test_get_source_by_manufacturer_id_network_error(er_client):
 async def test_get_source_by_manufacturer_id_read_timeout(er_client):
     """Test get_source_by_manufacturer_id with read timeout error"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         manufacturer_id = "42"
         route = respx_mock.get(f'source/{manufacturer_id}/')
