@@ -57,7 +57,7 @@ def eula_accept_response():
 
 @pytest.mark.asyncio
 async def test_get_users(er_client, users_list_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.get("users")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": users_list_response})
         result = await er_client.get_users()
@@ -70,7 +70,7 @@ async def test_get_users(er_client, users_list_response):
 
 @pytest.mark.asyncio
 async def test_get_user(er_client, user_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.get("user/c925e69e-51cf-43d0-b659-2000ae023664")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": user_response})
         result = await er_client.get_user("c925e69e-51cf-43d0-b659-2000ae023664")
@@ -81,7 +81,7 @@ async def test_get_user(er_client, user_response):
 
 @pytest.mark.asyncio
 async def test_get_user_me(er_client, user_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.get("user/me")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": user_response})
         result = await er_client.get_user("me")
@@ -92,7 +92,7 @@ async def test_get_user_me(er_client, user_response):
 
 @pytest.mark.asyncio
 async def test_get_user_not_found(er_client):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.get("user/nonexistent")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json={"status": {"code": 404}})
         with pytest.raises(ERClientNotFound):
@@ -104,7 +104,7 @@ async def test_get_user_not_found(er_client):
 
 @pytest.mark.asyncio
 async def test_patch_user(er_client, user_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.patch("user/c925e69e-51cf-43d0-b659-2000ae023664")
         updated = {**user_response, "first_name": "Updated"}
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": updated})
@@ -116,7 +116,7 @@ async def test_patch_user(er_client, user_response):
 
 @pytest.mark.asyncio
 async def test_patch_user_forbidden(er_client):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.patch("user/c925e69e-51cf-43d0-b659-2000ae023664")
         route.return_value = httpx.Response(httpx.codes.FORBIDDEN, json={"status": {"code": 403}})
         with pytest.raises(ERClientPermissionDenied):
@@ -126,7 +126,7 @@ async def test_patch_user_forbidden(er_client):
 
 @pytest.mark.asyncio
 async def test_patch_user_not_found(er_client):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.patch("user/nonexistent")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json={"status": {"code": 404}})
         with pytest.raises(ERClientNotFound):
@@ -138,7 +138,7 @@ async def test_patch_user_not_found(er_client):
 
 @pytest.mark.asyncio
 async def test_get_user_profiles(er_client, user_profiles_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.get("user/c925e69e-51cf-43d0-b659-2000ae023664/profiles")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": user_profiles_response})
         result = await er_client.get_user_profiles("c925e69e-51cf-43d0-b659-2000ae023664")
@@ -149,7 +149,7 @@ async def test_get_user_profiles(er_client, user_profiles_response):
 
 @pytest.mark.asyncio
 async def test_get_user_profiles_not_found(er_client):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.get("user/nonexistent/profiles")
         route.return_value = httpx.Response(httpx.codes.NOT_FOUND, json={"status": {"code": 404}})
         with pytest.raises(ERClientNotFound):
@@ -161,7 +161,7 @@ async def test_get_user_profiles_not_found(er_client):
 
 @pytest.mark.asyncio
 async def test_get_eula(er_client, eula_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.get("user/eula")
         route.return_value = httpx.Response(httpx.codes.OK, json={"data": eula_response})
         result = await er_client.get_eula()
@@ -174,7 +174,7 @@ async def test_get_eula(er_client, eula_response):
 
 @pytest.mark.asyncio
 async def test_accept_eula(er_client, eula_accept_response):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.post("user/eula/accept")
         route.return_value = httpx.Response(httpx.codes.CREATED, json={"data": eula_accept_response})
         result = await er_client.accept_eula()
@@ -185,7 +185,7 @@ async def test_accept_eula(er_client, eula_accept_response):
 
 @pytest.mark.asyncio
 async def test_accept_eula_forbidden(er_client):
-    async with respx.mock(base_url=er_client.service_root, assert_all_called=False) as m:
+    async with respx.mock(base_url=er_client._api_root("v1.0"), assert_all_called=False) as m:
         route = m.post("user/eula/accept")
         route.return_value = httpx.Response(httpx.codes.FORBIDDEN, json={"status": {"code": 403}})
         with pytest.raises(ERClientPermissionDenied):
