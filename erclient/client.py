@@ -584,6 +584,69 @@ class ERClient(object):
         """
         return self.post_report(event)
 
+    def get_patrol(self, patrol_id):
+        """
+        Get a single patrol by ID.
+        :param patrol_id: UUID of the patrol
+        :return: patrol data dict
+        """
+        return self._get(f'activity/patrols/{patrol_id}')
+
+    def patch_patrol(self, patrol_id, data):
+        """
+        Update a patrol with partial data.
+        :param patrol_id: UUID of the patrol
+        :param data: partial patrol payload
+        :return: updated patrol data dict
+        """
+        self.logger.debug('Patching patrol %s: %s', patrol_id, data)
+        return self._patch(f'activity/patrols/{patrol_id}', payload=data)
+
+    # -- Patrol Types --
+
+    def get_patrol_types(self):
+        """List all patrol types."""
+        return self._get('activity/patrols/types')
+
+    def get_patrol_type(self, patrol_type_id):
+        """Get a single patrol type by ID."""
+        return self._get(f'activity/patrols/types/{patrol_type_id}')
+
+    def post_patrol_type(self, data):
+        """Create a new patrol type."""
+        return self._post('activity/patrols/types', payload=data)
+
+    def patch_patrol_type(self, patrol_type_id, data):
+        """Update a patrol type."""
+        return self._patch(f'activity/patrols/types/{patrol_type_id}', payload=data)
+
+    def delete_patrol_type(self, patrol_type_id):
+        """Delete a patrol type."""
+        return self._delete(f'activity/patrols/types/{patrol_type_id}')
+
+    # -- Patrol Segments --
+
+    def get_patrol_segments(self, **kwargs):
+        """List patrol segments, with optional query params."""
+        params = dict((k, v) for k, v in kwargs.items())
+        return self._get('activity/patrols/segments', params=params)
+
+    def get_patrol_segment(self, segment_id):
+        """Get a single patrol segment by ID."""
+        return self._get(f'activity/patrols/segments/{segment_id}')
+
+    def post_patrol_segment(self, data):
+        """Create a new patrol segment."""
+        return self._post('activity/patrols/segments', payload=data)
+
+    def patch_patrol_segment(self, segment_id, data):
+        """Update a patrol segment."""
+        return self._patch(f'activity/patrols/segments/{segment_id}', payload=data)
+
+    def get_patrol_segment_events(self, segment_id):
+        """Get events linked to a patrol segment."""
+        return self._get(f'activity/patrols/segments/{segment_id}/events')
+
     def add_events_to_patrol_segment(self, events, patrol_segment):
         for event in events:
             payload = {
@@ -595,6 +658,50 @@ class ERClient(object):
 
             result = self._patch(
                 f"activity/event/{event['id']}", payload=payload)
+
+    # -- Patrol Notes --
+
+    def get_patrol_notes(self, patrol_id):
+        """Get notes for a patrol."""
+        return self._get(f'activity/patrols/{patrol_id}/notes')
+
+    def post_patrol_note(self, patrol_id, data):
+        """Create a note on a patrol."""
+        return self._post(f'activity/patrols/{patrol_id}/notes', payload=data)
+
+    def patch_patrol_note(self, patrol_id, note_id, data):
+        """Update a note on a patrol."""
+        return self._patch(f'activity/patrols/{patrol_id}/notes/{note_id}', payload=data)
+
+    def delete_patrol_note(self, patrol_id, note_id):
+        """Delete a note from a patrol."""
+        return self._delete(f'activity/patrols/{patrol_id}/notes/{note_id}')
+
+    # -- Patrol Files --
+
+    def get_patrol_files(self, patrol_id):
+        """Get files attached to a patrol."""
+        return self._get(f'activity/patrols/{patrol_id}/files')
+
+    def post_patrol_file(self, patrol_id, filepath, comment=''):
+        """Upload a file to a patrol."""
+        with open(filepath, 'rb') as f:
+            files = {'filecontent.file': f}
+            return self._post_form(
+                f'activity/patrols/{patrol_id}/files/',
+                body={'comment': comment},
+                files=files,
+            )
+
+    def get_patrol_file(self, patrol_id, file_id):
+        """Get a specific file from a patrol."""
+        return self._get(f'activity/patrols/{patrol_id}/file/{file_id}')
+
+    # -- Patrol Tracked-By Schema --
+
+    def get_patrol_trackedby(self):
+        """Get the patrol tracked-by schema."""
+        return self._get('activity/patrols/trackedby')
 
     def patch_event(self, event_id, payload):
         self.logger.debug('Patching event: %s', payload)
@@ -1600,6 +1707,143 @@ class AsyncERClient(object):
             params['sources'] = ','.join(source_ids)
 
         return await self._get(f'subjectsources', params=params)
+
+    # -- Patrol Methods --
+
+    async def get_patrols(self, **kwargs):
+        """
+        Returns an async generator to iterate over patrols.
+        Optional kwargs passed as query params:
+        state, page_size, page, event_type, filter.
+        batch_size: return results in batches (list) instead of one by one. Default 0.
+        """
+        params = {**kwargs}
+        batch_size = kwargs.get('batch_size', 0)
+        if batch_size and kwargs.get('page_size'):
+            params['page_size'] = batch_size
+        if not params.get('page_size'):
+            params['page_size'] = 100
+        async for patrol in self._get_data(endpoint='activity/patrols', params=params, batch_size=batch_size):
+            yield patrol
+
+    async def get_patrol(self, patrol_id):
+        """Get a single patrol by ID."""
+        return await self._get(f'activity/patrols/{patrol_id}')
+
+    async def post_patrol(self, data):
+        """Create a new patrol."""
+        payload = self._clean_event(data)
+        self.logger.debug('Posting patrol: %s', payload)
+        result = await self._post('activity/patrols', payload=payload)
+        self.logger.debug('Result of patrol post is: %s', result)
+        return result
+
+    async def patch_patrol(self, patrol_id, data):
+        """Update a patrol with partial data."""
+        self.logger.debug('Patching patrol %s: %s', patrol_id, data)
+        return await self._patch(f'activity/patrols/{patrol_id}', payload=data)
+
+    async def delete_patrol(self, patrol_id):
+        """Delete a patrol."""
+        return await self._delete(f'activity/patrols/{patrol_id}/')
+
+    # -- Patrol Types --
+
+    async def get_patrol_types(self):
+        """List all patrol types."""
+        return await self._get('activity/patrols/types')
+
+    async def get_patrol_type(self, patrol_type_id):
+        """Get a single patrol type by ID."""
+        return await self._get(f'activity/patrols/types/{patrol_type_id}')
+
+    async def post_patrol_type(self, data):
+        """Create a new patrol type."""
+        return await self._post('activity/patrols/types', payload=data)
+
+    async def patch_patrol_type(self, patrol_type_id, data):
+        """Update a patrol type."""
+        return await self._patch(f'activity/patrols/types/{patrol_type_id}', payload=data)
+
+    async def delete_patrol_type(self, patrol_type_id):
+        """Delete a patrol type."""
+        return await self._delete(f'activity/patrols/types/{patrol_type_id}')
+
+    # -- Patrol Segments --
+
+    async def get_patrol_segments(self, **kwargs):
+        """List patrol segments, with optional query params."""
+        params = {**kwargs}
+        return await self._get('activity/patrols/segments', params=params)
+
+    async def get_patrol_segment(self, segment_id):
+        """Get a single patrol segment by ID."""
+        return await self._get(f'activity/patrols/segments/{segment_id}')
+
+    async def post_patrol_segment(self, data):
+        """Create a new patrol segment."""
+        return await self._post('activity/patrols/segments', payload=data)
+
+    async def patch_patrol_segment(self, segment_id, data):
+        """Update a patrol segment."""
+        return await self._patch(f'activity/patrols/segments/{segment_id}', payload=data)
+
+    async def get_patrol_segment_events(self, segment_id):
+        """Get events linked to a patrol segment."""
+        return await self._get(f'activity/patrols/segments/{segment_id}/events')
+
+    async def add_events_to_patrol_segment(self, events, patrol_segment):
+        """Link events to a patrol segment."""
+        for event in events:
+            payload = {
+                'id': event['id'],
+                'patrol_segments': [patrol_segment['id']]
+            }
+            await self._patch(f"activity/event/{event['id']}", payload=payload)
+
+    # -- Patrol Notes --
+
+    async def get_patrol_notes(self, patrol_id):
+        """Get notes for a patrol."""
+        return await self._get(f'activity/patrols/{patrol_id}/notes')
+
+    async def post_patrol_note(self, patrol_id, data):
+        """Create a note on a patrol."""
+        return await self._post(f'activity/patrols/{patrol_id}/notes', payload=data)
+
+    async def patch_patrol_note(self, patrol_id, note_id, data):
+        """Update a note on a patrol."""
+        return await self._patch(f'activity/patrols/{patrol_id}/notes/{note_id}', payload=data)
+
+    async def delete_patrol_note(self, patrol_id, note_id):
+        """Delete a note from a patrol."""
+        return await self._delete(f'activity/patrols/{patrol_id}/notes/{note_id}')
+
+    # -- Patrol Files --
+
+    async def get_patrol_files(self, patrol_id):
+        """Get files attached to a patrol."""
+        return await self._get(f'activity/patrols/{patrol_id}/files')
+
+    async def post_patrol_file(self, patrol_id, filepath, comment=''):
+        """Upload a file to a patrol."""
+        with open(filepath, 'rb') as f:
+            files = {'filecontent.file': f}
+            return await self._post_form(
+                f'activity/patrols/{patrol_id}/files/',
+                body={'comment': comment},
+                files=files,
+            )
+
+    async def get_patrol_file(self, patrol_id, file_id):
+        """Get a specific file from a patrol."""
+        return await self._get(f'activity/patrols/{patrol_id}/file/{file_id}')
+
+    # -- Patrol Tracked-By Schema --
+
+    async def get_patrol_trackedby(self):
+        """Get the patrol tracked-by schema."""
+        return await self._get('activity/patrols/trackedby')
 
     async def get_feature_group(self, feature_group_id: str):
         """
