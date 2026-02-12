@@ -53,12 +53,12 @@ class ERClient(object):
         """
         Initialize an ERClient instance.
 
-        :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org) or full API root (Ex. https://sandbox.pamdas.org/api/v1.0) for backward compatibility. The client assembles the API root as {base}/api/{version} (default version v1.0).
+        :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org). The client assembles the API root as {service_root}/api/{version} (default version v1.0). For backward compatibility, a full API root (Ex. https://sandbox.pamdas.org/api/v1.0) is accepted and normalized to the base.
 
         :param username: username
         :param password: password
-        :param client_id: Auth client ID (Ex. er_web_client)
-        :param token_url: The auth token url for ER (Ex. https://sandbox.pamdas.org/oauth2/token)
+        :param client_id: Auth client ID (Ex. 'example_client_id')
+        :param token_url: Optional. Auth token URL; if omitted, defaults to {service_root}/oauth2/token.
 
         or
 
@@ -80,14 +80,15 @@ class ERClient(object):
         # Normalize via urlparse: if path contains /api (e.g. /api or /api/v1.0), keep only scheme+netloc+path before /api.
         parsed = urlparse(raw_service_root)
         path = parsed.path.rstrip("/")
-        if "/api" in path:
-            path = path[: path.find("/api")].rstrip("/")
+        api_match = re.search(r'/api(/|$)', path)
+        if api_match:
+            path = path[:api_match.start()].rstrip("/")
         self.service_root = urlunparse(
             (parsed.scheme, parsed.netloc, path, "", "", "")).rstrip("/")
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
-        self.token_url = kwargs.get('token_url')
+        self.token_url = kwargs.get('token_url') or f"{self.service_root.rstrip('/')}/oauth2/token"
         self.username = kwargs.get('username')
         self.password = kwargs.get('password')
         self.realtime_url = kwargs.get('realtime_url')
@@ -647,7 +648,7 @@ class ERClient(object):
         """
         version = normalize_version(version)
         path = event_type_detail_path(version, event_type_name)
-        base_url = self._api_root(version) if version == VERSION_2_0 else None
+        base_url = self._api_root(version)
         params = {
             "include_schema": include_schema} if version == VERSION_2_0 else None
         return self._get(path, base_url=base_url, params=params)
@@ -798,6 +799,17 @@ class ERClient(object):
                 events = self._get(url)
             else:
                 break
+
+    def get_event(self, *, event_id=None, include_details=True, include_updates=False, include_notes=False, include_related_events=False, include_files=False):
+        params = {
+            'include_details': include_details,
+            'include_updates': include_updates,
+            'include_notes': include_notes,
+            'include_related_events': include_related_events,
+            'include_files': include_files,
+        }
+        event = self._get(f'activity/event/{event_id}', params=params)
+        return event
 
     def get_patrols(self, **kwargs):
         params = dict((k, v) for k, v in kwargs.items() if k in
@@ -1090,12 +1102,12 @@ class AsyncERClient(object):
         """
         Initialize an ERClient instance.
 
-        :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org) or full API root (Ex. https://sandbox.pamdas.org/api/v1.0) for backward compatibility. The client assembles the API root as {base}/api/{version} (default version v1.0).
+        :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org). The client assembles the API root as {service_root}/api/{version} (default version v1.0). For backward compatibility, a full API root (Ex. https://sandbox.pamdas.org/api/v1.0) is accepted and normalized to the base.
 
         :param username: username
         :param password: password
-        :param client_id: Auth client ID (Ex. er_web_client)
-        :param token_url: The auth token url for ER (Ex. https://sandbox.pamdas.org/oauth2/token)
+        :param client_id: Auth client ID (Ex. 'example_client_id')
+        :param token_url: Optional. Auth token URL; if omitted, defaults to {service_root}/oauth2/token.
 
         or
 
@@ -1120,14 +1132,15 @@ class AsyncERClient(object):
         # Normalize via urlparse: if path contains /api (e.g. /api or /api/v1.0), keep only scheme+netloc+path before /api.
         parsed = urlparse(raw_service_root)
         path = parsed.path.rstrip("/")
-        if "/api" in path:
-            path = path[: path.find("/api")].rstrip("/")
+        api_match = re.search(r'/api(/|$)', path)
+        if api_match:
+            path = path[:api_match.start()].rstrip("/")
         self.service_root = urlunparse(
             (parsed.scheme, parsed.netloc, path, "", "", "")).rstrip("/")
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
-        self.token_url = kwargs.get('token_url')
+        self.token_url = kwargs.get('token_url') or f"{self.service_root.rstrip('/')}/oauth2/token"
         self.username = kwargs.get('username')
         self.password = kwargs.get('password')
         self.realtime_url = kwargs.get('realtime_url')
@@ -1485,7 +1498,8 @@ class AsyncERClient(object):
                                                                      text=""))
                 raise ERClientException(f'Request to ER failed: {reason}')
             except httpx.HTTPStatusError as e:
-                self._handle_http_status_error(path, "POST", e)
+                self._handle_http_status_error(
+                    path, "POST", e, request_url=request_url)
             else:  # Parse the response
                 json_response = response.json()
                 return json_response.get('data', json_response)
@@ -1538,7 +1552,7 @@ class AsyncERClient(object):
         """
         version = normalize_version(version)
         path = event_type_detail_path(version, event_type_name)
-        base_url = self._api_root(version) if version == VERSION_2_0 else None
+        base_url = self._api_root(version)
         params = {
             "include_schema": include_schema} if version == VERSION_2_0 else None
         return await self._get(path, base_url=base_url, params=params)
@@ -1686,6 +1700,38 @@ class AsyncERClient(object):
     async def _get(self, path, base_url=None, params=None):
         return await self._call(path=path, payload=None, method="GET", params=params, base_url=base_url)
 
+    async def _delete(self, path):
+        """Issue DELETE request. Returns True on success; raises ERClient* on error."""
+        try:
+            auth_headers = await self.auth_headers()
+        except httpx.HTTPStatusError as e:
+            self._handle_http_status_error(path, "DELETE", e)
+        headers = {'User-Agent': self.user_agent, **auth_headers}
+        if not path.startswith('http'):
+            path = self._er_url(path)
+        try:
+            response = await self._http_session.delete(path, headers=headers)
+        except httpx.RequestError as e:
+            reason = str(e)
+            self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
+                                                                 url=path,
+                                                                 reason=reason))
+            raise ERClientException(f'Request to ER failed: {reason}')
+        if response.is_success:
+            return True
+        if response.status_code == 404:
+            self.logger.error("404 when calling %s", path)
+            raise ERClientNotFound()
+        if response.status_code == 403:
+            try:
+                reason = response.json().get('status', {}).get('detail', 'unknown reason')
+            except Exception:
+                reason = 'unknown reason'
+            raise ERClientPermissionDenied(reason)
+        raise ERClientException(
+            f'Failed to delete: {response.status_code} {response.text}'
+        )
+
     async def get_file(self, url):
         """
         Download a file (e.g. attachment URL). Returns the httpx response; body is read into memory.
@@ -1718,7 +1764,6 @@ class AsyncERClient(object):
             raise ERClientPermissionDenied(reason)
         raise ERClientException(
             f'Failed to get file: {response.status_code} {response.text}')
-
     async def _post(self, path, payload, params=None, base_url=None):
         return await self._call(path, payload, "POST", params, base_url=base_url)
 
@@ -1766,10 +1811,12 @@ class AsyncERClient(object):
                                                                      text=""))
                 raise ERClientException(f'Request to ER failed: {reason}')
             except httpx.HTTPStatusError as e:
-                self._handle_http_status_error(path, method, e)
+                self._handle_http_status_error(
+                    path, method, e, request_url=request_url)
             else:  # Parse the response (204 No Content has no body)
                 if response.status_code == httpx.codes.NO_CONTENT:
                     return True  # DELETE/empty success
+
                 json_response = response.json()
                 return json_response.get('data', json_response)
 
@@ -1777,11 +1824,14 @@ class AsyncERClient(object):
         for i in range(0, len(data), batch_size):
             yield data[i:i + batch_size]
 
-    def _handle_http_status_error(self, path, method, e):
+    def _handle_http_status_error(self, path, method, e, request_url=None):
         """Handles httpx.HTTPStatusError exceptions."""
         status_name = HTTPStatus(e.response.status_code).phrase
-        request_url = str(
-            e.response.url) if e.response else f"{self.service_root}/{path}"
+        if request_url is None:
+            request_url = str(
+                e.response.url) if e.response else f"{self.service_root}/{path}"
+        else:
+            request_url = str(request_url)
         error_details = f"ER {status_name} ON {method} {request_url}."
         error_details_log = f"{error_details}. Response Body: {e.response.text}"
         self.logger.exception(error_details_log)
