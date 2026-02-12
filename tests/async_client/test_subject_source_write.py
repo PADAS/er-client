@@ -74,7 +74,7 @@ def source_created_response():
 @pytest.mark.asyncio
 async def test_post_subject_success(er_client, subject_payload, subject_created_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post('subjects')
         route.return_value = httpx.Response(
@@ -91,7 +91,7 @@ async def test_post_subject_success(er_client, subject_payload, subject_created_
 @pytest.mark.asyncio
 async def test_post_subject_bad_request(er_client, subject_payload):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post('subjects')
         route.return_value = httpx.Response(
@@ -108,7 +108,7 @@ async def test_post_subject_bad_request(er_client, subject_payload):
 @pytest.mark.asyncio
 async def test_post_subject_forbidden(er_client, subject_payload):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post('subjects')
         route.return_value = httpx.Response(
@@ -125,7 +125,7 @@ async def test_post_subject_forbidden(er_client, subject_payload):
 @pytest.mark.asyncio
 async def test_post_subject_unauthorized(er_client, subject_payload):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post('subjects')
         route.return_value = httpx.Response(
@@ -142,7 +142,7 @@ async def test_post_subject_unauthorized(er_client, subject_payload):
 @pytest.mark.asyncio
 async def test_post_subject_network_error(er_client, subject_payload):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post('subjects')
         route.side_effect = httpx.ConnectTimeout
@@ -159,7 +159,7 @@ async def test_post_subject_network_error(er_client, subject_payload):
 @pytest.mark.asyncio
 async def test_delete_subject_success(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "aabbccdd-1234-5678-9012-abcdefabcdef"
         route = respx_mock.delete(f'subject/{subject_id}/')
@@ -177,7 +177,7 @@ async def test_delete_subject_success(er_client):
 @pytest.mark.asyncio
 async def test_delete_subject_not_found(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "nonexistent-id"
         route = respx_mock.delete(f'subject/{subject_id}/')
@@ -195,7 +195,7 @@ async def test_delete_subject_not_found(er_client):
 @pytest.mark.asyncio
 async def test_delete_subject_forbidden(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "aabbccdd-1234-5678-9012-abcdefabcdef"
         route = respx_mock.delete(f'subject/{subject_id}/')
@@ -213,7 +213,7 @@ async def test_delete_subject_forbidden(er_client):
 @pytest.mark.asyncio
 async def test_delete_subject_network_error(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "aabbccdd-1234-5678-9012-abcdefabcdef"
         route = respx_mock.delete(f'subject/{subject_id}/')
@@ -231,7 +231,7 @@ async def test_delete_subject_network_error(er_client):
 @pytest.mark.asyncio
 async def test_post_source_success(er_client, source_payload, source_created_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post('sources')
         route.return_value = httpx.Response(
@@ -248,7 +248,7 @@ async def test_post_source_success(er_client, source_payload, source_created_res
 @pytest.mark.asyncio
 async def test_post_source_bad_request(er_client, source_payload):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post('sources')
         route.return_value = httpx.Response(
@@ -265,7 +265,7 @@ async def test_post_source_bad_request(er_client, source_payload):
 @pytest.mark.asyncio
 async def test_post_source_forbidden(er_client, source_payload):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post('sources')
         route.return_value = httpx.Response(
@@ -282,7 +282,7 @@ async def test_post_source_forbidden(er_client, source_payload):
 @pytest.mark.asyncio
 async def test_post_source_network_error(er_client, source_payload):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post('sources')
         route.side_effect = httpx.ConnectTimeout
@@ -299,7 +299,7 @@ async def test_post_source_network_error(er_client, source_payload):
 @pytest.mark.asyncio
 async def test_delete_source_success(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "ee112233-4455-6677-8899-aabbccddeeff"
         route = respx_mock.delete(f'source/{source_id}/')
@@ -316,7 +316,7 @@ async def test_delete_source_success(er_client):
 @pytest.mark.asyncio
 async def test_delete_source_not_found(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "nonexistent-source-id"
         route = respx_mock.delete(f'source/{source_id}/')
@@ -334,7 +334,7 @@ async def test_delete_source_not_found(er_client):
 @pytest.mark.asyncio
 async def test_delete_source_forbidden(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "ee112233-4455-6677-8899-aabbccddeeff"
         route = respx_mock.delete(f'source/{source_id}/')
@@ -352,7 +352,7 @@ async def test_delete_source_forbidden(er_client):
 @pytest.mark.asyncio
 async def test_delete_source_network_error(er_client):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "ee112233-4455-6677-8899-aabbccddeeff"
         route = respx_mock.delete(f'source/{source_id}/')
