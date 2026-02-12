@@ -12,7 +12,7 @@ from erclient import (ERClientException, ERClientNotFound,
 @pytest.mark.asyncio
 async def test_post_observation_single_success(er_client, position, position_created_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post('observations')
         route.return_value = httpx.Response(
@@ -27,7 +27,7 @@ async def test_post_observation_single_success(er_client, position, position_cre
 async def test_post_observation_list_success(er_client, position, position_created_response):
     observations = [position, {**position, "manufacturer_id": "018910981"}]
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post('observations')
         route.return_value = httpx.Response(
@@ -55,7 +55,7 @@ async def test_post_observation_set_input(er_client, position_created_response):
     observations = {obs_a, obs_b}  # a real set
 
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post('observations')
         route.return_value = httpx.Response(
@@ -86,7 +86,7 @@ async def test_post_observation_cleans_datetime(er_client, position_created_resp
         "location": {"lon": 35.43903, "lat": -1.59083},
     }
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post('observations')
         route.return_value = httpx.Response(
@@ -101,7 +101,7 @@ async def test_post_observation_cleans_datetime(er_client, position_created_resp
 @pytest.mark.asyncio
 async def test_post_observation_connect_timeout(er_client, position):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post('observations')
         route.side_effect = httpx.ConnectTimeout
@@ -114,7 +114,7 @@ async def test_post_observation_connect_timeout(er_client, position):
 @pytest.mark.asyncio
 async def test_post_observation_not_found(er_client, position, not_found_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post('observations')
         route.return_value = httpx.Response(
@@ -128,7 +128,7 @@ async def test_post_observation_not_found(er_client, position, not_found_respons
 @pytest.mark.asyncio
 async def test_post_observation_forbidden(er_client, position, forbidden_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post('observations')
         route.return_value = httpx.Response(
@@ -143,7 +143,7 @@ async def test_post_observation_forbidden(er_client, position, forbidden_respons
 @pytest.mark.asyncio
 async def test_post_observation_conflict(er_client, position, conflict_response):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post('observations')
         route.return_value = httpx.Response(
