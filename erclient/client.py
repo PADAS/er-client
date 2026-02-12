@@ -390,6 +390,61 @@ class ERClient(object):
         self.logger.debug('Result of eventsource post is: %s', result)
         return result
 
+    def get_eventproviders(self):
+        """
+        Get a list of event providers.
+        :return: list of event provider dicts
+        """
+        return self._get('activity/eventproviders')
+
+    def get_eventprovider(self, eventprovider_id):
+        """
+        Get a single event provider by ID.
+        :param eventprovider_id: UUID of the event provider
+        :return: event provider data dict
+        """
+        return self._get(f'activity/eventprovider/{eventprovider_id}')
+
+    def patch_eventprovider(self, eventprovider_id, payload):
+        """
+        Update an event provider with partial data.
+        :param eventprovider_id: UUID of the event provider
+        :param payload: dict of fields to update
+        :return: updated event provider data dict
+        """
+        self.logger.debug('Patching eventprovider %s: %s', eventprovider_id, payload)
+        result = self._patch(f'activity/eventprovider/{eventprovider_id}', payload=payload)
+        self.logger.debug('Result of eventprovider patch is: %s', result)
+        return result
+
+    def get_eventsources(self, eventprovider_id):
+        """
+        Get the list of event sources for a given event provider.
+        :param eventprovider_id: UUID of the event provider
+        :return: list of event source dicts
+        """
+        return self._get(f'activity/eventprovider/{eventprovider_id}/eventsources')
+
+    def get_eventsource(self, eventsource_id):
+        """
+        Get a single event source by ID.
+        :param eventsource_id: UUID of the event source
+        :return: event source data dict
+        """
+        return self._get(f'activity/eventsource/{eventsource_id}')
+
+    def patch_eventsource(self, eventsource_id, payload):
+        """
+        Update an event source with partial data.
+        :param eventsource_id: UUID of the event source
+        :param payload: dict of fields to update
+        :return: updated event source data dict
+        """
+        self.logger.debug('Patching eventsource %s: %s', eventsource_id, payload)
+        result = self._patch(f'activity/eventsource/{eventsource_id}', payload=payload)
+        self.logger.debug('Result of eventsource patch is: %s', result)
+        return result
+
     def post_event_photo(self, event_id, image):
 
         raise ValueError('post_event_photo is no longer valid.')
@@ -1331,6 +1386,85 @@ class AsyncERClient(object):
     async def post_message(self, message, params=None):
         self.logger.debug(f'Posting message: {message}')
         return await self._post('messages', payload=message, params=params)
+
+    async def post_eventprovider(self, eventprovider):
+        """
+        Create a new event provider.
+        :param eventprovider: dict with event provider payload
+        :return: created event provider data
+        """
+        self.logger.debug(f'Posting eventprovider: {eventprovider}')
+        result = await self._post('activity/eventproviders/', payload=eventprovider)
+        self.logger.debug(f'Result of eventprovider post is: {result}')
+        return result
+
+    async def post_eventsource(self, eventprovider_id, eventsource):
+        """
+        Create a new event source under an event provider.
+        :param eventprovider_id: UUID of the parent event provider
+        :param eventsource: dict with event source payload
+        :return: created event source data
+        """
+        self.logger.debug(f'Posting eventsource: {eventsource}')
+        result = await self._post(
+            f'activity/eventprovider/{eventprovider_id}/eventsources', payload=eventsource)
+        self.logger.debug(f'Result of eventsource post is: {result}')
+        return result
+
+    async def get_eventproviders(self):
+        """
+        Get a list of event providers.
+        :return: list of event provider dicts
+        """
+        return await self._get('activity/eventproviders')
+
+    async def get_eventprovider(self, eventprovider_id):
+        """
+        Get a single event provider by ID.
+        :param eventprovider_id: UUID of the event provider
+        :return: event provider data dict
+        """
+        return await self._get(f'activity/eventprovider/{eventprovider_id}')
+
+    async def patch_eventprovider(self, eventprovider_id, payload):
+        """
+        Update an event provider with partial data.
+        :param eventprovider_id: UUID of the event provider
+        :param payload: dict of fields to update
+        :return: updated event provider data dict
+        """
+        self.logger.debug(f'Patching eventprovider {eventprovider_id}: {payload}')
+        result = await self._patch(f'activity/eventprovider/{eventprovider_id}', payload=payload)
+        self.logger.debug(f'Result of eventprovider patch is: {result}')
+        return result
+
+    async def get_eventsources(self, eventprovider_id):
+        """
+        Get the list of event sources for a given event provider.
+        :param eventprovider_id: UUID of the event provider
+        :return: list of event source dicts
+        """
+        return await self._get(f'activity/eventprovider/{eventprovider_id}/eventsources')
+
+    async def get_eventsource(self, eventsource_id):
+        """
+        Get a single event source by ID.
+        :param eventsource_id: UUID of the event source
+        :return: event source data dict
+        """
+        return await self._get(f'activity/eventsource/{eventsource_id}')
+
+    async def patch_eventsource(self, eventsource_id, payload):
+        """
+        Update an event source with partial data.
+        :param eventsource_id: UUID of the event source
+        :param payload: dict of fields to update
+        :return: updated event source data dict
+        """
+        self.logger.debug(f'Patching eventsource {eventsource_id}: {payload}')
+        result = await self._patch(f'activity/eventsource/{eventsource_id}', payload=payload)
+        self.logger.debug(f'Result of eventsource patch is: {result}')
+        return result
 
     async def get_source_by_manufacturer_id(self, manufacturer_id):
         """
