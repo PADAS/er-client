@@ -52,12 +52,12 @@ class ERClient(object):
         """
         Initialize an ERClient instance.
 
-        :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org) or full API root (Ex. https://sandbox.pamdas.org/api/v1.0) for backward compatibility. The client assembles the API root as {base}/api/{version} (default version v1.0).
+        :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org). The client assembles the API root as {service_root}/api/{version} (default version v1.0). For backward compatibility, a full API root (Ex. https://sandbox.pamdas.org/api/v1.0) is accepted and normalized to the base.
 
         :param username: username
         :param password: password
-        :param client_id: Auth client ID (Ex. er_web_client)
-        :param token_url: The auth token url for ER (Ex. https://sandbox.pamdas.org/oauth2/token)
+        :param client_id: Auth client ID (Ex. 'example_client_id')
+        :param token_url: Optional. Auth token URL; if omitted, defaults to {service_root}/oauth2/token.
 
         or
 
@@ -87,7 +87,7 @@ class ERClient(object):
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
-        self.token_url = kwargs.get('token_url')
+        self.token_url = kwargs.get('token_url') or f"{self.service_root.rstrip('/')}/oauth2/token"
         self.username = kwargs.get('username')
         self.password = kwargs.get('password')
         self.realtime_url = kwargs.get('realtime_url')
@@ -1103,12 +1103,12 @@ class AsyncERClient(object):
         """
         Initialize an ERClient instance.
 
-        :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org) or full API root (Ex. https://sandbox.pamdas.org/api/v1.0) for backward compatibility. The client assembles the API root as {base}/api/{version} (default version v1.0).
+        :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org). The client assembles the API root as {service_root}/api/{version} (default version v1.0). For backward compatibility, a full API root (Ex. https://sandbox.pamdas.org/api/v1.0) is accepted and normalized to the base.
 
         :param username: username
         :param password: password
-        :param client_id: Auth client ID (Ex. er_web_client)
-        :param token_url: The auth token url for ER (Ex. https://sandbox.pamdas.org/oauth2/token)
+        :param client_id: Auth client ID (Ex. 'example_client_id')
+        :param token_url: Optional. Auth token URL; if omitted, defaults to {service_root}/oauth2/token.
 
         or
 
@@ -1141,7 +1141,7 @@ class AsyncERClient(object):
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
-        self.token_url = kwargs.get('token_url')
+        self.token_url = kwargs.get('token_url') or f"{self.service_root.rstrip('/')}/oauth2/token"
         self.username = kwargs.get('username')
         self.password = kwargs.get('password')
         self.realtime_url = kwargs.get('realtime_url')

@@ -21,12 +21,12 @@ pip install earthranger-client
 ```
 
 ## Usage
-In your code, import the library and create an instance of the client.
+In your code, import the library and create an instance of the client. You must provide `client_id` (e.g. `example_client_id`) for username/password authentication.
 
 ```
 from erclient import ERClient
 
-client = ERClient(service_root="https://sandbox.pamdas.org/api/v1.0", username="", password="")
+client = ERClient(service_root="https://sandbox.pamdas.org", client_id="example_client_id", username="", password="")
 ```
 ## Async Support
 We also offer an async client (asyncio).
@@ -47,19 +47,19 @@ Disclaimer: The async client current capabilities are limited to:
 from erclient import AsyncERClient
 
 # You can use it as an async context-managed client
-async with AsyncERClient(service_root="https://sandbox.pamdas.org/api/v1.0", username="", password="") as client:
+async with AsyncERClient(service_root="https://sandbox.pamdas.org", client_id="example_client_id", username="", password="") as client:
    await self.er_client.post_sensor_observation(position)
    await client.post_report(report)
    await self.er_client.post_camera_trap_report(camera_trap_payload, file)
    ...
    
-async with AsyncERClient(service_root="https://sandbox.pamdas.org/api/v1.0", username="", password="") as client:
+async with AsyncERClient(service_root="https://sandbox.pamdas.org", client_id="example_client_id", username="", password="") as client:
    async for observation in client.get_observations(start="2023-11-10T00:00:00-06:00"):
       print(observation)
       ...
 
 # Or create an instance and close the client explicitly later
-client = AsyncERClient(service_root="https://sandbox.pamdas.org/api/v1.0", username="", password="")
+client = AsyncERClient(service_root="https://sandbox.pamdas.org", client_id="example_client_id", username="", password="")
 await self.er_client.post_sensor_observation(position)
 await client.post_report(report)
 await self.er_client.post_camera_trap_report(camera_trap_payload, file)
