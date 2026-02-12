@@ -58,7 +58,7 @@ def empty_tracks_response():
 async def test_get_subject_tracks_success(er_client, subject_tracks_response):
     """Test get_subject_tracks returns track data"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.get(f"subject/{subject_id}/tracks")
@@ -79,7 +79,7 @@ async def test_get_subject_tracks_success(er_client, subject_tracks_response):
 async def test_get_subject_tracks_empty(er_client, empty_tracks_response):
     """Test get_subject_tracks with no tracks"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.get(f"subject/{subject_id}/tracks")
@@ -98,7 +98,7 @@ async def test_get_subject_tracks_empty(er_client, empty_tracks_response):
 async def test_get_subject_tracks_with_date_range(er_client, subject_tracks_response):
     """Test get_subject_tracks passes since/until params from datetime objects"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.get(f"subject/{subject_id}/tracks")
@@ -123,7 +123,7 @@ async def test_get_subject_tracks_with_date_range(er_client, subject_tracks_resp
 async def test_get_subject_tracks_with_start_only(er_client, subject_tracks_response):
     """Test get_subject_tracks with only start date"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.get(f"subject/{subject_id}/tracks")
@@ -147,7 +147,7 @@ async def test_get_subject_tracks_with_start_only(er_client, subject_tracks_resp
 async def test_get_subject_tracks_no_date_params(er_client, subject_tracks_response):
     """Test get_subject_tracks without date params sends no since/until"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.get(f"subject/{subject_id}/tracks")
@@ -168,7 +168,7 @@ async def test_get_subject_tracks_no_date_params(er_client, subject_tracks_respo
 async def test_get_subject_tracks_not_found(er_client):
     """Test get_subject_tracks raises ERClientNotFound on 404"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "nonexistent-id"
         route = respx_mock.get(f"subject/{subject_id}/tracks")
@@ -185,7 +185,7 @@ async def test_get_subject_tracks_not_found(er_client):
 async def test_get_subject_tracks_unauthorized(er_client):
     """Test get_subject_tracks raises ERClientBadCredentials on 401"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.get(f"subject/{subject_id}/tracks")
@@ -202,7 +202,7 @@ async def test_get_subject_tracks_unauthorized(er_client):
 async def test_get_subject_tracks_forbidden(er_client):
     """Test get_subject_tracks raises ERClientPermissionDenied on 403"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.get(f"subject/{subject_id}/tracks")
@@ -219,7 +219,7 @@ async def test_get_subject_tracks_forbidden(er_client):
 async def test_get_subject_tracks_network_error(er_client):
     """Test get_subject_tracks raises ERClientException on network error"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.get(f"subject/{subject_id}/tracks")

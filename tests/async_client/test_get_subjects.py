@@ -89,7 +89,7 @@ def subject_detail_response():
 async def test_get_subjects_success(er_client, subjects_list_response):
     """Test get_subjects returns list of subjects"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("subjects")
         route.return_value = httpx.Response(
@@ -109,7 +109,7 @@ async def test_get_subjects_success(er_client, subjects_list_response):
 async def test_get_subjects_empty(er_client, empty_subjects_response):
     """Test get_subjects returns empty list"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("subjects")
         route.return_value = httpx.Response(
@@ -127,7 +127,7 @@ async def test_get_subjects_empty(er_client, empty_subjects_response):
 async def test_get_subjects_with_params(er_client, subjects_list_response):
     """Test get_subjects passes query params correctly"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("subjects")
         route.return_value = httpx.Response(
@@ -151,7 +151,7 @@ async def test_get_subjects_with_params(er_client, subjects_list_response):
 async def test_get_subjects_ignores_unknown_params(er_client, subjects_list_response):
     """Test get_subjects ignores params not in the allowed set"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("subjects")
         route.return_value = httpx.Response(
@@ -171,7 +171,7 @@ async def test_get_subjects_ignores_unknown_params(er_client, subjects_list_resp
 async def test_get_subjects_unauthorized(er_client):
     """Test get_subjects raises ERClientBadCredentials on 401"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("subjects")
         route.return_value = httpx.Response(httpx.codes.UNAUTHORIZED, json={})
@@ -187,7 +187,7 @@ async def test_get_subjects_unauthorized(er_client):
 async def test_get_subjects_forbidden(er_client):
     """Test get_subjects raises ERClientPermissionDenied on 403"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("subjects")
         route.return_value = httpx.Response(httpx.codes.FORBIDDEN, json={})
@@ -203,7 +203,7 @@ async def test_get_subjects_forbidden(er_client):
 async def test_get_subjects_network_error(er_client):
     """Test get_subjects raises ERClientException on network error"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("subjects")
         route.side_effect = httpx.ConnectTimeout
@@ -222,7 +222,7 @@ async def test_get_subjects_network_error(er_client):
 async def test_get_subject_success(er_client, subject_detail_response):
     """Test get_subject returns a single subject"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.get(f"subject/{subject_id}")
@@ -243,7 +243,7 @@ async def test_get_subject_success(er_client, subject_detail_response):
 async def test_get_subject_not_found(er_client):
     """Test get_subject raises ERClientNotFound on 404"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "nonexistent-id"
         route = respx_mock.get(f"subject/{subject_id}")
@@ -260,7 +260,7 @@ async def test_get_subject_not_found(er_client):
 async def test_get_subject_unauthorized(er_client):
     """Test get_subject raises ERClientBadCredentials on 401"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.get(f"subject/{subject_id}")
@@ -277,7 +277,7 @@ async def test_get_subject_unauthorized(er_client):
 async def test_get_subject_forbidden(er_client):
     """Test get_subject raises ERClientPermissionDenied on 403"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.get(f"subject/{subject_id}")
@@ -294,7 +294,7 @@ async def test_get_subject_forbidden(er_client):
 async def test_get_subject_network_error(er_client):
     """Test get_subject raises ERClientException on network error"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         subject_id = "d8ad9955-8301-43c4-9000-9a02f1cba675"
         route = respx_mock.get(f"subject/{subject_id}")

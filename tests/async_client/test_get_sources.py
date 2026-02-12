@@ -139,7 +139,7 @@ def source_detail_response():
 async def test_get_sources_single_page(er_client, sources_single_page_response):
     """Test get_sources returns all sources from a single page"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("sources")
         route.return_value = httpx.Response(
@@ -163,7 +163,7 @@ async def test_get_sources_paginated(
 ):
     """Test get_sources handles pagination across multiple pages"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("sources")
         route.side_effect = [
@@ -186,7 +186,7 @@ async def test_get_sources_paginated(
 async def test_get_sources_empty(er_client, empty_sources_response):
     """Test get_sources with no sources"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("sources")
         route.return_value = httpx.Response(
@@ -206,7 +206,7 @@ async def test_get_sources_empty(er_client, empty_sources_response):
 async def test_get_sources_unauthorized(er_client):
     """Test get_sources raises ERClientBadCredentials on 401"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("sources")
         route.return_value = httpx.Response(httpx.codes.UNAUTHORIZED, json={})
@@ -223,7 +223,7 @@ async def test_get_sources_unauthorized(er_client):
 async def test_get_sources_network_error(er_client):
     """Test get_sources raises ERClientException on network error"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("sources")
         route.side_effect = httpx.ConnectTimeout
@@ -243,7 +243,7 @@ async def test_get_sources_network_error(er_client):
 async def test_get_source_by_id_success(er_client, source_detail_response):
     """Test get_source_by_id returns a single source"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
         route = respx_mock.get(f"source/{source_id}")
@@ -264,7 +264,7 @@ async def test_get_source_by_id_success(er_client, source_detail_response):
 async def test_get_source_by_id_not_found(er_client):
     """Test get_source_by_id raises ERClientNotFound on 404"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "nonexistent-id"
         route = respx_mock.get(f"source/{source_id}")
@@ -281,7 +281,7 @@ async def test_get_source_by_id_not_found(er_client):
 async def test_get_source_by_id_unauthorized(er_client):
     """Test get_source_by_id raises ERClientBadCredentials on 401"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
         route = respx_mock.get(f"source/{source_id}")
@@ -298,7 +298,7 @@ async def test_get_source_by_id_unauthorized(er_client):
 async def test_get_source_by_id_forbidden(er_client):
     """Test get_source_by_id raises ERClientPermissionDenied on 403"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
         route = respx_mock.get(f"source/{source_id}")
@@ -315,7 +315,7 @@ async def test_get_source_by_id_forbidden(er_client):
 async def test_get_source_by_id_network_error(er_client):
     """Test get_source_by_id raises ERClientException on network error"""
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         source_id = "119feb94-a6cc-4485-8614-06fb0abc2a9c"
         route = respx_mock.get(f"source/{source_id}")
