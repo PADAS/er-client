@@ -71,7 +71,7 @@ def source_assignments_filtered_response():
 async def test_get_source_assignments_empty_payload(er_client, empty_source_assignments_response):
     """Test get_source_assignments with no parameters (empty payload)"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('subjectsources')
         route.return_value = httpx.Response(
@@ -89,7 +89,7 @@ async def test_get_source_assignments_empty_payload(er_client, empty_source_assi
 async def test_get_source_assignments_with_subject_ids(er_client, source_assignments_filtered_response):
     """Test get_source_assignments with subject_ids filter"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('subjectsources')
         route.return_value = httpx.Response(
@@ -111,7 +111,7 @@ async def test_get_source_assignments_with_subject_ids(er_client, source_assignm
 async def test_get_source_assignments_with_source_ids(er_client, source_assignments_filtered_response):
     """Test get_source_assignments with source_ids filter"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('subjectsources')
         route.return_value = httpx.Response(
@@ -133,7 +133,7 @@ async def test_get_source_assignments_with_source_ids(er_client, source_assignme
 async def test_get_source_assignments_with_both_filters(er_client, source_assignments_filtered_response):
     """Test get_source_assignments with both subject_ids and source_ids filters"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('subjectsources')
         route.return_value = httpx.Response(
@@ -157,7 +157,7 @@ async def test_get_source_assignments_with_both_filters(er_client, source_assign
 async def test_get_source_assignments_unauthorized(er_client):
     """Test get_source_assignments with 401 Unauthorized response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('subjectsources')
         route.return_value = httpx.Response(
@@ -175,7 +175,7 @@ async def test_get_source_assignments_unauthorized(er_client):
 async def test_get_source_assignments_forbidden(er_client):
     """Test get_source_assignments with 403 Forbidden response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('subjectsources')
         route.return_value = httpx.Response(
@@ -193,7 +193,7 @@ async def test_get_source_assignments_forbidden(er_client):
 async def test_get_source_assignments_not_found(er_client):
     """Test get_source_assignments with 404 Not Found response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('subjectsources')
         route.return_value = httpx.Response(
@@ -211,7 +211,7 @@ async def test_get_source_assignments_not_found(er_client):
 async def test_get_source_assignments_bad_request(er_client):
     """Test get_source_assignments with 400 Bad Request response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('subjectsources')
         route.return_value = httpx.Response(
@@ -229,7 +229,7 @@ async def test_get_source_assignments_bad_request(er_client):
 async def test_get_source_assignments_internal_server_error(er_client):
     """Test get_source_assignments with 500 Internal Server Error response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('subjectsources')
         route.return_value = httpx.Response(
@@ -247,7 +247,7 @@ async def test_get_source_assignments_internal_server_error(er_client):
 async def test_get_source_assignments_service_unavailable(er_client):
     """Test get_source_assignments with 503 Service Unavailable response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('subjectsources')
         route.return_value = httpx.Response(
@@ -265,7 +265,7 @@ async def test_get_source_assignments_service_unavailable(er_client):
 async def test_get_source_assignments_bad_gateway(er_client):
     """Test get_source_assignments with 502 Bad Gateway response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('subjectsources')
         route.return_value = httpx.Response(
@@ -283,7 +283,7 @@ async def test_get_source_assignments_bad_gateway(er_client):
 async def test_get_source_assignments_gateway_timeout(er_client):
     """Test get_source_assignments with 504 Gateway Timeout response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('subjectsources')
         route.return_value = httpx.Response(
@@ -301,7 +301,7 @@ async def test_get_source_assignments_gateway_timeout(er_client):
 async def test_get_source_assignments_rate_limit_exceeded(er_client):
     """Test get_source_assignments with 429 Too Many Requests response"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('subjectsources')
         route.return_value = httpx.Response(
@@ -319,7 +319,7 @@ async def test_get_source_assignments_rate_limit_exceeded(er_client):
 async def test_get_source_assignments_network_error(er_client):
     """Test get_source_assignments with network connection error"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('subjectsources')
         route.side_effect = httpx.ConnectTimeout
@@ -335,7 +335,7 @@ async def test_get_source_assignments_network_error(er_client):
 async def test_get_source_assignments_read_timeout(er_client):
     """Test get_source_assignments with read timeout error"""
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('subjectsources')
         route.side_effect = httpx.ReadTimeout

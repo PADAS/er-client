@@ -129,7 +129,7 @@ def trackedby_response():
 @pytest.mark.asyncio
 async def test_get_patrols_single_page(er_client, patrol_list_response):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/patrols").respond(
             json=patrol_list_response
@@ -159,7 +159,7 @@ async def test_get_patrols_multi_page(er_client, patrol_data):
         ],
     }
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/patrols")
         route.side_effect = [
@@ -179,7 +179,7 @@ async def test_get_patrols_multi_page(er_client, patrol_data):
 @pytest.mark.asyncio
 async def test_get_patrol_success(er_client, patrol_data, patrol_detail_response):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f"activity/patrols/{PATROL_ID}").respond(
             json=patrol_detail_response
@@ -192,7 +192,7 @@ async def test_get_patrol_success(er_client, patrol_data, patrol_detail_response
 @pytest.mark.asyncio
 async def test_get_patrol_not_found(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         respx_mock.get(f"activity/patrols/{PATROL_ID}").respond(
             status_code=httpx.codes.NOT_FOUND, json={}
@@ -204,7 +204,7 @@ async def test_get_patrol_not_found(er_client):
 @pytest.mark.asyncio
 async def test_get_patrol_forbidden(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         respx_mock.get(f"activity/patrols/{PATROL_ID}").respond(
             status_code=httpx.codes.FORBIDDEN,
@@ -220,7 +220,7 @@ async def test_get_patrol_forbidden(er_client):
 @pytest.mark.asyncio
 async def test_post_patrol_success(er_client, patrol_data, patrol_detail_response):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post("activity/patrols").respond(
             status_code=httpx.codes.CREATED, json=patrol_detail_response
@@ -233,7 +233,7 @@ async def test_post_patrol_success(er_client, patrol_data, patrol_detail_respons
 @pytest.mark.asyncio
 async def test_post_patrol_forbidden(er_client, patrol_data):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         respx_mock.post("activity/patrols").respond(
             status_code=httpx.codes.FORBIDDEN,
@@ -249,7 +249,7 @@ async def test_post_patrol_forbidden(er_client, patrol_data):
 @pytest.mark.asyncio
 async def test_patch_patrol_success(er_client, patrol_data, patrol_detail_response):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.patch(f"activity/patrols/{PATROL_ID}").respond(
             json=patrol_detail_response
@@ -265,7 +265,7 @@ async def test_patch_patrol_success(er_client, patrol_data, patrol_detail_respon
 @pytest.mark.asyncio
 async def test_delete_patrol_success(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.delete(f"activity/patrols/{PATROL_ID}/").respond(
             status_code=httpx.codes.NO_CONTENT, json={}
@@ -277,7 +277,7 @@ async def test_delete_patrol_success(er_client):
 @pytest.mark.asyncio
 async def test_delete_patrol_not_found(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         respx_mock.delete(f"activity/patrols/{PATROL_ID}/").respond(
             status_code=httpx.codes.NOT_FOUND, json={}
@@ -289,7 +289,7 @@ async def test_delete_patrol_not_found(er_client):
 @pytest.mark.asyncio
 async def test_delete_patrol_forbidden(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         respx_mock.delete(f"activity/patrols/{PATROL_ID}/").respond(
             status_code=httpx.codes.FORBIDDEN,
@@ -305,7 +305,7 @@ async def test_delete_patrol_forbidden(er_client):
 @pytest.mark.asyncio
 async def test_get_patrol_types(er_client, patrol_types_list_response):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/patrols/types").respond(
             json=patrol_types_list_response
@@ -318,7 +318,7 @@ async def test_get_patrol_types(er_client, patrol_types_list_response):
 @pytest.mark.asyncio
 async def test_get_patrol_type(er_client, patrol_type_data):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(
             f"activity/patrols/types/{PATROL_TYPE_ID}"
@@ -331,7 +331,7 @@ async def test_get_patrol_type(er_client, patrol_type_data):
 @pytest.mark.asyncio
 async def test_post_patrol_type(er_client, patrol_type_data):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post("activity/patrols/types").respond(
             status_code=httpx.codes.CREATED,
@@ -345,7 +345,7 @@ async def test_post_patrol_type(er_client, patrol_type_data):
 @pytest.mark.asyncio
 async def test_patch_patrol_type(er_client, patrol_type_data):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.patch(
             f"activity/patrols/types/{PATROL_TYPE_ID}"
@@ -359,7 +359,7 @@ async def test_patch_patrol_type(er_client, patrol_type_data):
 @pytest.mark.asyncio
 async def test_delete_patrol_type(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.delete(
             f"activity/patrols/types/{PATROL_TYPE_ID}"
@@ -374,7 +374,7 @@ async def test_delete_patrol_type(er_client):
 @pytest.mark.asyncio
 async def test_get_patrol_segments(er_client, segments_list_response):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/patrols/segments").respond(
             json=segments_list_response
@@ -386,7 +386,7 @@ async def test_get_patrol_segments(er_client, segments_list_response):
 @pytest.mark.asyncio
 async def test_get_patrol_segment(er_client, segment_data):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(
             f"activity/patrols/segments/{SEGMENT_ID}"
@@ -399,7 +399,7 @@ async def test_get_patrol_segment(er_client, segment_data):
 @pytest.mark.asyncio
 async def test_post_patrol_segment(er_client, segment_data):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post("activity/patrols/segments").respond(
             status_code=httpx.codes.CREATED,
@@ -413,7 +413,7 @@ async def test_post_patrol_segment(er_client, segment_data):
 @pytest.mark.asyncio
 async def test_patch_patrol_segment(er_client, segment_data):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.patch(
             f"activity/patrols/segments/{SEGMENT_ID}"
@@ -428,7 +428,7 @@ async def test_patch_patrol_segment(er_client, segment_data):
 async def test_get_patrol_segment_events(er_client):
     events_resp = {"data": [{"id": EVENT_ID, "event_type": "test"}]}
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(
             f"activity/patrols/segments/{SEGMENT_ID}/events"
@@ -443,7 +443,7 @@ async def test_add_events_to_patrol_segment(er_client):
     events = [{"id": EVENT_ID}]
     patrol_segment = {"id": SEGMENT_ID}
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.patch(f"activity/event/{EVENT_ID}").respond(
             json={"data": {"id": EVENT_ID, "patrol_segments": [SEGMENT_ID]}}
@@ -458,7 +458,7 @@ async def test_add_events_to_patrol_segment(er_client):
 @pytest.mark.asyncio
 async def test_get_patrol_notes(er_client, notes_list_response):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(
             f"activity/patrols/{PATROL_ID}/notes"
@@ -470,7 +470,7 @@ async def test_get_patrol_notes(er_client, notes_list_response):
 @pytest.mark.asyncio
 async def test_post_patrol_note(er_client, note_data):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post(
             f"activity/patrols/{PATROL_ID}/notes"
@@ -488,7 +488,7 @@ async def test_post_patrol_note(er_client, note_data):
 @pytest.mark.asyncio
 async def test_patch_patrol_note(er_client, note_data):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.patch(
             f"activity/patrols/{PATROL_ID}/notes/{NOTE_ID}"
@@ -502,7 +502,7 @@ async def test_patch_patrol_note(er_client, note_data):
 @pytest.mark.asyncio
 async def test_delete_patrol_note(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.delete(
             f"activity/patrols/{PATROL_ID}/notes/{NOTE_ID}"
@@ -517,7 +517,7 @@ async def test_delete_patrol_note(er_client):
 @pytest.mark.asyncio
 async def test_get_patrol_files(er_client, files_list_response):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(
             f"activity/patrols/{PATROL_ID}/files"
@@ -531,7 +531,7 @@ async def test_post_patrol_file(er_client, file_data, tmp_path):
     upload_file = tmp_path / "upload.pdf"
     upload_file.write_bytes(b"test file content")
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post(
             f"activity/patrols/{PATROL_ID}/files/"
@@ -549,7 +549,7 @@ async def test_post_patrol_file(er_client, file_data, tmp_path):
 @pytest.mark.asyncio
 async def test_get_patrol_file(er_client, file_data):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(
             f"activity/patrols/{PATROL_ID}/file/{FILE_ID}"
@@ -565,7 +565,7 @@ async def test_get_patrol_file(er_client, file_data):
 @pytest.mark.asyncio
 async def test_get_patrol_trackedby(er_client, trackedby_response):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("activity/patrols/trackedby").respond(
             json=trackedby_response
@@ -580,7 +580,7 @@ async def test_get_patrol_trackedby(er_client, trackedby_response):
 @pytest.mark.asyncio
 async def test_post_patrol_connect_timeout(er_client, patrol_data):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.post("activity/patrols")
         route.side_effect = httpx.ConnectTimeout
@@ -592,7 +592,7 @@ async def test_post_patrol_connect_timeout(er_client, patrol_data):
 @pytest.mark.asyncio
 async def test_patch_patrol_not_found(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         respx_mock.patch(f"activity/patrols/{PATROL_ID}").respond(
             status_code=httpx.codes.NOT_FOUND, json={}

@@ -14,8 +14,9 @@ EVENT_ID = "f6a7b8c9-d0e1-2345-fabc-456789012345"
 
 
 def _url(client, path):
-    """Build full API URL like ERClient._er_url."""
-    return f"{client.service_root.rstrip('/')}/{path.lstrip('/')}"
+    """Build full API URL like ERClient._er_url (match client after #23)."""
+    base = client._api_root("v1.0")
+    return f"{base.rstrip('/')}/{path.lstrip('/')}"
 
 
 # ============ get_patrol ============
