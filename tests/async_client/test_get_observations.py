@@ -7,7 +7,7 @@ import respx
 @pytest.mark.asyncio
 async def test_get_observations_with_filter(er_client, get_observations_response_single_page):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('observations')
         route.return_value = httpx.Response(
@@ -29,7 +29,7 @@ async def test_get_observations_with_filter(er_client, get_observations_response
 @pytest.mark.asyncio
 async def test_get_observations_in_batches(er_client, get_observations_response_single_page):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('observations')
         route.return_value = httpx.Response(
@@ -57,7 +57,7 @@ async def test_get_observations_in_batches(er_client, get_observations_response_
 @pytest.mark.asyncio
 async def test_get_observations_with_pagination(er_client, get_observations_response_page_one, get_observations_response_page_two):
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get('observations')
         route.side_effect = (  # Simulate pagination
