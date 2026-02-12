@@ -91,7 +91,7 @@ def get_messages_page_two_response():
 @pytest.mark.asyncio
 async def test_get_messages_single_page(er_client, get_messages_single_page_response):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get("messages").return_value = httpx.Response(
             httpx.codes.OK,
@@ -113,7 +113,7 @@ async def test_get_messages_paginated(
     er_client, get_messages_page_one_response, get_messages_page_two_response
 ):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         # First page
         respx_mock.get("messages").mock(
@@ -142,7 +142,7 @@ async def test_get_messages_paginated(
 @pytest.mark.asyncio
 async def test_get_messages_empty(er_client):
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         respx_mock.get("messages").return_value = httpx.Response(
             httpx.codes.OK,

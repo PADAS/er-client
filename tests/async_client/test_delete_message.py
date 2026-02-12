@@ -9,14 +9,14 @@ from erclient import ERClientNotFound
 async def test_delete_message_success(er_client):
     message_id = "da783214-0d79-4d8c-ba6c-687688e3f6e7"
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.delete(f"messages/{message_id}/")
         route.return_value = httpx.Response(httpx.codes.NO_CONTENT)
 
         result = await er_client.delete_message(message_id)
         assert route.called
-        assert result is None  # 204 No Content returns None
+        assert result is True  # 204 No Content returns True (canonical _delete behavior)
         await er_client.close()
 
 
@@ -24,7 +24,7 @@ async def test_delete_message_success(er_client):
 async def test_delete_message_not_found(er_client, not_found_response):
     message_id = "nonexistent-id"
     async with respx.mock(
-        base_url=er_client.service_root, assert_all_called=False
+        base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.delete(f"messages/{message_id}/")
         route.return_value = httpx.Response(
