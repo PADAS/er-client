@@ -1364,6 +1364,17 @@ class AsyncERClient(object):
         self.logger.debug(f'Patching subject {subject_id}: {data}')
         return await self._patch(f'subject/{subject_id}', payload=data)
 
+    async def add_subjects_to_subjectgroup(self, group_id, subjects):
+        """
+        Add subjects to a subject group.
+
+        :param group_id: The subject group UUID
+        :param subjects: List of subject dicts with 'id' key (e.g., [{"id": "subject-uuid"}])
+        :return: Response data
+        """
+        self.logger.debug(f'Adding subjects to subjectgroup {group_id}: {subjects}')
+        return await self._post(f'subjectgroup/{group_id}/subjects/', payload=subjects)
+
     def _clean_observation(self, observation):
         if hasattr(observation['recorded_at'], 'isoformat'):
             observation['recorded_at'] = observation['recorded_at'].isoformat()
