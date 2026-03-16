@@ -87,7 +87,8 @@ class ERClient(object):
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
-        self.token_url = kwargs.get('token_url') or f"{self.service_root.rstrip('/')}/oauth2/token"
+        self.token_url = kwargs.get(
+            'token_url') or f"{self.service_root.rstrip('/')}/oauth2/token"
         self.username = kwargs.get('username')
         self.password = kwargs.get('password')
         self.realtime_url = kwargs.get('realtime_url')
@@ -1032,6 +1033,53 @@ class ERClient(object):
 
         return self._get('subjectgroups', params=p)
 
+    def add_subjects_to_subjectgroup(self, group_id, subjects):
+        """
+        Add subjects to a subject group.
+
+        :param group_id: The subject group UUID
+        :param subjects: List of subject dicts with 'id' key (e.g., [{"id": "subject-uuid"}])
+        :return: Response data
+        """
+        self.logger.debug(
+            f'Adding subjects to subjectgroup {group_id}: {subjects}')
+        return self._post(f'subjectgroup/{group_id}/subjects/', payload=subjects)
+
+    def remove_subjects_from_subjectgroup(self, group_id, subjects):
+        """
+        Remove subjects from a subject group.
+
+        :param group_id: The subject group UUID
+        :param subjects: List of subject dicts with 'id' key (e.g., [{"id": "subject-uuid"}])
+        :return: True on success
+        """
+        self.logger.debug(
+            f'Removing subjects from subjectgroup {group_id}: {subjects}')
+        headers = {'User-Agent': self.user_agent,
+                   'Content-Type': 'application/json'}
+        headers.update(self.auth_headers())
+        url = self._er_url(f'subjectgroup/{group_id}/subjects/')
+        if self._http_session:
+            response = self._http_session.delete(
+                url, headers=headers, json=subjects)
+        else:
+            response = requests.delete(url, headers=headers, json=subjects)
+        if response.ok:
+            return True
+        if response.status_code == 404:
+            self.logger.error(
+                f"404 when calling subjectgroup/{group_id}/subjects/")
+            raise ERClientNotFound()
+        if response.status_code == 403:
+            try:
+                _ = json.loads(response.text)
+                reason = _['status']['detail']
+            except Exception:
+                reason = 'unknown reason'
+            raise ERClientPermissionDenied(reason)
+        raise ERClientException(
+            f'Failed to delete: {response.status_code} {response.text}')
+
     def get_sources(self, page_size=100):
         """Return all sources"""
         params = dict(page_size=page_size)
@@ -1108,7 +1156,8 @@ class AsyncERClient(object):
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
-        self.token_url = kwargs.get('token_url') or f"{self.service_root.rstrip('/')}/oauth2/token"
+        self.token_url = kwargs.get(
+            'token_url') or f"{self.service_root.rstrip('/')}/oauth2/token"
         self.username = kwargs.get('username')
         self.password = kwargs.get('password')
         self.realtime_url = kwargs.get('realtime_url')
@@ -1372,8 +1421,25 @@ class AsyncERClient(object):
         :param subjects: List of subject dicts with 'id' key (e.g., [{"id": "subject-uuid"}])
         :return: Response data
         """
-        self.logger.debug(f'Adding subjects to subjectgroup {group_id}: {subjects}')
+        self.logger.debug(
+            f'Adding subjects to subjectgroup {group_id}: {subjects}')
         return await self._post(f'subjectgroup/{group_id}/subjects/', payload=subjects)
+
+    async def remove_subjects_from_subjectgroup(self, group_id, subjects):
+        """
+        Remove subjects from a subject group.
+
+        :param group_id: The subject group UUID
+        :param subjects: List of subject dicts with 'id' key (e.g., [{"id": "subject-uuid"}])
+        :return: True on success
+        """
+        self.logger.debug(
+            f'Removing subjects from subjectgroup {group_id}: {subjects}')
+        return await self._call(
+            f'subjectgroup/{group_id}/subjects/',
+            payload=subjects,
+            method="DELETE"
+        )
 
     def _clean_observation(self, observation):
         if hasattr(observation['recorded_at'], 'isoformat'):
@@ -1753,7 +1819,8 @@ class AsyncERClient(object):
                     request_url,
                     # payload is automatically encoded as json data
                     json=payload if method in [
-                        "POST", "PUT", "PATCH"] else None,
+                        "POST", "PUT", "PATCH"] or (
+                        method == "DELETE" and payload is not None) else None,
                     params=params,
                     headers=headers
                 )
@@ -1776,7 +1843,9 @@ class AsyncERClient(object):
                     return True  # DELETE/empty success
 
                 json_response = response.json()
-                return json_response.get('data', json_response)
+                if isinstance(json_response, dict):
+                    return json_response.get('data', json_response)
+                return json_response
 
     def _get_batches(self, data, batch_size):
         for i in range(0, len(data), batch_size):
