@@ -87,7 +87,8 @@ class ERClient(object):
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
-        self.token_url = kwargs.get('token_url') or f"{self.service_root.rstrip('/')}/oauth2/token"
+        self.token_url = kwargs.get(
+            'token_url') or f"{self.service_root.rstrip('/')}/oauth2/token"
         self.username = kwargs.get('username')
         self.password = kwargs.get('password')
         self.realtime_url = kwargs.get('realtime_url')
@@ -1032,6 +1033,53 @@ class ERClient(object):
 
         return self._get('subjectgroups', params=p)
 
+    def add_subjects_to_subjectgroup(self, group_id, subjects):
+        """
+        Add subjects to a subject group.
+
+        :param group_id: The subject group UUID
+        :param subjects: List of subject dicts with 'id' key (e.g., [{"id": "subject-uuid"}])
+        :return: Response data
+        """
+        self.logger.debug(
+            f'Adding subjects to subjectgroup {group_id}: {subjects}')
+        return self._post(f'subjectgroup/{group_id}/subjects/', payload=subjects)
+
+    def remove_subjects_from_subjectgroup(self, group_id, subjects):
+        """
+        Remove subjects from a subject group. _delete method is not used, because it does not support a body.
+
+        :param group_id: The subject group UUID
+        :param subjects: List of subject dicts with 'id' key (e.g., [{"id": "subject-uuid"}])
+        :return: True on success
+        """
+        self.logger.debug(
+            f'Removing subjects from subjectgroup {group_id}: {subjects}')
+        headers = {'User-Agent': self.user_agent,
+                   'Content-Type': 'application/json'}
+        headers.update(self.auth_headers())
+        url = self._er_url(f'subjectgroup/{group_id}/subjects/')
+        if self._http_session:
+            response = self._http_session.delete(
+                url, headers=headers, json=subjects)
+        else:
+            response = requests.delete(url, headers=headers, json=subjects)
+        if response.ok:
+            return True
+        if response.status_code == 404:
+            self.logger.error(
+                f"404 when calling subjectgroup/{group_id}/subjects/")
+            raise ERClientNotFound()
+        if response.status_code == 403:
+            try:
+                _ = json.loads(response.text)
+                reason = _['status']['detail']
+            except Exception:
+                reason = 'unknown reason'
+            raise ERClientPermissionDenied(reason)
+        raise ERClientException(
+            f'Failed to delete: {response.status_code} {response.text}')
+
     def get_sources(self, page_size=100):
         """Return all sources"""
         params = dict(page_size=page_size)
@@ -1108,7 +1156,8 @@ class AsyncERClient(object):
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
-        self.token_url = kwargs.get('token_url') or f"{self.service_root.rstrip('/')}/oauth2/token"
+        self.token_url = kwargs.get(
+            'token_url') or f"{self.service_root.rstrip('/')}/oauth2/token"
         self.username = kwargs.get('username')
         self.password = kwargs.get('password')
         self.realtime_url = kwargs.get('realtime_url')
@@ -1363,6 +1412,56 @@ class AsyncERClient(object):
         """
         self.logger.debug(f'Patching subject {subject_id}: {data}')
         return await self._patch(f'subject/{subject_id}', payload=data)
+
+    async def delete_subject(self, subject_id):
+        """
+        Delete a subject from EarthRanger.
+
+        WARNING: Irreversible — deleted subjects lose all observation history.
+
+        :param subject_id: The subject UUID
+        """
+        self.logger.debug(f'Deleting subject {subject_id}')
+        return await self._delete(f'subject/{subject_id}/')
+
+    async def delete_source(self, source_id):
+        """
+        Delete a source from EarthRanger.
+
+        WARNING: Irreversible — deleted sources lose all linked observation history.
+
+        :param source_id: The source UUID
+        """
+        self.logger.debug(f'Deleting source {source_id}')
+        return await self._delete(f'source/{source_id}/')
+
+    async def add_subjects_to_subjectgroup(self, group_id, subjects):
+        """
+        Add subjects to a subject group.
+
+        :param group_id: The subject group UUID
+        :param subjects: List of subject dicts with 'id' key (e.g., [{"id": "subject-uuid"}])
+        :return: Response data
+        """
+        self.logger.debug(
+            f'Adding subjects to subjectgroup {group_id}: {subjects}')
+        return await self._post(f'subjectgroup/{group_id}/subjects/', payload=subjects)
+
+    async def remove_subjects_from_subjectgroup(self, group_id, subjects):
+        """
+        Remove subjects from a subject group.
+
+        :param group_id: The subject group UUID
+        :param subjects: List of subject dicts with 'id' key (e.g., [{"id": "subject-uuid"}])
+        :return: True on success
+        """
+        self.logger.debug(
+            f'Removing subjects from subjectgroup {group_id}: {subjects}')
+        return await self._call(
+            f'subjectgroup/{group_id}/subjects/',
+            payload=subjects,
+            method="DELETE"
+        )
 
     def _clean_observation(self, observation):
         if hasattr(observation['recorded_at'], 'isoformat'):
@@ -1646,38 +1745,6 @@ class AsyncERClient(object):
     async def _get(self, path, base_url=None, params=None):
         return await self._call(path=path, payload=None, method="GET", params=params, base_url=base_url)
 
-    async def _delete(self, path):
-        """Issue DELETE request. Returns True on success; raises ERClient* on error."""
-        try:
-            auth_headers = await self.auth_headers()
-        except httpx.HTTPStatusError as e:
-            self._handle_http_status_error(path, "DELETE", e)
-        headers = {'User-Agent': self.user_agent, **auth_headers}
-        if not path.startswith('http'):
-            path = self._er_url(path)
-        try:
-            response = await self._http_session.delete(path, headers=headers)
-        except httpx.RequestError as e:
-            reason = str(e)
-            self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
-                                                                 url=path,
-                                                                 reason=reason))
-            raise ERClientException(f'Request to ER failed: {reason}')
-        if response.is_success:
-            return True
-        if response.status_code == 404:
-            self.logger.error("404 when calling %s", path)
-            raise ERClientNotFound()
-        if response.status_code == 403:
-            try:
-                reason = response.json().get('status', {}).get('detail', 'unknown reason')
-            except Exception:
-                reason = 'unknown reason'
-            raise ERClientPermissionDenied(reason)
-        raise ERClientException(
-            f'Failed to delete: {response.status_code} {response.text}'
-        )
-
     async def get_file(self, url):
         """
         Download a file (e.g. attachment URL). Returns the httpx response; body is read into memory.
@@ -1742,7 +1809,8 @@ class AsyncERClient(object):
                     request_url,
                     # payload is automatically encoded as json data
                     json=payload if method in [
-                        "POST", "PUT", "PATCH"] else None,
+                        "POST", "PUT", "PATCH"] or (
+                        method == "DELETE" and payload is not None) else None,
                     params=params,
                     headers=headers
                 )
@@ -1765,7 +1833,9 @@ class AsyncERClient(object):
                     return True  # DELETE/empty success
 
                 json_response = response.json()
-                return json_response.get('data', json_response)
+                if isinstance(json_response, dict):
+                    return json_response.get('data', json_response)
+                return json_response
 
     def _get_batches(self, data, batch_size):
         for i in range(0, len(data), batch_size):

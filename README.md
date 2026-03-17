@@ -43,6 +43,8 @@ Disclaimer: The async client current capabilities are limited to:
 * Getting Feature groups
 * Getting Sources
 * Getting Source Assignments (aka SubjectSource resources)
+* Deleting Subjects
+* Deleting Sources
 ```
 from erclient import AsyncERClient
 
