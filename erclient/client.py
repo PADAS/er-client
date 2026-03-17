@@ -1413,6 +1413,28 @@ class AsyncERClient(object):
         self.logger.debug(f'Patching subject {subject_id}: {data}')
         return await self._patch(f'subject/{subject_id}', payload=data)
 
+    async def delete_subject(self, subject_id):
+        """
+        Delete a subject from EarthRanger.
+
+        WARNING: Irreversible — deleted subjects lose all observation history.
+
+        :param subject_id: The subject UUID
+        """
+        self.logger.debug(f'Deleting subject {subject_id}')
+        return await self._delete(f'subject/{subject_id}/')
+
+    async def delete_source(self, source_id):
+        """
+        Delete a source from EarthRanger.
+
+        WARNING: Irreversible — deleted sources lose all linked observation history.
+
+        :param source_id: The source UUID
+        """
+        self.logger.debug(f'Deleting source {source_id}')
+        return await self._delete(f'source/{source_id}/')
+
     async def add_subjects_to_subjectgroup(self, group_id, subjects):
         """
         Add subjects to a subject group.
