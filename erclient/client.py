@@ -1424,7 +1424,7 @@ class AsyncERClient(object):
         self.logger.debug(f'Deleting subject {subject_id}')
         return await self._delete(f'subject/{subject_id}/')
 
-    async def delete_source(self, source_id, async_mode: bool = True):
+    async def delete_source(self, source_id, async_mode: bool = False):
         """
         Delete a source from EarthRanger.
 
@@ -1432,7 +1432,7 @@ class AsyncERClient(object):
 
         :param source_id: The source UUID
         :param async_mode: If True, passes ?async=true so ER processes the deletion
-            asynchronously. Defaults to True as source deletion can be time-consuming.
+            asynchronously. Defaults to False (synchronous).
         """
         self.logger.debug(f'Deleting source {source_id}')
         params = {"async": "true"} if async_mode else None
