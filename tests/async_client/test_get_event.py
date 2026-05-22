@@ -9,7 +9,7 @@ async def test_get_event_basic(er_client, report_created_response):
     event_id = "9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f"
 
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f'activity/event/{event_id}')
         route.return_value = httpx.Response(
@@ -32,7 +32,7 @@ async def test_get_event_with_all_includes(er_client, report_created_response):
     event_id = "9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f"
 
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f'activity/event/{event_id}')
         route.return_value = httpx.Response(
@@ -67,7 +67,7 @@ async def test_get_event_default_params(er_client, report_created_response):
     event_id = "9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f"
 
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f'activity/event/{event_id}')
         route.return_value = httpx.Response(
@@ -93,7 +93,7 @@ async def test_get_event_not_found(er_client, not_found_response):
     event_id = "00000000-0000-0000-0000-000000000000"
 
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f'activity/event/{event_id}')
         route.return_value = httpx.Response(
@@ -116,7 +116,7 @@ async def test_get_event_unauthorized(er_client, bad_credentials_response):
     event_id = "9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f"
 
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f'activity/event/{event_id}')
         route.return_value = httpx.Response(
@@ -139,7 +139,7 @@ async def test_get_event_forbidden(er_client, forbidden_response):
     event_id = "9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f"
 
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f'activity/event/{event_id}')
         route.return_value = httpx.Response(
@@ -160,7 +160,7 @@ async def test_get_event_includes_event_details(er_client, report_created_respon
     event_id = "9d55bb9f-9fb5-4f43-b1c1-c0ba5164651f"
 
     async with respx.mock(
-            base_url=er_client.service_root, assert_all_called=False
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
     ) as respx_mock:
         route = respx_mock.get(f'activity/event/{event_id}')
         route.return_value = httpx.Response(
