@@ -6,7 +6,7 @@ import pytest
 import respx
 
 from erclient import (ERClientException, ERClientNotFound,
-                      ERClientPermissionDenied, ERClientServiceUnreachable)
+                      ERClientPermissionDenied, ERClientRateLimitExceeded)
 
 
 @pytest.mark.asyncio
@@ -34,6 +34,7 @@ async def test_post_observation_list_success(er_client, position, position_creat
             httpx.codes.CREATED, json=position_created_response)
         response = await er_client.post_observation(observations)
         assert route.called
+        assert response == {}
         # verify we sent a list payload
         request_body = json.loads(route.calls[0].request.content)
         assert isinstance(request_body, list)
@@ -46,8 +47,8 @@ async def test_post_observation_set_input(er_client, position_created_response):
     """Verify that a set input is iterated and each element cleaned individually.
 
     Note: in practice, observation dicts are unhashable so callers use lists.
-    This test uses a frozenset wrapper to exercise the isinstance(obs, (list, set))
-    branch and confirm it produces a list payload.
+    This test uses a set of hashable stand-ins to exercise the
+    isinstance(obs, (list, set)) branch and confirm it produces a list payload.
     """
     # Use simple hashable stand-ins to verify the set branch
     obs_a = ("obs_a",)
@@ -65,7 +66,7 @@ async def test_post_observation_set_input(er_client, position_created_response):
         # don't have 'recorded_at' key
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(er_client, '_clean_observation', lambda o: list(o))
-            response = await er_client.post_observation(observations)
+            await er_client.post_observation(observations)
 
         assert route.called
         request_body = json.loads(route.calls[0].request.content)
@@ -148,7 +149,7 @@ async def test_post_observation_conflict(er_client, position, conflict_response)
         route = respx_mock.post('observations')
         route.return_value = httpx.Response(
             httpx.codes.CONFLICT, json=conflict_response)
-        with pytest.raises(ERClientException) as exc_info:
+        with pytest.raises(ERClientRateLimitExceeded) as exc_info:
             await er_client.post_observation(position)
         assert exc_info.value.status_code == httpx.codes.CONFLICT
         assert route.called
