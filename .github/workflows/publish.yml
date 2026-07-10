@@ -27,7 +27,21 @@ jobs:
       - name: Verify the tag matches the package version
         run: |
           TAG="${{ github.event.release.tag_name }}"
-          PKG_VERSION="$(python -c 'import re, pathlib; print(re.search(r"__version__\s*=\s*.([^\x27\"]+)", pathlib.Path("erclient/version.py").read_text()).group(1))')"
+          # AST parse instead of a regex so a version.py refactor produces a
+          # clear failure here rather than a cryptic parse error.
+          PKG_VERSION="$(python -c '
+          import ast, pathlib, sys
+
+          version = None
+          for node in ast.walk(ast.parse(pathlib.Path("erclient/version.py").read_text())):
+              if isinstance(node, ast.Assign):
+                  for target in node.targets:
+                      if getattr(target, "id", None) == "__version__" and isinstance(node.value, ast.Constant):
+                          version = node.value.value
+          if not isinstance(version, str) or not version:
+              sys.exit("Could not determine __version__ from erclient/version.py")
+          print(version)
+          ')"
           if [ "${TAG#v}" != "${PKG_VERSION}" ]; then
             echo "Release tag ${TAG} does not match erclient/version.py (${PKG_VERSION})." >&2
             echo "Bump erclient/version.py before tagging the release." >&2
