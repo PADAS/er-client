@@ -25,28 +25,7 @@ jobs:
           python-version: "3.12"
 
       - name: Verify the tag matches the package version
-        run: |
-          TAG="${{ github.event.release.tag_name }}"
-          # AST parse instead of a regex so a version.py refactor produces a
-          # clear failure here rather than a cryptic parse error.
-          PKG_VERSION="$(python -c '
-          import ast, pathlib, sys
-
-          version = None
-          for node in ast.walk(ast.parse(pathlib.Path("erclient/version.py").read_text())):
-              if isinstance(node, ast.Assign):
-                  for target in node.targets:
-                      if getattr(target, "id", None) == "__version__" and isinstance(node.value, ast.Constant):
-                          version = node.value.value
-          if not isinstance(version, str) or not version:
-              sys.exit("Could not determine __version__ from erclient/version.py")
-          print(version)
-          ')"
-          if [ "${TAG#v}" != "${PKG_VERSION}" ]; then
-            echo "Release tag ${TAG} does not match erclient/version.py (${PKG_VERSION})." >&2
-            echo "Bump erclient/version.py before tagging the release." >&2
-            exit 1
-          fi
+        run: python .github/scripts/check_version_matches_tag.py "${{ github.event.release.tag_name }}"
 
       - name: Build sdist and wheel
         run: |
