@@ -66,6 +66,7 @@ jobs:
       url: https://pypi.org/p/earthranger-client
     permissions:
       id-token: write  # required for PyPI trusted publishing (OIDC)
+      actions: read  # defensive: artifact download (same-run uses the runtime token today)
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -80,6 +81,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write  # upload assets to the release
+      actions: read  # defensive: artifact download (same-run uses the runtime token today)
     steps:
       - uses: actions/download-artifact@v4
         with:
