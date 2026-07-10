@@ -11,7 +11,16 @@ VERSION_FILE = pathlib.Path("erclient/version.py")
 
 
 def read_package_version():
-    for node in ast.walk(ast.parse(VERSION_FILE.read_text())):
+    # A release guard must fail with an actionable one-liner, not a traceback
+    try:
+        source = VERSION_FILE.read_text()
+    except (OSError, UnicodeDecodeError) as e:
+        sys.exit(f"Could not read {VERSION_FILE}: {e}")
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError) as e:
+        sys.exit(f"Could not parse {VERSION_FILE}: {e}")
+    for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
             for target in node.targets:
                 if (

@@ -14,6 +14,10 @@ on:
   release:
     types: [published]
 
+# Minimal default token scopes; jobs that need more override at job level
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
