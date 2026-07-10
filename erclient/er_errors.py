@@ -1,9 +1,12 @@
 class ERClientException(Exception):
     # Optional support for storing status code and response body
-    def __init__(self, message=None, status_code=None, response_body=None):
+    def __init__(self, message=None, status_code=None, response_body=None, retry_after=None):
         super().__init__(message)
         self.status_code = status_code
         self.response_body = response_body
+        # Seconds the server asked us to wait (parsed from the Retry-After
+        # header); None when the header was absent or unparseable.
+        self.retry_after = retry_after
 
     def __str__(self):
         base_message = super().__str__()
