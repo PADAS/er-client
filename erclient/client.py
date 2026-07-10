@@ -7,6 +7,7 @@ import re
 import time
 import warnings
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from http import HTTPStatus
 from typing import List
 from urllib.parse import urlparse, urlunparse
@@ -27,6 +28,26 @@ from .er_errors import (ERClientBadCredentials, ERClientBadRequest,
 from .version import __version__
 
 version_string = __version__
+
+
+def parse_retry_after_header(value):
+    """Parse a Retry-After header (delta-seconds or HTTP-date) into seconds, or None."""
+    if not value:
+        return None
+    try:
+        seconds = int(value)
+        return seconds if seconds >= 0 else None
+    except ValueError:
+        pass
+    try:
+        retry_at = parsedate_to_datetime(value)
+        delta = (retry_at - datetime.now(timezone.utc)).total_seconds()
+        if delta < 0:
+            return None
+        # Round up so we never retry earlier than the server requested
+        return math.ceil(delta)
+    except (TypeError, ValueError):
+        return None
 
 
 def linkify(url, params):
@@ -1882,15 +1903,20 @@ class AsyncERClient(object):
             httpx.codes.CONFLICT: ERClientRateLimitExceeded
         }
 
+        retry_after = parse_retry_after_header(
+            e.response.headers.get("Retry-After"))
+
         if e.response.status_code in exception_map:
             raise exception_map[e.response.status_code](
                 message=error_details,
                 status_code=e.response.status_code,
-                response_body=e.response.text
+                response_body=e.response.text,
+                retry_after=retry_after
             )
 
         raise ERClientException(
             message=error_details,
             status_code=e.response.status_code,
-            response_body=e.response.text
+            response_body=e.response.text,
+            retry_after=retry_after
         )
