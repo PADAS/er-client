@@ -63,3 +63,34 @@ async def test_retry_after_absent_or_unparseable_is_none(er_client, report, head
         assert route.called
         assert exc_info.value.retry_after is None
         await er_client.close()
+
+
+def test_retry_after_http_date_rounds_up_fractional_seconds():
+    # A fractional delta must round up (never retry earlier than requested).
+    # HTTP-dates have whole-second resolution, so the fraction comes from
+    # "now" being mid-second — pin the clock to make this deterministic.
+    from unittest import mock
+
+    from erclient.client import parse_retry_after_header
+
+    fixed_now = datetime(2026, 7, 6, 12, 0, 0, 500000, tzinfo=timezone.utc)
+    retry_at = datetime(2026, 7, 6, 12, 2, 0,
+                        tzinfo=timezone.utc)  # 119.5s later
+    with mock.patch("erclient.client.datetime") as mock_datetime:
+        mock_datetime.now.return_value = fixed_now
+        assert parse_retry_after_header(
+            format_datetime(retry_at, usegmt=True)) == 120
+
+
+def test_retry_after_http_date_in_past_is_none():
+    from unittest import mock
+
+    from erclient.client import parse_retry_after_header
+
+    fixed_now = datetime(2026, 7, 6, 12, 0, 0, 500000, tzinfo=timezone.utc)
+    retry_at = datetime(2026, 7, 6, 11, 59, 59,
+                        tzinfo=timezone.utc)  # in the past
+    with mock.patch("erclient.client.datetime") as mock_datetime:
+        mock_datetime.now.return_value = fixed_now
+        assert parse_retry_after_header(
+            format_datetime(retry_at, usegmt=True)) is None

@@ -1,5 +1,6 @@
 class ERClientException(Exception):
-    # Optional support for storing status code and response body
+    # Optional support for storing the status code, response body, and the
+    # parsed Retry-After value from the server response
     def __init__(self, message=None, status_code=None, response_body=None, retry_after=None):
         super().__init__(message)
         self.status_code = status_code

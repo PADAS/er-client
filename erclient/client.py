@@ -41,8 +41,11 @@ def parse_retry_after_header(value):
         pass
     try:
         retry_at = parsedate_to_datetime(value)
-        seconds = int((retry_at - datetime.now(timezone.utc)).total_seconds())
-        return seconds if seconds >= 0 else None
+        delta = (retry_at - datetime.now(timezone.utc)).total_seconds()
+        if delta < 0:
+            return None
+        # Round up so we never retry earlier than the server requested
+        return math.ceil(delta)
     except (TypeError, ValueError):
         return None
 
