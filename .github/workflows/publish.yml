@@ -1,0 +1,78 @@
+name: Publish
+
+# Builds once per published GitHub release, then:
+#   - publishes to PyPI via trusted publishing (OIDC — no API tokens), and
+#   - attaches the sdist + wheel to the GitHub release (downstream Gundi
+#     repos pin wheels from release assets).
+#
+# PyPI side (one-time, project owner): pypi.org -> earthranger-client ->
+# Manage -> Publishing -> Add a new publisher (GitHub):
+#   owner: PADAS, repository: er-client,
+#   workflow: publish.yml, environment: pypi
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify the tag matches the package version
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          PKG_VERSION="$(python -c 'import re, pathlib; print(re.search(r"__version__\s*=\s*.([^\x27\"]+)", pathlib.Path("erclient/version.py").read_text()).group(1))')"
+          if [ "${TAG#v}" != "${PKG_VERSION}" ]; then
+            echo "Release tag ${TAG} does not match erclient/version.py (${PKG_VERSION})." >&2
+            echo "Bump erclient/version.py before tagging the release." >&2
+            exit 1
+          fi
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish-to-pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/earthranger-client
+    permissions:
+      id-token: write  # required for PyPI trusted publishing (OIDC)
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  attach-to-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # upload assets to the release
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Attach sdist and wheel to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/* --clobber --repo "${{ github.repository }}"
