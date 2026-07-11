@@ -50,6 +50,7 @@ dev = [
     "pytest>=8.3.5",
     "pytest-asyncio>=0.24.0",
     "respx>=0.22.0",
+    "responses>=0.24.0",
 ]
 
 
@@ -67,6 +68,7 @@ test = [
   "pytest-asyncio",
   "anyio",
   "respx>=0.22",
+  "responses>=0.24",
   "pytest-mock"
 ]
 
