@@ -1123,6 +1123,44 @@ class ERClient(object):
     def get_users(self):
         return self._get('users')
 
+    # -- V2 Schema Methods --
+
+    def get_schema(self, schema_name):
+        """
+        Get a dynamic schema from the v2 API.
+        :param schema_name: Name of the schema resource (e.g. 'users', 'sources', 'subjects',
+                            'choices', 'spatial_features', 'event_types')
+        :return: schema dict (JSON Schema)
+        """
+        return self._get(
+            f'schemas/{schema_name}.json',
+            base_url=self._api_root('v2.0'),
+        )
+
+    def get_users_schema(self):
+        """Get the users JSON schema from the v2 API."""
+        return self.get_schema('users')
+
+    def get_sources_schema(self):
+        """Get the sources JSON schema from the v2 API."""
+        return self.get_schema('sources')
+
+    def get_subjects_schema(self):
+        """Get the subjects JSON schema from the v2 API."""
+        return self.get_schema('subjects')
+
+    def get_choices_schema(self):
+        """Get the choices JSON schema from the v2 API."""
+        return self.get_schema('choices')
+
+    def get_spatial_features_schema(self):
+        """Get the spatial_features JSON schema from the v2 API."""
+        return self.get_schema('spatial_features')
+
+    def get_event_types_schema(self):
+        """Get the event_types JSON schema from the v2 API."""
+        return self.get_schema('event_types')
+
 
 class AsyncERClient(object):
     """
@@ -1747,6 +1785,44 @@ class AsyncERClient(object):
             dict: feature group data
         """
         return await self._get(f"spatialfeaturegroup/{feature_group_id}", params={})
+
+    # -- V2 Schema Methods --
+
+    async def get_schema(self, schema_name):
+        """
+        Get a dynamic schema from the v2 API.
+        :param schema_name: Name of the schema resource (e.g. 'users', 'sources', 'subjects',
+                            'choices', 'spatial_features', 'event_types')
+        :return: schema dict (JSON Schema)
+        """
+        return await self._get(
+            f'schemas/{schema_name}.json',
+            base_url=self._api_root('v2.0'),
+        )
+
+    async def get_users_schema(self):
+        """Get the users JSON schema from the v2 API."""
+        return await self.get_schema('users')
+
+    async def get_sources_schema(self):
+        """Get the sources JSON schema from the v2 API."""
+        return await self.get_schema('sources')
+
+    async def get_subjects_schema(self):
+        """Get the subjects JSON schema from the v2 API."""
+        return await self.get_schema('subjects')
+
+    async def get_choices_schema(self):
+        """Get the choices JSON schema from the v2 API."""
+        return await self.get_schema('choices')
+
+    async def get_spatial_features_schema(self):
+        """Get the spatial_features JSON schema from the v2 API."""
+        return await self.get_schema('spatial_features')
+
+    async def get_event_types_schema(self):
+        """Get the event_types JSON schema from the v2 API."""
+        return await self.get_schema('event_types')
 
     async def _get_data(self, endpoint, params, batch_size=0):
         if "page" not in params:  # Use cursor paginator unless the user has specified a page
