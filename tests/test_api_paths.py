@@ -2,7 +2,8 @@
 
 import pytest
 
-from erclient.api_paths import (DEFAULT_VERSION, event_type_detail_path,
+from erclient.api_paths import (DEFAULT_VERSION, event_type_delete_path,
+                                event_type_detail_path,
                                 event_types_list_path, event_types_patch_path,
                                 normalize_version)
 
@@ -69,3 +70,20 @@ def test_event_types_list_path_alias_v2():
 def test_event_types_list_path_unsupported_raises():
     with pytest.raises(ValueError, match="Unsupported API version"):
         event_types_list_path("v3")
+
+
+def test_event_type_delete_path_v2():
+    assert event_type_delete_path("v2.0", "my_slug") == "activity/eventtypes/my_slug"
+
+
+def test_event_type_delete_path_v1():
+    assert event_type_delete_path("v1.0", "my_slug") == "activity/events/eventtypes/my_slug"
+
+
+def test_event_type_delete_path_alias():
+    assert event_type_delete_path("v2", "my_slug") == "activity/eventtypes/my_slug"
+
+
+def test_event_type_delete_path_unsupported_raises():
+    with pytest.raises(ValueError, match="Unsupported API version"):
+        event_type_delete_path("v3", "my_slug")

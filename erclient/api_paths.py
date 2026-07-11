@@ -61,6 +61,17 @@ def event_types_patch_path(version: str, event_type: dict) -> str:
         raise ValueError(f"Event type id is required for v1.0 patching")
 
 
+def event_type_delete_path(version: str, value: str) -> str:
+    """
+    Path for deleting an event type by slug (value).
+
+    v2.0 uses activity/eventtypes/{value};
+    v1.0 uses activity/events/eventtypes/{value} (if the server supports it).
+    """
+    version = normalize_version(version)
+    return f"{EVENT_TYPES_PATHS[version]}/{value}"
+
+
 def event_type_detail_path(version: str, value: str) -> str:
     """
     Path for getting a single event type by name/slug.
