@@ -119,10 +119,17 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      # lowest-direct trap: "direct" means the requirements named on the
+      # command line. Installing dist/*.whl alone makes the wheel the only
+      # direct requirement and resolves its dependencies (the ones we're
+      # trying to floor-test) at HIGHEST. So: resolve the project's declared
+      # dependencies as direct requirements first, then add the wheel
+      # without re-resolving.
       - name: Install wheel with fresh resolution
         run: |
           uv venv
-          uv pip install --resolution ${{ matrix.resolution }} dist/*.whl
+          uv pip install --resolution ${{ matrix.resolution }} -r pyproject.toml
+          uv pip install --no-deps dist/*.whl
 
       # Runs before test tooling lands: at this point the environment holds
       # exactly what a consumer's resolver would produce.
