@@ -103,8 +103,8 @@ jobs:
     steps:
       # The checkout only provides pyproject.toml (see the resolution note
       # below) and tests/; the package itself comes from the built wheel,
-      # and the source package dir is deleted before pytest runs so imports
-      # can only resolve to the installed wheel.
+      # and the source package dir is deleted right after the wheel install
+      # so imports can only resolve to the installed wheel.
       - uses: actions/checkout@v4
 
       - uses: actions/download-artifact@v4
@@ -131,6 +131,13 @@ jobs:
           uv venv --python ${{ matrix.python-version }}
           uv pip install --resolution ${{ matrix.resolution }} -r pyproject.toml
           uv pip install --no-deps dist/*.whl
+
+      # `python -c` puts the working directory first on sys.path, so with the
+      # checkout present every import below would resolve to the source tree
+      # instead of the installed wheel. Delete the source package so the
+      # smoke test and the suite can only import what the wheel shipped.
+      - name: Remove source package
+        run: rm -rf erclient
 
       # Runs before test tooling lands: at this point the environment holds
       # exactly what a consumer's resolver would produce.
@@ -174,9 +181,7 @@ jobs:
           done
 
       - name: Run test suite against the installed wheel
-        run: |
-          rm -rf erclient
-          .venv/bin/python -m pytest tests -q
+        run: .venv/bin/python -m pytest tests -q
 
   sdist-install-check:
     name: sdist builds and installs
