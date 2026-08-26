@@ -56,3 +56,112 @@ jobs:
       # dev group, undoing the --no-dev install above.
       - name: Run pytest
         run: uv run --no-sync pytest -q
+
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Build distributions
+        run: uv build
+
+      - name: Validate metadata
+        run: uvx twine check --strict dist/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  # Consumers who `pip install earthranger-client` never see uv.lock — they
+  # resolve fresh from the wheel's declared dependencies. These jobs install
+  # the built distributions into clean environments with no lockfile, at both
+  # ends of the declared support range, so bad bounds in pyproject.toml fail
+  # here even when the locked test jobs pass.
+  install-check:
+    name: Installs as published (py${{ matrix.python-version }}, ${{ matrix.resolution }})
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Oldest supported Python with the minimum versions we declare:
+          # proves the lower bounds in pyproject.toml are real.
+          - python-version: "3.8"
+            resolution: lowest-direct
+          # Newest supported Python resolving to the latest releases:
+          # proves nothing upstream has broken us for new installs.
+          - python-version: "3.14"
+            resolution: highest
+    steps:
+      # The checkout only provides pyproject.toml (see the resolution note
+      # below); the package itself comes from the built wheel.
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      # lowest-direct trap: "direct" means the requirements named on the
+      # command line. Installing dist/*.whl alone makes the wheel the only
+      # direct requirement and resolves its dependencies (the ones we're
+      # trying to floor-test) at HIGHEST. So: resolve the project's declared
+      # dependencies as direct requirements first, then add the wheel
+      # without re-resolving.
+      - name: Install wheel with fresh resolution
+        run: |
+          uv venv --python ${{ matrix.python-version }}
+          uv pip install --resolution ${{ matrix.resolution }} -r pyproject.toml
+          uv pip install --no-deps dist/*.whl
+
+      - name: Smoke-test import
+        run: |
+          .venv/bin/python -c "
+          from erclient import AsyncERClient, ERClient
+          from erclient.version import __version__
+          print(f'earthranger-client {__version__} imports cleanly')
+          "
+
+  sdist-install-check:
+    name: sdist builds and installs
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install from sdist
+        run: |
+          uv venv
+          uv pip install dist/*.tar.gz
+
+      - name: Smoke-test import
+        run: |
+          .venv/bin/python -c "
+          from erclient import AsyncERClient, ERClient
+          from erclient.version import __version__
+          print(f'earthranger-client {__version__} imports cleanly')
+          "
