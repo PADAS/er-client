@@ -422,7 +422,7 @@ requires-dist = [
     { name = "pytest-mock", marker = "extra == 'test'" },
     { name = "pytz", specifier = ">=2021.1" },
     { name = "requests", specifier = ">=2.28.0" },
-    { name = "respx", marker = "extra == 'test'", specifier = ">=0.22" },
+    { name = "respx", marker = "extra == 'test'", specifier = ">=0.21.1" },
 ]
 provides-extras = ["test"]
 
