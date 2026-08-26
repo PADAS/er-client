@@ -94,7 +94,7 @@ jobs:
       matrix:
         include:
           # Oldest supported Python with the minimum versions we declare
-          # (pydantic 1.10.17, httpx 0.23.3, ...): proves the lower bounds
+          # (pydantic 1.10.17, httpx 0.25.0, ...): proves the lower bounds
           # in pyproject.toml are real.
           - python-version: "3.8"
             resolution: lowest-direct
@@ -103,8 +103,12 @@ jobs:
           - python-version: "3.14"
             resolution: highest
     steps:
-      # Deliberately no checkout: the install must succeed from the built
-      # wheel alone, with dependencies resolved fresh from PyPI — no uv.lock.
+      # The checkout is only here to provide tests/; the package itself must
+      # come from the built wheel, with dependencies resolved fresh from
+      # PyPI — no uv.lock. The source package dir is deleted before pytest
+      # runs so imports can only resolve to the installed wheel.
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           name: dist
@@ -120,6 +124,8 @@ jobs:
           uv venv
           uv pip install --resolution ${{ matrix.resolution }} dist/*.whl
 
+      # Runs before test tooling lands: at this point the environment holds
+      # exactly what a consumer's resolver would produce.
       - name: Smoke-test import
         run: |
           .venv/bin/python -c "
@@ -127,6 +133,38 @@ jobs:
           from erclient.version import __version__
           print(f'earthranger-client {__version__} imports cleanly')
           "
+
+      - name: Record consumer resolution
+        run: uv pip freeze > "$RUNNER_TEMP/consumer-freeze.txt"
+
+      # Installed as bare packages rather than the wheel's [test] extra, so
+      # uv doesn't re-resolve the wheel's runtime deps — a re-resolve at the
+      # default (highest) resolution would upgrade pydantic and erase the
+      # lowest-direct scenario. The httpx floor in pyproject.toml is kept at
+      # respx's own minimum precisely so this install has no reason to touch
+      # any runtime dependency.
+      - name: Install test tooling
+        run: uv pip install pytest pytest-asyncio anyio respx pytest-mock
+
+      # Don't trust the claim above — prove it. The suite is only a valid
+      # consumer test if the tooling install left the wheel's resolution
+      # intact.
+      - name: Verify test tooling did not disturb the consumer resolution
+        run: |
+          uv pip freeze > "$RUNNER_TEMP/with-tooling-freeze.txt"
+          for pkg in pydantic pydantic-core httpx requests dateparser gpxpy pytz; do
+            before=$(grep -i "^${pkg}==" "$RUNNER_TEMP/consumer-freeze.txt" || true)
+            after=$(grep -i "^${pkg}==" "$RUNNER_TEMP/with-tooling-freeze.txt" || true)
+            if [ "$before" != "$after" ]; then
+              echo "::error::test tooling changed ${pkg}: '${before}' -> '${after}'"
+              exit 1
+            fi
+          done
+
+      - name: Run test suite against the installed wheel
+        run: |
+          rm -rf erclient
+          .venv/bin/python -m pytest tests -q
 
   sdist-install-check:
     name: sdist builds and installs
