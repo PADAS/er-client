@@ -6,13 +6,34 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  lock-check:
+    name: uv.lock matches pyproject.toml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Check lockfile
+        run: uv lock --check
+
   pytest:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
@@ -25,8 +46,167 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
+      # The `test` extra carries everything pytest needs; skip the dev group
+      # (hatch, pre-commit) since CI doesn't use it. --locked fails loudly if
+      # uv.lock drifts from pyproject.toml instead of silently re-resolving.
       - name: Install dependencies
-        run: uv sync --all-extras --all-groups
+        run: uv sync --locked --extra test --no-dev
 
+      # --no-sync: a bare `uv run` re-syncs the environment with the default
+      # dev group, undoing the --no-dev install above.
       - name: Run pytest
-        run: uv run pytest -q
+        run: uv run --no-sync pytest -q
+
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Build distributions
+        run: uv build
+
+      - name: Validate metadata
+        run: uvx twine check --strict dist/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  # Consumers who `pip install earthranger-client` never see uv.lock — they
+  # resolve fresh from the wheel's declared dependencies. These jobs install
+  # the built distributions into clean environments with no lockfile, at both
+  # ends of the declared support range, so bad bounds in pyproject.toml fail
+  # here even when the locked test jobs pass.
+  install-check:
+    name: Installs as published (py${{ matrix.python-version }}, ${{ matrix.resolution }})
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Oldest supported Python with the minimum versions we declare:
+          # proves the lower bounds in pyproject.toml are real.
+          - python-version: "3.8"
+            resolution: lowest-direct
+          # Newest supported Python resolving to the latest releases:
+          # proves nothing upstream has broken us for new installs.
+          - python-version: "3.14"
+            resolution: highest
+    steps:
+      # The checkout only provides pyproject.toml (see the resolution note
+      # below) and tests/; the package itself comes from the built wheel,
+      # and the source package dir is deleted right after the wheel install
+      # so imports can only resolve to the installed wheel.
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      # lowest-direct trap: "direct" means the requirements named on the
+      # command line. Installing dist/*.whl alone makes the wheel the only
+      # direct requirement and resolves its dependencies (the ones we're
+      # trying to floor-test) at HIGHEST. So: resolve the project's declared
+      # dependencies as direct requirements first, then add the wheel
+      # without re-resolving.
+      - name: Install wheel with fresh resolution
+        run: |
+          uv venv --python ${{ matrix.python-version }}
+          uv pip install --resolution ${{ matrix.resolution }} -r pyproject.toml
+          uv pip install --no-deps dist/*.whl
+
+      # `python -c` puts the working directory first on sys.path, so with the
+      # checkout present every import below would resolve to the source tree
+      # instead of the installed wheel. Delete the source package so the
+      # smoke test and the suite can only import what the wheel shipped.
+      - name: Remove source package
+        run: rm -rf erclient
+
+      # Runs before test tooling lands: at this point the environment holds
+      # exactly what a consumer's resolver would produce.
+      - name: Smoke-test import
+        run: |
+          .venv/bin/python -c "
+          from erclient import AsyncERClient, ERClient
+          from erclient.version import __version__
+          print(f'earthranger-client {__version__} imports cleanly')
+          "
+
+      - name: Record consumer resolution
+        run: uv pip freeze > "$RUNNER_TEMP/consumer-freeze.txt"
+
+      # Installed as bare packages rather than the wheel's [test] extra, so
+      # uv doesn't re-resolve the wheel's runtime deps — a re-resolve at the
+      # default (highest) resolution would upgrade pydantic and erase the
+      # lowest-direct scenario. The recorded consumer resolution is passed as
+      # a constraint so the tooling resolves *around* the runtime deps
+      # instead of upgrading them: in the floor job respx backs off to
+      # 0.21.x, the newest release compatible with httpx 0.23.3. The grep
+      # drops the local-wheel line (constraints must be version pins).
+      - name: Install test tooling
+        run: |
+          grep -v ' @ ' "$RUNNER_TEMP/consumer-freeze.txt" > "$RUNNER_TEMP/constraints.txt"
+          uv pip install --constraint "$RUNNER_TEMP/constraints.txt" pytest pytest-asyncio anyio respx pytest-mock
+
+      # Don't trust the constraint mechanism — prove it held. The suite is
+      # only a valid consumer test if the tooling install left the wheel's
+      # resolution intact: every pre-tooling freeze entry, transitives
+      # included, must survive unchanged. Additions are fine — they are the
+      # test tools themselves.
+      - name: Verify test tooling did not disturb the consumer resolution
+        run: |
+          uv pip freeze > "$RUNNER_TEMP/with-tooling-freeze.txt"
+          changed=$(comm -23 <(sort "$RUNNER_TEMP/consumer-freeze.txt") <(sort "$RUNNER_TEMP/with-tooling-freeze.txt"))
+          if [ -n "$changed" ]; then
+            echo "::error::test tooling changed or removed consumer packages:"
+            echo "$changed"
+            exit 1
+          fi
+
+      - name: Run test suite against the installed wheel
+        run: .venv/bin/python -m pytest tests -q
+
+  sdist-install-check:
+    name: sdist builds and installs
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install from sdist
+        run: |
+          uv venv
+          uv pip install dist/*.tar.gz
+
+      - name: Smoke-test import
+        run: |
+          .venv/bin/python -c "
+          from erclient import AsyncERClient, ERClient
+          from erclient.version import __version__
+          print(f'earthranger-client {__version__} imports cleanly')
+          "

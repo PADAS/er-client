@@ -25,7 +25,9 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12"
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 keywords = ["api", "EarthRanger"]
 requires-python = ">=3.8"
@@ -66,7 +68,10 @@ test = [
   "pytest>=8",
   "pytest-asyncio",
   "anyio",
-  "respx>=0.22",
+  # Kept low deliberately: respx>=0.22 requires httpx>=0.25, which would
+  # make our httpx>=0.23.3 floor untestable. respx 0.21.1 accepts
+  # httpx>=0.21, letting CI run the suite at the declared httpx minimum.
+  "respx>=0.21.1",
   "pytest-mock"
 ]
 
