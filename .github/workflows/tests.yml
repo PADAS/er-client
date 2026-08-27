@@ -29,8 +29,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v10.0.1
         with:
-          version: "latest"
           enable-cache: false
+          version-file: uv.toml
 
       - name: Check lockfile
         run: uv lock --check
@@ -48,8 +48,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v10.0.1
         with:
-          version: "latest"
           enable-cache: false
+          version-file: uv.toml
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
@@ -74,8 +74,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v10.0.1
         with:
-          version: "latest"
           enable-cache: false
+          version-file: uv.toml
 
       - name: Build distributions
         run: uv build
@@ -124,8 +124,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v10.0.1
         with:
-          version: "latest"
           enable-cache: false
+          version-file: uv.toml
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
@@ -198,6 +198,15 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
+      # Deliberately not a full checkout: `.venv/bin/python -c` puts the
+      # working directory first on sys.path, so a source `erclient/` here
+      # would shadow the sdist install the smoke test is meant to exercise.
+      # uv.toml alone is fetched, only so setup-uv can read the version pin.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: uv.toml
+          sparse-checkout-cone-mode: false
+
       - uses: actions/download-artifact@v8
         with:
           name: dist
@@ -206,8 +215,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v10.0.1
         with:
-          version: "latest"
           enable-cache: false
+          version-file: uv.toml
 
       - name: Install from sdist
         run: |
