@@ -18,12 +18,19 @@ jobs:
     name: uv.lock matches pyproject.toml
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
+      # enable-cache: false everywhere. setup-uv caches by default from v5 on,
+      # but its default key omits the matrix Python (it interpolates the
+      # runner's system Python), so all eleven jobs share one key: they race to
+      # save it, and the winner's wheels get restored into jobs targeting a
+      # different interpreter. Nothing is lost by skipping it — a cold
+      # `uv sync` here resolves in well under a second.
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v10.0.1
         with:
           version: "latest"
+          enable-cache: false
 
       - name: Check lockfile
         run: uv lock --check
@@ -36,12 +43,13 @@ jobs:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v10.0.1
         with:
           version: "latest"
+          enable-cache: false
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
@@ -61,12 +69,13 @@ jobs:
     name: Build sdist + wheel
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v10.0.1
         with:
           version: "latest"
+          enable-cache: false
 
       - name: Build distributions
         run: uv build
@@ -74,7 +83,7 @@ jobs:
       - name: Validate metadata
         run: uvx twine check --strict dist/*
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
@@ -105,17 +114,18 @@ jobs:
       # below) and tests/; the package itself comes from the built wheel,
       # and the source package dir is deleted right after the wheel install
       # so imports can only resolve to the installed wheel.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v10.0.1
         with:
           version: "latest"
+          enable-cache: false
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
@@ -188,15 +198,16 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v10.0.1
         with:
           version: "latest"
+          enable-cache: false
 
       - name: Install from sdist
         run: |
