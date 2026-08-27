@@ -46,7 +46,8 @@ def test_service_root_normalization_strips_api_segment(
 
 def test_token_url_derived_from_service_root_when_omitted():
     """When token_url is not passed, it defaults to {service_root}/oauth2/token."""
-    client = ERClient(service_root="https://hello.pamdas.org", provider_key="test")
+    client = ERClient(service_root="https://hello.pamdas.org",
+                      provider_key="test")
     assert client.token_url == "https://hello.pamdas.org/oauth2/token"
 
 

@@ -1,0 +1,1 @@
+required-version = "==0.12.5" # keep in sync with the uv-pre-commit `rev` in .pre-commit-config.yaml
