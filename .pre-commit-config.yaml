@@ -1,3 +1,15 @@
+# Hook environments track the lowest Python we can practically run them on,
+# so their behavior stays close to the floor declared in pyproject.toml
+# instead of following whatever python3 each contributor happens to have.
+# This pins the hooks' runtime only -- the supported range is pyproject's,
+# and the CI matrix is what proves it.
+#
+# 3.10 is that floor today: isort needs >=3.9, autoflake's current release
+# needs >=3.10, and 3.9 is already EOL. Raise it when the tooling forces the
+# issue; 3.10 itself reaches EOL 2026-10-31.
+default_language_version:
+  python: python3.10
+
 repos:
   - repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.7.12
