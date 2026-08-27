@@ -14,3 +14,8 @@ updates:
     directory: '/'
     multi-ecosystem-group: 'all-dependencies'
     patterns: ['*']
+
+  - package-ecosystem: 'pre-commit'
+    directory: '/'
+    multi-ecosystem-group: 'all-dependencies'
+    patterns: ['*']

@@ -35,6 +35,33 @@ jobs:
       - name: Check lockfile
         run: uv lock --check
 
+  pre-commit:
+    name: pre-commit hooks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: false
+          version-file: uv.toml
+
+      # .pre-commit-config.yaml pins default_language_version to python3.10,
+      # so that exact interpreter has to exist here or every `language: python`
+      # hook fails to build its environment. Keep this in step with the pin.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.10'
+
+      # pre-commit comes from the locked dev group rather than a bare install,
+      # so CI runs the same version the lockfile gives everyone else.
+      - name: Install pre-commit
+        run: uv sync --locked --only-group dev
+
+      - name: Run hooks
+        run: uv run --no-sync pre-commit run --all-files --show-diff-on-failure
+
   pytest:
     runs-on: ubuntu-latest
     strategy:
