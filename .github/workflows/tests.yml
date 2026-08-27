@@ -20,10 +20,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # enable-cache: false everywhere. setup-uv caches by default from v5 on,
+      # but its default key omits the matrix Python (it interpolates the
+      # runner's system Python), so all eleven jobs share one key: they race to
+      # save it, and the winner's wheels get restored into jobs targeting a
+      # different interpreter. Nothing is lost by skipping it — a cold
+      # `uv sync` here resolves in well under a second.
       - name: Install uv
         uses: astral-sh/setup-uv@v10.0.1
         with:
           version: "latest"
+          enable-cache: false
 
       - name: Check lockfile
         run: uv lock --check
@@ -42,6 +49,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.0.1
         with:
           version: "latest"
+          enable-cache: false
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
@@ -67,6 +75,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.0.1
         with:
           version: "latest"
+          enable-cache: false
 
       - name: Build distributions
         run: uv build
@@ -116,6 +125,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.0.1
         with:
           version: "latest"
+          enable-cache: false
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
@@ -197,6 +207,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.0.1
         with:
           version: "latest"
+          enable-cache: false
 
       - name: Install from sdist
         run: |
