@@ -19,17 +19,23 @@ Everything here must run on Python 3.8, the package floor -- so typing.Optional
 and typing.List rather than PEP 604/585 syntax, in annotations and dataclass
 fields alike.
 """
+import warnings
 from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
 import httpx
 
 from .client import normalize_service_root
-from .er_errors import (ERClientBadCredentials, ERClientDiscoveryError,
-                        ERClientException, ERClientServiceUnreachable)
+from .er_errors import (ERClientAuthMethodUnavailable, ERClientBadCredentials,
+                        ERClientDiscoveryError, ERClientException,
+                        ERClientServiceUnreachable)
 
 # RFC 9728 s3.1: the metadata lives at a well-known path under the resource origin.
 PROTECTED_RESOURCE_PATH = "/.well-known/oauth-protected-resource"
+
+# A site that issues its own tokens advertises itself as the authorization
+# server, at its own origin plus this path.
+SELF_ISSUED_AUTHORIZATION_SERVER_PATH = "/oauth2"
 
 # Discovery is a single small pre-flight request; a caller waiting on an
 # interactive login should learn quickly that a site is unreachable.
@@ -273,4 +279,83 @@ def _access_token_from(response: httpx.Response, issuer: str) -> AccessToken:
         expires_in=payload.get("expires_in"),
         scope=payload.get("scope"),
         refresh_token=payload.get("refresh_token"),
+    )
+
+
+def authenticate_for_site(
+    site: str,
+    *,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+    client_id: Optional[str] = None,
+) -> AccessToken:
+    """Authenticate against a site using whichever method it says it accepts.
+
+    ``site`` is whatever gets passed to ERClient as service_root. The returned
+    token is meant to be handed straight back:
+
+        token = authenticate_for_site(site, username=..., password=...,
+                                      client_id=...)
+        client = ERClient(service_root=site, token=token.access_token)
+
+    Today this completes exactly one method: the password grant, taken wherever
+    a site still offers it, including alongside an external authorization
+    server it is migrating to. A site that has finished migrating raises
+    ERClientAuthMethodUnavailable until the interactive flow lands -- sending a
+    username and password to an issuer that no longer accepts them would only
+    produce a confusing rejection.
+    """
+    origin = normalize_service_root(site)
+    authorization_servers = discover_authorization_servers(origin)
+    self_issued = origin + SELF_ISSUED_AUTHORIZATION_SERVER_PATH
+
+    if self_issued not in authorization_servers:
+        raise ERClientAuthMethodUnavailable(
+            "{origin} no longer accepts a username and password. It accepts "
+            "tokens from {servers}, which this version of the library cannot "
+            "obtain; authenticate separately and pass the token to ERClient "
+            "directly.".format(
+                origin=origin,
+                servers=", ".join(repr(server)
+                                  for server in authorization_servers),
+            )
+        )
+
+    _warn_if_other_servers_are_offered(
+        authorization_servers, self_issued, origin)
+
+    if not (username and password):
+        raise ERClientAuthMethodUnavailable(
+            "{} accepts a username and password, but none were supplied. Pass "
+            "username= and password= (and client_id=, if the site expects "
+            "one).".format(origin)
+        )
+
+    return authenticate_with_password(
+        self_issued, username=username, password=password, client_id=client_id)
+
+
+def _warn_if_other_servers_are_offered(
+    authorization_servers: List[str],
+    self_issued: str,
+    origin: str,
+) -> None:
+    """Say something when a site offers more than we are choosing to use.
+
+    A site mid-migration advertises its new authorization server alongside the
+    one it is retiring. Taking the retiring one is correct for now and silence
+    would be defensible, but naming it is what tells an operator which sites
+    still have a deadline attached.
+    """
+    others = [server for server in authorization_servers if server != self_issued]
+    if not others:
+        return
+
+    warnings.warn(
+        "{origin} also accepts tokens from {others}, but this version of the "
+        "library authenticates with a username and password against {origin}. "
+        "That will stop working once the site finishes migrating.".format(
+            origin=origin,
+            others=", ".join(repr(server) for server in others),
+        )
     )

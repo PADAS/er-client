@@ -44,6 +44,14 @@ class ERClientNotFound(ERClientException):
     pass
 
 
+class ERClientAuthMethodUnavailable(ERClientException):
+    """None of the authentication methods a site accepts can be completed here.
+
+    Either the caller withheld something the site's method needs, or the site
+    accepts only a method this version of the library cannot perform.
+    """
+
+
 class ERClientDiscoveryError(ERClientException):
     """A site's RFC 9728 protected-resource metadata could not be trusted or used.
 
