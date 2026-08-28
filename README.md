@@ -178,6 +178,38 @@ Unrecognised keywords are silently ignored rather than rejected, so a typo such 
 
 Use either `token`, or `client_id` + `username` + `password`.
 
+## API versions
+
+Event-type endpoints exist in two API versions. `v1.0` is the default; pass `version=`
+to opt into `v2.0`:
+
+```python
+from erclient import ERClient, VERSION_2_0
+
+client = ERClient(service_root="https://sandbox.pamdas.org", token="your_bearer_token")
+event_types = client.get_event_types(version=VERSION_2_0)
+```
+
+Four methods accept `version=`, on both clients — `get_event_types`, `get_event_type`,
+`post_event_type`, `patch_event_type`. Every other call is `v1.0`, and passing
+`.../api/v2.0` as `service_root` does **not** change that (see "Constructor arguments").
+
+Accepted values are `VERSION_1_0` (`"v1.0"`) and `VERSION_2_0` (`"v2.0"`); the aliases
+`"v1"` and `"v2"` work too. Anything else raises `ValueError`, including `"1.0"` — the
+leading `v` is required.
+
+`patch_event_type` identifies the event type differently per version, and raises
+`ValueError` when the key it needs is absent from the payload:
+
+| Version | Key used | Resulting path |
+|---|---|---|
+| `v1.0` | `event_type["id"]` | `activity/events/eventtypes/{id}` |
+| `v2.0` | `event_type["value"]` (slug) | `activity/eventtypes/{value}` |
+
+Caveat: the async client's `patch_event_type` reads `event_type["value"]` regardless of
+version (for logging), so on `AsyncERClient` a `v1.0` payload must include `value` as
+well as `id` — a payload without `value` raises `KeyError` there, not `ValueError`.
+
 ## Common method signatures (reference)
 
 * **Events:**  
