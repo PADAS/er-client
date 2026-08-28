@@ -50,6 +50,22 @@ def parse_retry_after_header(value):
         return None
 
 
+def normalize_service_root(raw_service_root):
+    """Reduce a service root to the site origin the rest of the library builds URLs from.
+
+    Callers hand us anything from a bare origin to a full API root, so strip a
+    trailing /api or /api/<version> segment: without this, _api_root would go on
+    to produce .../api/api/v1.0. Returns scheme+netloc plus whatever path
+    preceded /api, with no trailing slash.
+    """
+    parsed = urlparse(raw_service_root or "")
+    path = parsed.path.rstrip("/")
+    api_match = re.search(r'/api(/|$)', path)
+    if api_match:
+        path = path[:api_match.start()].rstrip("/")
+    return urlunparse((parsed.scheme, parsed.netloc, path, "", "", "")).rstrip("/")
+
+
 def linkify(url, params):
     p = ['='.join((str(x), str(y))) for x, y in params.items()]
     p = '&'.join(p)
@@ -96,15 +112,7 @@ class ERClient(object):
         self._http_session = None
         self.max_retries = kwargs.get('max_http_retries', 5)
 
-        raw_service_root = kwargs.get('service_root') or ""
-        # Normalize via urlparse: if path contains /api (e.g. /api or /api/v1.0), keep only scheme+netloc+path before /api.
-        parsed = urlparse(raw_service_root)
-        path = parsed.path.rstrip("/")
-        api_match = re.search(r'/api(/|$)', path)
-        if api_match:
-            path = path[:api_match.start()].rstrip("/")
-        self.service_root = urlunparse(
-            (parsed.scheme, parsed.netloc, path, "", "", "")).rstrip("/")
+        self.service_root = normalize_service_root(kwargs.get('service_root'))
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
@@ -1165,15 +1173,7 @@ class AsyncERClient(object):
         self.max_retries = kwargs.get(
             'max_http_retries', self.DEFAULT_CONNECTION_RETRIES)
 
-        raw_service_root = kwargs.get('service_root') or ""
-        # Normalize via urlparse: if path contains /api (e.g. /api or /api/v1.0), keep only scheme+netloc+path before /api.
-        parsed = urlparse(raw_service_root)
-        path = parsed.path.rstrip("/")
-        api_match = re.search(r'/api(/|$)', path)
-        if api_match:
-            path = path[:api_match.start()].rstrip("/")
-        self.service_root = urlunparse(
-            (parsed.scheme, parsed.netloc, path, "", "", "")).rstrip("/")
+        self.service_root = normalize_service_root(kwargs.get('service_root'))
         self.client_id = kwargs.get('client_id')
         self.provider_key = kwargs.get('provider_key')
 
