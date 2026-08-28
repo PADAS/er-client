@@ -148,10 +148,10 @@ asyncio.run(main())
 
 The async client currently supports:
 
-* **Post:** Sensor observations (positions), events/reports, event attachments, camera trap reports, messages; event type/category CRUD; adding subjects to a subject group.
+* **Post:** Sensor observations (positions), events/reports, event attachments, camera trap reports, messages, event types, event categories; adding subjects to a subject group.
 * **Get:** Events, single event, event types, event categories, observations, subject groups, subject sources, feature groups, sources (by manufacturer id), source assignments (subjectsources), user/me.
 * **Patch:** Events, reports, subjects, event types, event categories.
-* **Delete:** Events, event files, event notes, subjects, sources.
+* **Delete:** Events, event files, event notes, subjects, sources. Neither client can delete event types or event categories.
 * **Relationships:** Adding/removing events to and from incidents; removing subjects from a subject group.
 
 For the full sync surface (e.g. patrols, tracking data export, multithreaded bulk), use `ERClient`.
