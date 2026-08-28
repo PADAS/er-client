@@ -5,6 +5,22 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["erclient"]
 
+# Without this, hatchling's sdist default is "every file git doesn't ignore",
+# which sweeps in repo scaffolding nobody installing the package needs
+# (.github/, .vscode/, .pre-commit-config.yaml, .isort.cfg, uv.lock, uv.toml,
+# *.nix) plus any untracked file sitting in the working tree at build time.
+#
+# The list below is everything we ship beyond the metadata: pyproject.toml,
+# .gitignore, PKG-INFO, the readme, and license-files are force-included by
+# hatchling whatever it says, so they don't need naming. tests/ is here so the
+# suite is runnable from a published sdist — see the respx floor note under
+# [project.optional-dependencies].
+[tool.hatch.build.targets.sdist]
+include = [
+    "erclient/",
+    "tests/",
+]
+
 [project]
 name = "earthranger-client"
 dynamic = ["version"]
