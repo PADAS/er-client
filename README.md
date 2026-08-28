@@ -32,7 +32,7 @@ pip install earthranger-client
 | Scripts, notebooks, one-off jobs | `ERClient` (sync) | Blocking calls; no event loop. |
 | Asyncio apps (e.g. web servers, async pipelines) | `AsyncERClient` (async) | Use `async with` or call `close()` when done. |
 
-Both clients share the same constructor arguments. The async client supports a subset of the sync client's endpoints (see "Async client scope" below).
+Both clients take the same constructor arguments, apart from two async-only timeouts (see "Constructor arguments" below). The async client supports a subset of the sync client's endpoints (see "Async client scope" below).
 
 ## Sync client (ERClient)
 
@@ -156,10 +156,29 @@ The async client currently supports:
 
 For the full sync surface (e.g. patrols, tracking data export, multithreaded bulk), use `ERClient`.
 
-## Common method signatures (reference)
+## Constructor arguments
 
-* **Constructor:** `ERClient(service_root, client_id=None, username=None, password=None, token=None, provider_key=None, ...)`  
-  Same for `AsyncERClient`. Use `token` or `client_id`+`username`+`password`. Set `provider_key` when posting sensor/camera-trap data.
+Both clients are declared as `__init__(self, **kwargs)`, so **every argument is
+keyword-only** — `ERClient("https://sandbox.pamdas.org")` raises `TypeError`.
+Unrecognised keywords are silently ignored rather than rejected, so a typo such as
+`provider_ke=` leaves `provider_key` unset with no error.
+
+| Argument | Default | Notes |
+|---|---|---|
+| `service_root` | `None` | Base URL, e.g. `https://sandbox.pamdas.org`. A full API root is also accepted: any `/api/...` suffix is stripped, so passing `.../api/v2.0` does **not** select v2.0. |
+| `client_id` | `None` | Required for username/password auth. |
+| `username`, `password` | `None` | Use together with `client_id`, or pass `token` instead. |
+| `token` | `None` | Bearer token. Skips the OAuth2 password grant entirely. |
+| `provider_key` | `None` | Required for sensor and camera-trap posts; it becomes a path segment. |
+| `token_url` | `{service_root}/oauth2/token` | Override only if the auth endpoint differs. |
+| `max_http_retries` | `5` | Connection-level retries. **Effective on async only** — the sync client accepts and stores it but never uses it; sync retry behavior is fixed (5 session-level retries on 502, plus per-request retries in GETs). |
+| `realtime_url` | `None` | Accepted and stored, but unused by this library. |
+| `connect_timeout` | `3.1` | Seconds. **Async only.** |
+| `data_timeout` | `20` | Seconds. **Async only.** |
+
+Use either `token`, or `client_id` + `username` + `password`.
+
+## Common method signatures (reference)
 
 * **Events:**  
   `get_events(*, filter, page_size, max_results, ...)` → sync: generator; async: async generator.  
