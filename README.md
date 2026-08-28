@@ -47,6 +47,7 @@ client = ERClient(
     client_id="example_client_id",
     username="your_username",
     password="your_password",
+    provider_key="your_provider_key",  # only needed for sensor / camera-trap posts
 )
 # Or with a bearer token
 client = ERClient(service_root="https://sandbox.pamdas.org", token="your_bearer_token")
@@ -55,14 +56,22 @@ client = ERClient(service_root="https://sandbox.pamdas.org", token="your_bearer_
 Common patterns:
 
 ```python
+import json
 from datetime import datetime, timezone
 
 # Single item
 event = client.get_event(event_id="uuid")
 subject = client.get_subject(subject_id="uuid")
 
-# Paginated iteration (generators)
-for event in client.get_events(filter=..., max_results=100):
+# Paginated iteration (generators).
+# `filter` must be a JSON-encoded string, not a dict.
+event_filter = json.dumps({
+    "date_range": {
+        "lower": "2023-11-10T00:00:00-06:00",
+        "upper": "2023-11-11T00:00:00-06:00",
+    },
+})
+for event in client.get_events(filter=event_filter, max_results=100):
     ...
 for obs in client.get_observations(
     start=datetime(2023, 11, 10, tzinfo=timezone.utc),
@@ -71,7 +80,11 @@ for obs in client.get_observations(
     ...
 
 # Create / update
-new_event = client.post_report({"event_type": "...", "title": "...", "location": {...}, ...})
+new_event = client.post_report({
+    "event_type": "wildlife_sighting_rep",  # must match an event type in your ER site
+    "title": "A new event",
+    "location": {"latitude": 47.5978393, "longitude": -122.3308366},
+})
 client.post_sensor_observation(observation, sensor_type="generic")  # requires provider_key
 client.post_event_file(event_id, filepath="/path/to/file", comment="...")
 ```
@@ -84,6 +97,8 @@ Use an **async context manager** so the HTTP session is always closed:
 
 ```python
 import asyncio
+import json
+
 from erclient import AsyncERClient
 
 async def main():
@@ -92,13 +107,16 @@ async def main():
         client_id="example_client_id",
         username="your_username",
         password="your_password",
+        provider_key="your_provider_key",  # only needed for sensor / camera-trap posts
     ) as client:
         # Single-item calls: await
         event = await client.get_event(event_id="uuid")
         event_types = await client.get_event_types()
 
-        # Stream events or observations: async for
-        async for event in client.get_events(filter=..., page_size=100):
+        # Stream events or observations: async for.
+        # `filter` must be a JSON-encoded string, not a dict.
+        event_filter = json.dumps({"date_range": {"lower": "2023-11-10T00:00:00-06:00"}})
+        async for event in client.get_events(filter=event_filter, page_size=100):
             ...
         async for observation in client.get_observations(start="2023-11-10T00:00:00-06:00"):
             ...
@@ -114,13 +132,16 @@ asyncio.run(main())
 Without a context manager, create the client and call `await client.close()` when finished:
 
 ```python
-client = AsyncERClient(service_root="...", client_id="...", username="...", password="...")
-try:
-    await client.post_report(report)
-    async for obs in client.get_observations(start="2023-11-10T00:00:00-06:00"):
-        print(obs)
-finally:
-    await client.close()
+async def main():
+    client = AsyncERClient(service_root="...", client_id="...", username="...", password="...")
+    try:
+        await client.post_report(report)
+        async for obs in client.get_observations(start="2023-11-10T00:00:00-06:00"):
+            print(obs)
+    finally:
+        await client.close()
+
+asyncio.run(main())
 ```
 
 ### Async client scope
