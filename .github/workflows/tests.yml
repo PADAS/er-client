@@ -221,7 +221,7 @@ jobs:
         run: .venv/bin/python -m pytest tests -q
 
   sdist-install-check:
-    name: sdist builds and installs
+    name: sdist ships the right files, installs, and tests
     runs-on: ubuntu-latest
     needs: build
     steps:
@@ -238,6 +238,27 @@ jobs:
         with:
           name: dist
           path: dist/
+
+      # tool.hatch.build.targets.sdist in pyproject.toml keeps repo
+      # scaffolding out of the tarball. Assert the result rather than trusting
+      # the config: anything new at the top level is either a deliberate
+      # addition to that include list — in which case add it here too — or
+      # something that leaked back in. pyproject.toml, .gitignore, PKG-INFO,
+      # the readme and license-files are force-included by hatchling and
+      # cannot be dropped, so they are expected members.
+      - name: Check the sdist ships nothing unexpected
+        run: |
+          expected=$(printf '%s\n' \
+            .gitignore LICENSE PKG-INFO README.md pyproject.toml erclient tests \
+            | sort)
+          # Strip the version prefix directory, keep first path segments only.
+          actual=$(tar -tzf dist/*.tar.gz | sed 's|^[^/]*/||' | cut -d/ -f1 | grep . | sort -u)
+          unexpected=$(comm -13 <(echo "$expected") <(echo "$actual"))
+          if [ -n "$unexpected" ]; then
+            echo "::error::unexpected top-level entries in the sdist:"
+            echo "$unexpected"
+            exit 1
+          fi
 
       - name: Install uv
         uses: astral-sh/setup-uv@v10.0.1
@@ -257,3 +278,32 @@ jobs:
           from erclient.version import __version__
           print(f'earthranger-client {__version__} imports cleanly')
           "
+
+      # The include list is an allowlist, so its failure mode is shipping too
+      # little. install-check already runs the suite against the built
+      # distribution, but from the *checkout's* tests/ — so a tests/ missing
+      # from the sdist would pass there unnoticed. Unpack what we published
+      # and run the suite out of it, the way a distro repackager would.
+      #
+      # Note this deliberately exercises the sdist's own erclient/: cwd leads
+      # sys.path, so imports resolve to the unpacked source, not the install
+      # above. That is the property under test — the tarball standing alone as
+      # a complete source release.
+      - name: Unpack the sdist
+        run: |
+          mkdir -p "$RUNNER_TEMP/sdist"
+          tar -xzf dist/*.tar.gz -C "$RUNNER_TEMP/sdist" --strip-components=1
+
+      # Taken from the sdist's own [test] extra rather than a hand-written
+      # tool list, so a broken extra declaration fails here too. Unlike
+      # install-check this wants a plain resolution — proving the declared
+      # dependency floors hold is that job's business, not this one's.
+      - name: Install test tooling from the sdist's [test] extra
+        run: |
+          sdist=$(ls dist/*.tar.gz)  # build publishes exactly one
+          uv pip install "${sdist}[test]"
+
+      - name: Run the suite from the unpacked sdist
+        working-directory: ${{ runner.temp }}/sdist
+        run: |
+          "$GITHUB_WORKSPACE/.venv/bin/python" -m pytest tests -q
