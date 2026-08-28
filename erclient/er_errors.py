@@ -42,3 +42,12 @@ class ERClientServiceUnreachable(ERClientException):
 
 class ERClientNotFound(ERClientException):
     pass
+
+
+class ERClientDiscoveryError(ERClientException):
+    """A site's RFC 9728 protected-resource metadata could not be trusted or used.
+
+    Covers an unreachable or non-2xx discovery endpoint, a document we cannot
+    parse, and a document whose ``resource`` is not the origin we fetched it
+    from (RFC 9728 s3.3).
+    """
