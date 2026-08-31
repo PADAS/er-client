@@ -1,10 +1,14 @@
 name: Tests
 
+# `v2` is the long-lived integration branch for the 2.0 migration — a shadow
+# main that gets the same CI until the big-bang merge. Both branches list both
+# names so this trigger block stays identical on each and never has to be
+# merged; drop `v2` at the flip.
 on:
   push:
-    branches: [main]
+    branches: [main, v2]
   pull_request:
-    branches: [main]
+    branches: [main, v2]
 
 permissions:
   contents: read
@@ -22,7 +26,7 @@ jobs:
 
       # enable-cache: false everywhere. setup-uv caches by default from v5 on,
       # but its default key omits the matrix Python (it interpolates the
-      # runner's system Python), so all eleven jobs share one key: they race to
+      # runner's system Python), so every job shares one key: they race to
       # save it, and the winner's wheels get restored into jobs targeting a
       # different interpreter. Nothing is lost by skipping it — a cold
       # `uv sync` here resolves in well under a second.
@@ -47,12 +51,25 @@ jobs:
           enable-cache: false
           version-file: uv.toml
 
-      # .pre-commit-config.yaml pins default_language_version to python3.10,
-      # so that exact interpreter has to exist here or every `language: python`
-      # hook fails to build its environment. Keep this in step with the pin.
+      # .pre-commit-config.yaml pins default_language_version, and that exact
+      # interpreter has to exist here or every `language: python` hook fails to
+      # build its environment. Read the pin rather than restating it: the two
+      # drifting apart is a confusing failure, and main and v2 pin different
+      # interpreters, so neither copy of this file should have to know which.
+      - name: Read the pre-commit interpreter pin
+        id: precommit-python
+        run: |
+          version=$(sed -n 's/^[[:space:]]*python:[[:space:]]*python\([0-9][0-9.]*\)[[:space:]]*$/\1/p' .pre-commit-config.yaml)
+          if [ -z "$version" ]; then
+            echo "::error::could not read default_language_version.python from .pre-commit-config.yaml"
+            exit 1
+          fi
+          echo "Hooks run on Python $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.10'
+          python-version: ${{ steps.precommit-python.outputs.version }}
 
       # pre-commit comes from the locked dev group rather than a bare install,
       # so CI runs the same version the lockfile gives everyone else.
@@ -66,6 +83,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # Keep in step with the Programming Language :: Python classifiers and
+      # requires-python in pyproject.toml -- this list is what proves them.
+      #
+      # v2 narrows it to 3.11+ along with the floor, so this is the one line in
+      # this file that legitimately differs between the branches, and a sync
+      # merge conflicts here only if main also changes it (adding 3.15, say).
+      # Resolve toward v2's floor, keeping any version main added at the top;
+      # never take main's lower bound onto v2. Getting that wrong is loud, not
+      # silent -- uv refuses to sync a >=3.11 project into an older venv.
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
