@@ -18,7 +18,8 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from .api_paths import (DEFAULT_VERSION, VERSION_2_0, event_type_detail_path,
+from .api_paths import (DEFAULT_VERSION, VERSION_2_0,
+                        event_type_delete_path, event_type_detail_path,
                         event_types_list_path, event_types_patch_path,
                         normalize_version)
 from .er_errors import (ERClientBadCredentials, ERClientBadRequest,
@@ -329,16 +330,16 @@ class ERClient(object):
         result = self._delete(
             f'activity/event/{incident_id}/relationship/{relationship_type}/{event_id}/')
 
-    def _delete(self, path):
+    def _delete(self, path, base_url=None):
 
         headers = {'User-Agent': self.user_agent}
         headers.update(self.auth_headers())
 
+        url = self._er_url(path, base_url)
         if (self._http_session):
-            response = self._http_session.delete(
-                self._er_url(path), headers=headers)
+            response = self._http_session.delete(url, headers=headers)
         else:
-            response = requests.delete(self._er_url(path), headers=headers)
+            response = requests.delete(url, headers=headers)
 
         if response.ok:
             return True
@@ -354,6 +355,15 @@ class ERClient(object):
             except:
                 reason = 'unknown reason'
             raise ERClientPermissionDenied(reason)
+
+        if response.status_code == 409:  # conflict
+            try:
+                detail = json.loads(response.text).get('detail', response.text)
+            except Exception:
+                detail = response.text
+            raise ERClientException(
+                f'Cannot delete: {detail}',
+            )
 
         raise ERClientException(
             f'Failed to delete: {response.status_code} {response.text}')
@@ -578,6 +588,28 @@ class ERClient(object):
         base_url = self._api_root(version)
         result = self._post(path, payload=event_type, base_url=base_url)
         self.logger.debug('Result of event type post is: %s', result)
+        return result
+
+    def delete_event_type(self, value, version=VERSION_2_0):
+        """
+        Delete an event type by its slug (value).
+
+        The das server returns 204 No Content on success, or 409 Conflict if
+        the event type has associated events or alert rules.
+
+        :param value: The event type slug/value (e.g. "immobility_rep").
+        :param version: API version segment. Defaults to v2.0 because the
+            destroy action is primarily supported on the v2 endpoint.
+        :returns: True on successful deletion.
+        :raises ERClientNotFound: If the event type does not exist.
+        :raises ERClientException: If the server returns 409 Conflict (event
+            type is in use) or another error.
+        """
+        self.logger.debug('Deleting event type: %s (version %s)', value, version)
+        path = event_type_delete_path(version, value)
+        base_url = self._api_root(version)
+        result = self._delete(path, base_url=base_url)
+        self.logger.debug('Result of event type delete: %s', result)
         return result
 
     def post_report(self, data):
@@ -1679,6 +1711,28 @@ class AsyncERClient(object):
         # self.logger.debug('Result of event type patch is: %s', result)
         return result
 
+    async def delete_event_type(self, value, version=VERSION_2_0):
+        """
+        Delete an event type by its slug (value).
+
+        The das server returns 204 No Content on success, or 409 Conflict if
+        the event type has associated events or alert rules.
+
+        :param value: The event type slug/value (e.g. "immobility_rep").
+        :param version: API version segment. Defaults to v2.0 because the
+            destroy action is primarily supported on the v2 endpoint.
+        :returns: True on successful deletion.
+        :raises ERClientNotFound: If the event type does not exist.
+        :raises ERClientException: If the server returns 409 Conflict (event
+            type is in use) or another error.
+        """
+        self.logger.debug('Deleting event type: %s (version %s)', value, version)
+        path = event_type_delete_path(version, value)
+        base_url = self._api_root(version)
+        result = await self._delete(path, base_url=base_url)
+        self.logger.debug('Result of event type delete: %s', result)
+        return result
+
     async def get_subjectgroups(
             self,
             include_inactive=False,
@@ -1813,7 +1867,6 @@ class AsyncERClient(object):
             raise ERClientPermissionDenied(reason)
         raise ERClientException(
             f'Failed to get file: {response.status_code} {response.text}')
-
     async def _post(self, path, payload, params=None, base_url=None):
         return await self._call(path, payload, "POST", params, base_url=base_url)
 
