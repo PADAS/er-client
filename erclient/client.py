@@ -21,6 +21,7 @@ from urllib3.util.retry import Retry
 from .api_paths import (DEFAULT_VERSION, VERSION_2_0, event_type_detail_path,
                         event_types_list_path, event_types_patch_path,
                         normalize_version)
+from .discovery import discovery_url, parse_protected_resource_metadata
 from .er_errors import (AuthError, ERClientBadCredentials, ERClientBadRequest,
                         ERClientException, ERClientInternalError,
                         ERClientNotFound, ERClientPermissionDenied,
@@ -29,6 +30,10 @@ from .er_errors import (AuthError, ERClientBadCredentials, ERClientBadRequest,
 from .version import __version__
 
 version_string = __version__
+
+# Discovery is advisory, so it gets its own short deadline rather than the
+# client's configured API timeouts.
+DISCOVERY_TIMEOUT_SECONDS = 5
 
 
 def parse_retry_after_header(value):
@@ -90,6 +95,8 @@ class ERClient(object):
 
         :param max_http_retries: number of retries, default is 5
 
+        :param discovery: Optional. Whether to fetch the site's RFC 9728 protected-resource metadata on the paths that decide auth. Default True. Pass False to keep the client off the network except for the calls you make yourself; discover() still works.
+
         """
 
         self.auth = None
@@ -97,6 +104,9 @@ class ERClient(object):
         self._last_auth_error = None
         self._http_session = None
         self.max_retries = kwargs.get('max_http_retries', 5)
+
+        self._discovery_enabled = kwargs.get('discovery', True)
+        self._protected_resource_metadata = None
 
         raw_service_root = kwargs.get('service_root') or ""
         # Normalize via urlparse: if path contains /api (e.g. /api or /api/v1.0), keep only scheme+netloc+path before /api.
@@ -140,6 +150,52 @@ class ERClient(object):
         next successful token request.
         """
         return self._last_auth_error
+
+    @property
+    def protected_resource_metadata(self):
+        """What the most recent ``discover()`` found, or None."""
+        return self._protected_resource_metadata
+
+    def discover(self):
+        """Fetch the site's RFC 9728 protected-resource metadata.
+
+        Returns the metadata and stores it on the client, or returns None if
+        the site does not serve a usable document. Never raises: discovery is
+        advisory, so an unreachable or silent endpoint must not stand between
+        a caller and a login.
+
+        Deliberately not routed through ``self._http_session``, whose retry
+        policy would spend up to twenty seconds backing off a 502 before a
+        login could proceed, for a read we are prepared to do without.
+        """
+        url = discovery_url(self.service_root)
+        if url is None:
+            self._protected_resource_metadata = None
+            return None
+
+        try:
+            response = requests.get(
+                url,
+                headers={'User-Agent': self.user_agent,
+                         'Accept': 'application/json'},
+                timeout=DISCOVERY_TIMEOUT_SECONDS,
+            )
+        except requests.RequestException as e:
+            self.logger.debug('Discovery fetch failed for %s: %s', url, e)
+            self._protected_resource_metadata = None
+            return None
+
+        metadata = None
+        if response.ok:
+            metadata = parse_protected_resource_metadata(
+                response.text, self.service_root)
+        if metadata is None:
+            self.logger.debug(
+                'No usable protected-resource metadata at %s (status %s)',
+                url, response.status_code)
+
+        self._protected_resource_metadata = metadata
+        return metadata
 
     def _auth_is_valid(self):
         return self.auth_expires > datetime.now(tz=timezone.utc)
