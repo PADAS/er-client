@@ -13,6 +13,7 @@ import httpx
 import pytest
 import pytz
 import respx
+from tests.auth.respx_helpers import mock_discovery
 
 from erclient.er_errors import ERClientBadCredentials, ERClientBadRequest
 
@@ -36,6 +37,7 @@ class TestLastAuthError:
         client = async_client_factory(**ropc_kwargs)
 
         async with respx.mock as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
             respx_mock.post(default_token_url).return_value = httpx.Response(
                 400, json=body
             )
@@ -63,6 +65,7 @@ class TestLastAuthError:
         client = async_client_factory(**ropc_kwargs)
 
         async with respx.mock as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
             token_route = respx_mock.post(default_token_url)
             token_route.side_effect = [
                 httpx.Response(200, json=token_response_factory()),
@@ -87,6 +90,7 @@ class TestLastAuthError:
         client = async_client_factory(**ropc_kwargs)
 
         async with respx.mock as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
             token_route = respx_mock.post(default_token_url)
             token_route.side_effect = [
                 httpx.Response(400, json={"error": "invalid_grant"}),
@@ -113,6 +117,7 @@ class TestLastAuthError:
         client = async_client_factory(**ropc_kwargs)
 
         async with respx.mock as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
             respx_mock.post(default_token_url).return_value = httpx.Response(
                 200, json=token_response_factory(refresh_token=None)
             )
@@ -154,6 +159,7 @@ class TestWrappersRaiseTheClassifiedError:
         }
 
         async with respx.mock(assert_all_called=False) as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
             respx_mock.post(default_token_url).return_value = httpx.Response(
                 400, json=body
             )
@@ -181,6 +187,7 @@ class TestWrappersRaiseTheClassifiedError:
         client = async_client_factory(**ropc_kwargs)
 
         async with respx.mock(assert_all_called=False) as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
             respx_mock.post(default_token_url).return_value = httpx.Response(
                 400, json={"error": "invalid_grant"}
             )
@@ -203,6 +210,7 @@ class TestWrappersRaiseTheClassifiedError:
         client = async_client_factory(**ropc_kwargs)
 
         async with respx.mock(assert_all_called=False) as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
             respx_mock.post(default_token_url).return_value = httpx.Response(
                 400, json={"error_description": "no good"}
             )
@@ -221,6 +229,7 @@ class TestWrappersRaiseTheClassifiedError:
         client = async_client_factory(**ropc_kwargs)
 
         async with respx.mock(assert_all_called=False) as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
             respx_mock.post(default_token_url).return_value = httpx.Response(
                 400, json={"error": "invalid_grant"}
             )
@@ -247,6 +256,7 @@ class TestWrappersRaiseTheClassifiedError:
         client = async_client_factory(**ropc_kwargs)
 
         async with respx.mock(assert_all_called=False) as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
             token_route = respx_mock.post(default_token_url)
             token_route.side_effect = [
                 httpx.Response(200, json=token_response_factory()),
@@ -284,6 +294,7 @@ class TestWrappersRaiseTheClassifiedError:
         client = async_client_factory(**ropc_kwargs)
 
         async with respx.mock as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
             token_route = respx_mock.post(default_token_url)
             token_route.side_effect = [
                 httpx.Response(200, json=token_response_factory()),

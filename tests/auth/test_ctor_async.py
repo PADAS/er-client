@@ -15,6 +15,7 @@ import httpx
 import pytest
 import pytz
 import respx
+from tests.auth.respx_helpers import mock_discovery
 
 from erclient.client import AsyncERClient
 from erclient.er_errors import (ERClientBadCredentials, ERClientBadRequest,
@@ -157,6 +158,7 @@ class TestPreAcquiredToken:
         client = async_client_factory(**token_kwargs)
 
         async with respx.mock(assert_all_called=False) as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
             token_route = respx_mock.post(default_token_url)
 
             headers = await client.auth_headers()
@@ -175,6 +177,7 @@ class TestPreAcquiredToken:
         client = async_client_factory(**token_kwargs)
 
         async with respx.mock(assert_all_called=False) as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
             token_route = respx_mock.post(default_token_url)
 
             for _ in range(3):
@@ -190,6 +193,7 @@ class TestPreAcquiredToken:
         client = async_client_factory(**{**ropc_kwargs, **token_kwargs})
 
         async with respx.mock(assert_all_called=False) as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
             token_route = respx_mock.post(default_token_url)
 
             headers = await client.auth_headers()
@@ -228,6 +232,7 @@ class TestPreAcquiredToken:
         client = async_client_factory(**token_kwargs)
 
         async with respx.mock(assert_all_called=False) as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
             token_route = respx_mock.post(default_token_url)
             me_route = respx_mock.get(f"{client._api_root('v1.0')}/user/me")
             me_route.return_value = httpx.Response(
@@ -268,6 +273,7 @@ class TestPasswordGrant:
             client = async_client_factory(**ropc_kwargs)
 
             async with respx.mock as respx_mock:
+                mock_discovery(respx_mock, client.service_root)
                 token_route = respx_mock.post(default_token_url)
                 token_route.return_value = httpx.Response(
                     200, json=token_response)
@@ -303,6 +309,7 @@ class TestPasswordGrant:
             client = async_client_factory(**ropc_kwargs)
 
             async with respx.mock as respx_mock:
+                mock_discovery(respx_mock, client.service_root)
                 respx_mock.post(default_token_url).return_value = httpx.Response(
                     200, json=body
                 )
@@ -327,6 +334,7 @@ class TestPasswordGrant:
             client = async_client_factory(**ropc_kwargs)
 
             async with respx.mock as respx_mock:
+                mock_discovery(respx_mock, client.service_root)
                 respx_mock.post(default_token_url).return_value = httpx.Response(
                     200, json=body
                 )
@@ -347,6 +355,7 @@ class TestPasswordGrant:
             client = async_client_factory(**ropc_kwargs)
 
             async with respx.mock as respx_mock:
+                mock_discovery(respx_mock, client.service_root)
                 respx_mock.post(default_token_url).return_value = httpx.Response(
                     200, json=token_response
                 )
@@ -395,6 +404,7 @@ class TestPasswordGrant:
             client = async_client_factory(**ropc_kwargs)
 
             async with respx.mock as respx_mock:
+                mock_discovery(respx_mock, client.service_root)
                 token_route = respx_mock.post(default_token_url)
                 token_route.return_value = httpx.Response(
                     200, json=token_response)
@@ -416,6 +426,7 @@ class TestPasswordGrant:
             client = async_client_factory(**ropc_kwargs)
 
             async with respx.mock as respx_mock:
+                mock_discovery(respx_mock, client.service_root)
                 token_route = respx_mock.post(default_token_url)
                 token_route.side_effect = [
                     httpx.Response(200, json=token_response_factory()),
@@ -456,6 +467,7 @@ class TestPasswordGrant:
             client = async_client_factory(**ropc_kwargs)
 
             async with respx.mock as respx_mock:
+                mock_discovery(respx_mock, client.service_root)
                 token_route = respx_mock.post(default_token_url)
                 token_route.side_effect = [
                     httpx.Response(200, json=token_response_factory()),
@@ -491,6 +503,7 @@ class TestPasswordGrant:
             client = async_client_factory(**ropc_kwargs)
 
             async with respx.mock as respx_mock:
+                mock_discovery(respx_mock, client.service_root)
                 token_route = respx_mock.post(default_token_url)
                 token_route.side_effect = [
                     httpx.Response(
@@ -530,6 +543,7 @@ class TestPasswordGrant:
             client = async_client_factory(**ropc_kwargs)
 
             async with respx.mock as respx_mock:
+                mock_discovery(respx_mock, client.service_root)
                 token_route = respx_mock.post(default_token_url)
                 token_route.return_value = httpx.Response(200, json=body)
 
@@ -562,6 +576,7 @@ class TestPasswordGrant:
             client = async_client_factory(**ropc_kwargs)
 
             async with respx.mock as respx_mock:
+                mock_discovery(respx_mock, client.service_root)
                 respx_mock.post(default_token_url).return_value = httpx.Response(
                     401, json={"error": "invalid_grant"}
                 )
@@ -599,6 +614,7 @@ class TestPasswordGrant:
             client = async_client_factory(**ropc_kwargs)
 
             async with respx.mock(assert_all_called=False) as respx_mock:
+                mock_discovery(respx_mock, client.service_root)
                 respx_mock.post(default_token_url).return_value = httpx.Response(
                     status_code, json={"error_description": "no good"}
                 )
@@ -622,6 +638,7 @@ class TestPasswordGrant:
             client = async_client_factory(**ropc_kwargs)
 
             async with respx.mock as respx_mock:
+                mock_discovery(respx_mock, client.service_root)
                 respx_mock.post(default_token_url).return_value = httpx.Response(
                     401, json={"error_description": "no good"}
                 )
@@ -648,6 +665,7 @@ class TestCustomTokenUrl:
             **ropc_kwargs, token_url=custom_token_url)
 
         async with respx.mock(assert_all_called=False) as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
             default_route = respx_mock.post(default_token_url)
             custom_route = respx_mock.post(custom_token_url)
             custom_route.return_value = httpx.Response(
@@ -674,6 +692,7 @@ class TestCustomTokenUrl:
             **token_kwargs, token_url=custom_token_url)
 
         async with respx.mock(assert_all_called=False) as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
             custom_route = respx_mock.post(custom_token_url)
 
             await client.auth_headers()
@@ -698,6 +717,7 @@ class TestNoCredentials:
         client = async_client_factory(service_root=service_root)
 
         async with respx.mock as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
             token_route = respx_mock.post(default_token_url)
             token_route.return_value = httpx.Response(
                 400, json={"error": "invalid_request"}

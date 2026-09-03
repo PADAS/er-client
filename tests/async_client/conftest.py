@@ -15,6 +15,12 @@ def er_server_info():
         "token_url": "https://fake-auth.erdomain.org/oauth2/token",
         "client_id": "das_web_client",
         "provider_key": "testintegration",
+        # These tests are about the API methods, not about auth. Every one of
+        # them hands the client a token, and the first auth_headers() call
+        # would otherwise ask the site for its discovery document — traffic
+        # each test's respx router would have to mock to no purpose.
+        # tests/auth covers what discovery does.
+        "discovery": False,
     }
 
 
