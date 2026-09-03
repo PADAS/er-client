@@ -1,7 +1,9 @@
 """Characterization tests for AsyncERClient construction and its lazy auth paths.
 
-No source changes: every assertion here describes behavior on the current
-implementation, including the warts flagged with `# wart:` comments.
+Every assertion here describes behavior on the current implementation, warts
+included. A wart that is still locked in carries a `# wart:` comment; when a
+later step fixes one, the assertion is flipped in the same commit as the source
+change, so the change is deliberate rather than a surprise failure.
 
 The async client raises ``httpx.HTTPStatusError`` out of its token requests
 rather than returning a bool, so its failure behavior diverges from the sync
@@ -478,28 +480,66 @@ class TestPasswordGrant:
             assert client.auth_expires == pytz.utc.localize(datetime.min)
 
         @pytest.mark.asyncio
-        async def test_missing_refresh_token_raises_key_error(
+        async def test_missing_refresh_token_goes_straight_to_a_password_grant(
             self,
             ropc_kwargs,
             default_token_url,
             token_response_factory,
             async_client_factory,
         ):
-            """A token response without refresh_token blows up at the next expiry."""
+            """With no refresh token to send, expiry re-runs login() instead."""
+            client = async_client_factory(**ropc_kwargs)
+
+            async with respx.mock as respx_mock:
+                token_route = respx_mock.post(default_token_url)
+                token_route.side_effect = [
+                    httpx.Response(
+                        200, json=token_response_factory(refresh_token=None)
+                    ),
+                    httpx.Response(
+                        200,
+                        json=token_response_factory(
+                            access_token="access-token-2", refresh_token=None
+                        ),
+                    ),
+                ]
+
+                await client.auth_headers()
+                client.auth_expires = pytz.utc.localize(datetime.min)
+                headers = await client.auth_headers()
+
+                assert token_route.call_count == 2
+                grant_types = [
+                    dict(httpx.QueryParams(
+                        call.request.content.decode()))["grant_type"]
+                    for call in token_route.calls
+                ]
+                assert grant_types == ["password", "password"]
+                assert headers["Authorization"] == "Bearer access-token-2"
+
+        @pytest.mark.asyncio
+        async def test_refresh_token_without_one_returns_false_and_sends_nothing(
+            self,
+            ropc_kwargs,
+            default_token_url,
+            token_response_factory,
+            async_client_factory,
+        ):
+            """Called directly, refresh_token() reports the obvious rather than raising."""
             body = token_response_factory(refresh_token=None)
             client = async_client_factory(**ropc_kwargs)
 
             async with respx.mock as respx_mock:
-                respx_mock.post(default_token_url).return_value = httpx.Response(
-                    200, json=body
-                )
+                token_route = respx_mock.post(default_token_url)
+                token_route.return_value = httpx.Response(200, json=body)
 
-                await client.auth_headers()
-                client.auth_expires = pytz.utc.localize(datetime.min)
+                await client.login()
 
-                # wart: refresh_token() reads self.auth['refresh_token'] unguarded
-                with pytest.raises(KeyError, match="refresh_token"):
-                    await client.auth_headers()
+                assert await client.refresh_token() is False
+                assert token_route.call_count == 1  # only the login
+
+            # The still-usable token is left alone.
+            assert client.auth == body
 
         def test_auth_is_valid_tracks_the_recorded_expiry(
             self, token_kwargs, async_client_factory

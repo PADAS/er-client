@@ -1,7 +1,9 @@
 """Characterization tests for ERClient construction and its lazy auth paths.
 
-No source changes: every assertion here describes behavior on the current
-implementation, including the warts flagged with `# wart:` comments.
+Every assertion here describes behavior on the current implementation, warts
+included. A wart that is still locked in carries a `# wart:` comment; when a
+later step fixes one, the assertion is flipped in the same commit as the source
+change, so the change is deliberate rather than a surprise failure.
 
 The sync client's token requests go through the *module-level* ``requests.post``
 (not ``self._http_session``), so these tests patch ``erclient.client.requests.post``.
@@ -402,23 +404,55 @@ class TestPasswordGrant:
                     "password", "refresh_token", "password"]
                 assert headers["Authorization"] == "Bearer access-token-3"
 
-        def test_missing_refresh_token_raises_key_error(
+        def test_missing_refresh_token_goes_straight_to_a_password_grant(
             self, ropc_kwargs, token_response_factory, make_requests_response
         ):
-            """A token response without refresh_token blows up at the next expiry."""
+            """With no refresh token to send, expiry re-runs login() instead."""
+            body = token_response_factory(refresh_token=None)
+            client = ERClient(**ropc_kwargs)
+            responses = [
+                make_requests_response(200, json_data=body),
+                make_requests_response(
+                    200,
+                    json_data=token_response_factory(
+                        access_token="access-token-2", refresh_token=None
+                    ),
+                ),
+            ]
+
+            with patch(
+                "erclient.client.requests.post", side_effect=responses
+            ) as mock_post:
+                client.auth_headers()
+                client.auth_expires = pytz.utc.localize(datetime.min)
+                headers = client.auth_headers()
+
+            grant_types = [
+                call.kwargs["data"]["grant_type"]
+                for call in mock_post.call_args_list
+            ]
+            assert grant_types == ["password", "password"]
+            assert headers["Authorization"] == "Bearer access-token-2"
+
+        def test_refresh_token_without_one_returns_false_and_sends_nothing(
+            self, ropc_kwargs, token_response_factory, make_requests_response
+        ):
+            """Called directly, refresh_token() reports the obvious rather than raising."""
             body = token_response_factory(refresh_token=None)
             client = ERClient(**ropc_kwargs)
 
             with patch(
                 "erclient.client.requests.post",
                 return_value=make_requests_response(200, json_data=body),
-            ):
-                client.auth_headers()
-                client.auth_expires = pytz.utc.localize(datetime.min)
+            ) as mock_post:
+                client.login()
+                mock_post.reset_mock()
 
-                # wart: refresh_token() reads self.auth['refresh_token'] unguarded
-                with pytest.raises(KeyError, match="refresh_token"):
-                    client.auth_headers()
+                assert client.refresh_token() is False
+                assert not mock_post.called
+
+            # The still-usable token is left alone.
+            assert client.auth == body
 
         def test_auth_is_valid_tracks_the_recorded_expiry(self, token_kwargs):
             """_auth_is_valid is a pure comparison against auth_expires."""
