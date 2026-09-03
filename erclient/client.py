@@ -21,10 +21,11 @@ from urllib3.util.retry import Retry
 from .api_paths import (DEFAULT_VERSION, VERSION_2_0, event_type_detail_path,
                         event_types_list_path, event_types_patch_path,
                         normalize_version)
-from .er_errors import (ERClientBadCredentials, ERClientBadRequest,
+from .er_errors import (AuthError, ERClientBadCredentials, ERClientBadRequest,
                         ERClientException, ERClientInternalError,
                         ERClientNotFound, ERClientPermissionDenied,
-                        ERClientRateLimitExceeded, ERClientServiceUnreachable)
+                        ERClientRateLimitExceeded, ERClientServiceUnreachable,
+                        classify_token_error)
 from .version import __version__
 
 version_string = __version__
@@ -93,6 +94,7 @@ class ERClient(object):
 
         self.auth = None
         self.auth_expires = pytz.utc.localize(datetime.min)
+        self._last_auth_error = None
         self._http_session = None
         self.max_retries = kwargs.get('max_http_retries', 5)
 
@@ -129,6 +131,16 @@ class ERClient(object):
         self._http_session.mount("http", HTTPAdapter(max_retries=retries))
         self._http_session.mount("https", HTTPAdapter(max_retries=retries))
 
+    @property
+    def last_auth_error(self):
+        """Why the token endpoint last refused us, or None if it has not.
+
+        ``login()`` and ``refresh_token()`` only return a bool, so this is
+        where a caller checking credentials reads the reason. Cleared by the
+        next successful token request.
+        """
+        return self._last_auth_error
+
     def _auth_is_valid(self):
         return self.auth_expires > datetime.now(tz=timezone.utc)
 
@@ -138,14 +150,23 @@ class ERClient(object):
             if not self._auth_is_valid():
                 if not self.auth.get('refresh_token') or not self.refresh_token():
                     if not self.login():
-                        raise ERClientException('Login failed.')
+                        self._raise_login_failed()
         else:
             if not self.login():
-                raise ERClientException('Login failed.')
+                self._raise_login_failed()
 
         return {'Authorization': '{} {}'.format(self.auth['token_type'],
                                                 self.auth['access_token']),
                 'Accept-Type': 'application/json'}
+
+    def _raise_login_failed(self):
+        """Raise the exception class the token endpoint's refusal implies."""
+        auth_error = self._last_auth_error
+        raise classify_token_error(auth_error)(
+            message='Login failed.',
+            status_code=auth_error.status_code if auth_error else None,
+            response_body=auth_error.response_body if auth_error else None,
+        )
 
     def refresh_token(self):
         refresh_token = (self.auth or {}).get('refresh_token')
@@ -175,8 +196,17 @@ class ERClient(object):
             expires_in = int(self.auth['expires_in']) - 5 * 60
             self.auth_expires = datetime.now(
                 tz=timezone.utc) + timedelta(seconds=expires_in)
+            self._last_auth_error = None
             return True
 
+        # login() and refresh_token() only return a bool, so keep the reason
+        # for the caller (and for auth_headers(), which classifies it).
+        self._last_auth_error = AuthError.from_token_response(
+            status_code=response.status_code,
+            response_body=response.text,
+            url=self.token_url,
+            grant_type=payload.get('grant_type'),
+        )
         self.auth = None
         self.auth_expires = pytz.utc.localize(datetime.min)
         return False

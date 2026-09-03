@@ -8,6 +8,7 @@ change, so the change is deliberate rather than a surprise failure.
 The sync client's token requests go through the *module-level* ``requests.post``
 (not ``self._http_session``), so these tests patch ``erclient.client.requests.post``.
 """
+import json
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
@@ -16,7 +17,8 @@ import pytz
 import requests
 
 from erclient.client import ERClient
-from erclient.er_errors import ERClientBadCredentials, ERClientException
+from erclient.er_errors import (ERClientBadCredentials, ERClientBadRequest,
+                                ERClientException, ERClientInternalError)
 from erclient.version import __version__
 
 
@@ -465,19 +467,18 @@ class TestPasswordGrant:
 
     class TestFailures:
 
-        def test_refresh_and_login_both_failing_raises_login_failed(
+        def test_refresh_and_login_both_failing_raises_the_classified_error(
             self, ropc_kwargs, token_response_factory, make_requests_response
         ):
-            """When both grants fail the client resets and raises a bare "Login failed."."""
+            """When both grants fail the client resets and describes the refusal."""
             client = ERClient(**ropc_kwargs)
+            login_failure_body = {"error_description": "wrong password"}
             responses = [
                 make_requests_response(
                     200, json_data=token_response_factory()),
                 make_requests_response(
                     401, json_data={"error": "invalid_grant"}),
-                make_requests_response(
-                    400, json_data={"error_description": "wrong password"}
-                ),
+                make_requests_response(400, json_data=login_failure_body),
             ]
 
             with patch("erclient.client.requests.post", side_effect=responses):
@@ -487,37 +488,48 @@ class TestPasswordGrant:
                 with pytest.raises(ERClientException) as exc_info:
                     client.auth_headers()
 
-            # wart: the token endpoint's error body is discarded entirely
-            assert str(exc_info.value) == "Login failed."
+            # The login failure is what is reported, not the earlier refresh.
+            # This body carries no OAuth error code, so the 400 classifies it.
+            assert type(exc_info.value) is ERClientBadRequest
+            assert exc_info.value.status_code == 400
+            assert exc_info.value.response_body == json.dumps(
+                login_failure_body)
             assert client.auth is None
             assert client.auth_expires == pytz.utc.localize(datetime.min)
 
-        @pytest.mark.parametrize("status_code", [400, 401, 500])
-        def test_every_failure_status_is_indistinguishable(
-            self, ropc_kwargs, make_requests_response, status_code
+        @pytest.mark.parametrize(
+            "status_code,expected_exception",
+            [
+                (400, ERClientBadRequest),
+                (401, ERClientBadCredentials),
+                (500, ERClientInternalError),
+            ],
+        )
+        def test_each_failure_status_gets_its_own_class(
+            self, ropc_kwargs, make_requests_response, status_code, expected_exception
         ):
-            """Every non-ok status flattens to the same False and the same message.
+            """A body with no OAuth error code still separates the three cases.
 
-            A caller cannot tell "wrong password" (400/401) from "the auth
-            server is broken" (500).
+            The caller can now tell "wrong password" (400/401) from "the auth
+            server is broken" (500). ``login()`` still reports failure as a
+            bool, with the detail on ``last_auth_error``.
             """
             client = ERClient(**ropc_kwargs)
 
             with patch(
                 "erclient.client.requests.post",
-                return_value=make_requests_response(
-                    status_code, json_data={"error": "nope"}
-                ),
+                return_value=make_requests_response(status_code, text="nope"),
             ):
-                # wart: 400, 401 and 500 are the same to the caller
                 assert client.login() is False
+                assert client.last_auth_error.status_code == status_code
+                assert client.last_auth_error.error is None
 
-                with pytest.raises(ERClientException) as exc_info:
+                with pytest.raises(expected_exception) as exc_info:
                     client.auth_headers()
 
-            assert str(exc_info.value) == "Login failed."
-            assert exc_info.value.status_code is None
-            assert exc_info.value.response_body is None
+            assert type(exc_info.value) is expected_exception
+            assert exc_info.value.status_code == status_code
+            assert exc_info.value.response_body == "nope"
             assert client.auth is None
             assert client.auth_expires == pytz.utc.localize(datetime.min)
 
@@ -571,13 +583,13 @@ class TestNoCredentials:
         """The client still posts a password grant, of Nones, and reports "Login failed."."""
         client = ERClient(service_root=service_root)
 
+        body = {"error": "invalid_request"}
+
         with patch(
             "erclient.client.requests.post",
-            return_value=make_requests_response(
-                400, json_data={"error": "invalid_request"}
-            ),
+            return_value=make_requests_response(400, json_data=body),
         ) as mock_post:
-            with pytest.raises(ERClientException) as exc_info:
+            with pytest.raises(ERClientBadRequest) as exc_info:
                 client.auth_headers()
 
             mock_post.assert_called_once()
@@ -589,7 +601,9 @@ class TestNoCredentials:
                 "client_id": None,
             }
 
-        assert str(exc_info.value) == "Login failed."
+        assert str(exc_info.value) == (
+            f"Login failed. (status_code=400) (response_body={json.dumps(body)})"
+        )
 
     def test_requests_drops_none_valued_form_fields(self, default_token_url):
         """Record how requests actually encodes the None payload above.
