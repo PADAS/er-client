@@ -173,6 +173,7 @@ Unrecognised keywords are silently ignored rather than rejected, so a typo such 
 | `token_url` | `{service_root}/oauth2/token` | Override only if the auth endpoint differs. |
 | `max_http_retries` | `5` | Connection-level retries. **Effective on async only** — the sync client accepts and stores it but never uses it; sync retry behavior is fixed (5 session-level retries on 502, plus per-request retries in GETs). |
 | `realtime_url` | `None` | Accepted and stored, but unused by this library. |
+| `discovery` | `True` | Whether to fetch the site's protected-resource metadata on the paths that decide auth, and warn about legacy credentials. See "Discovery and legacy-auth warnings" under Best practices. |
 | `connect_timeout` | `3.1` | Seconds. **Async only.** |
 | `data_timeout` | `20` | Seconds. **Async only.** |
 
@@ -253,6 +254,17 @@ Behaviors that are **not** shared, despite the common signatures above:
   | anything else (unknown code, other status, unparseable body) | `ERClientException` |
 
   Sync `login()` still reports failure as `False` rather than raising, so read `client.last_auth_error` for the reason — an `AuthError` carrying `status_code`, `error`, `error_description`, `response_body`, `url` and `grant_type`. It is `None` until a token request is refused, and is cleared by the next successful one. It is available on both clients, which matters on async, where `login()` and `refresh_token()` raise `httpx.HTTPStatusError` when called directly; the classification happens only when a request method such as `get_events()` triggers the login.
+* **Discovery and legacy-auth warnings:** EarthRanger sites publish the authorization servers they accept at `{service_root}/.well-known/oauth-protected-resource` ([RFC 9728](https://www.rfc-editor.org/rfc/rfc9728.html)). Both clients fetch it on every `login()`, and once on the first `auth_headers()` when you passed `token=` — never during construction, and never on a refresh. What the site says decides whether you get a warning:
+
+  | The site accepts | With `username`/`password` | With a site-issued `token=` | With an Auth0 `token=` |
+  |---|---|---|---|
+  | its own token endpoint only | silent | silent | silent |
+  | Auth0 **and** its own | warns: deprecated, still works | warns: deprecated, still works | silent |
+  | Auth0 only | warns: will fail | warns: will be rejected | silent |
+
+  A token is read as Auth0-issued if it is shaped like a JWT; anything else is assumed to be a legacy EarthRanger-issued token. Warnings go to the `ERClient`/`AsyncERClient` logger at WARNING and to `warnings.warn` as `ERClientAuthWarning`, once per client per distinct message. Silence them with `warnings.filterwarnings("ignore", category=ERClientAuthWarning)`.
+
+  These are warnings only — nothing that worked before stops working, and a failing login still raises exactly what it raised before. Discovery never blocks auth either: a 404, a 5xx, a malformed document or an unreachable endpoint all just mean "no metadata", logged at DEBUG. Pass `discovery=False` to the constructor to switch off the automatic fetches and the warnings entirely; `client.discover()` still works, returning `ProtectedResourceMetadata | None`, and `client.protected_resource_metadata` holds whatever the last fetch found.
 * **Time ranges:** Pass timezone-aware `datetime` for `start`/`end` — correct on both clients. Sync silently ignores ISO strings there; async accepts them. Filter `date_range` bounds are ISO 8601 strings with timezone, e.g. `"2023-11-10T00:00:00-06:00"`.
 * **Sensor/camera-trap posts:** Set `provider_key` on the client when posting sensor observations or camera trap reports.
 * **Large reads:** Sync: consider `get_objects_multithreaded` for big list endpoints. Async: use `page_size` and optional `batch_size` in `get_events`/`get_observations`; cursor-based pagination is used by default.
