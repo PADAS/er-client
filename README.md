@@ -235,13 +235,24 @@ Behaviors that are **not** shared, despite the common signatures above:
 | `get_observations` `page_size` default | 10000 | 100 |
 | HTTP 409 / 429 | plain `ERClientException` | `ERClientRateLimitExceeded`, with `retry_after` |
 | HTTP error → exception subclass | only 403 / 404 are consistent; other codes often raise plain `ERClientException`, and 401 / 502 / 504 vary by method | common statuses (400, 401, 403, 404, 409, 429, 500, 502, 503, 504) mapped to subclasses; others raise plain `ERClientException` |
-| `exc.status_code` / `exc.response_body` / `exc.retry_after` | never set (always `None`); the status is recoverable only from the exception type, or from the message text for unmapped codes | populated on every HTTP error |
+| `exc.status_code` / `exc.response_body` / `exc.retry_after` | never set (always `None`) for API errors; the status is recoverable only from the exception type, or from the message text for unmapped codes. Login failures are the exception: `status_code` and `response_body` are set | populated on every HTTP error |
+| Login failure | `auth_headers()` raises the classified subclass; `login()` returns `False` | request methods raise the classified subclass; `login()` raises `httpx.HTTPStatusError` |
 | Helpers only on one client | `get_subject`, `get_source_by_id`, `get_sources`, `get_subjects`, `pulse` | `get_feature_group`, `get_source_subjects`, `get_source_assignments` |
 
 ## Best practices
 
 * **Async:** Prefer `async with AsyncERClient(...) as client:` so the session is closed even on errors.
-* **Errors:** Catch `ERClientException`; every client error subclasses it. Async maps common statuses to specific subclasses (`ERClientBadRequest`, `ERClientBadCredentials`, `ERClientPermissionDenied`, `ERClientNotFound`, `ERClientRateLimitExceeded`, `ERClientInternalError`, `ERClientServiceUnreachable`); unmapped statuses raise `ERClientException` itself, still with `status_code` set. Sync maps only 403 and 404 consistently, and sync-raised exceptions never populate `exc.status_code` (it is always `None`). For the codes sync does map, the exception type is the only signal — a 404 raises `ERClientNotFound` with no message at all — and the numeric status reaches the message text only for unmapped codes. There is no reliable way to branch on status with the sync client.
+* **Errors:** Catch `ERClientException`; every client error subclasses it. Async maps common statuses to specific subclasses (`ERClientBadRequest`, `ERClientBadCredentials`, `ERClientPermissionDenied`, `ERClientNotFound`, `ERClientRateLimitExceeded`, `ERClientInternalError`, `ERClientServiceUnreachable`); unmapped statuses raise `ERClientException` itself, still with `status_code` set. Sync maps only 403 and 404 consistently, and sync-raised exceptions never populate `exc.status_code` for API errors (it is always `None`). For the codes sync does map, the exception type is the only signal — a 404 raises `ERClientNotFound` with no message at all — and the numeric status reaches the message text only for unmapped codes. There is no reliable way to branch on status with the sync client, except for login failures — see below.
+* **Login failures:** A refusal from the token endpoint is classified by the OAuth `error` code in the response body rather than by HTTP status, which token endpoints use inconsistently (RFC 6749 section 5.2 allows either `400` or `401` for the same condition). Both clients raise the same subclass, with the message `Login failed.` and `exc.status_code` / `exc.response_body` populated (`exc.retry_after` is not, even for a `429`):
+
+  | In the body | Exception |
+  |---|---|
+  | `invalid_grant`, `invalid_client`, `unauthorized_client`, `access_denied` | `ERClientBadCredentials` |
+  | `invalid_request`, `unsupported_grant_type`, `invalid_scope` | `ERClientBadRequest` |
+  | no OAuth `error` — status decides: 401, 400, 500, 502/503/504 | `ERClientBadCredentials`, `ERClientBadRequest`, `ERClientInternalError`, `ERClientServiceUnreachable` |
+  | anything else (unknown code, other status, unparseable body) | `ERClientException` |
+
+  Sync `login()` still reports failure as `False` rather than raising, so read `client.last_auth_error` for the reason — an `AuthError` carrying `status_code`, `error`, `error_description`, `response_body`, `url` and `grant_type`. It is `None` until a token request is refused, and is cleared by the next successful one. It is available on both clients, which matters on async, where `login()` and `refresh_token()` raise `httpx.HTTPStatusError` when called directly; the classification happens only when a request method such as `get_events()` triggers the login.
 * **Time ranges:** Pass timezone-aware `datetime` for `start`/`end` — correct on both clients. Sync silently ignores ISO strings there; async accepts them. Filter `date_range` bounds are ISO 8601 strings with timezone, e.g. `"2023-11-10T00:00:00-06:00"`.
 * **Sensor/camera-trap posts:** Set `provider_key` on the client when posting sensor observations or camera trap reports.
 * **Large reads:** Sync: consider `get_objects_multithreaded` for big list endpoints. Async: use `page_size` and optional `batch_size` in `get_events`/`get_observations`; cursor-based pagination is used by default.
