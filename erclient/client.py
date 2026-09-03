@@ -1247,6 +1247,8 @@ class AsyncERClient(object):
         :param connect_timeout [seconds]: Maximum amount of time to wait until a socket connection to the requested host is established. Default is 3.1
         :param data_timeout [seconds]:  Maximum duration to wait for a chunk of data to be sent or received. Default is 20
 
+        :param discovery: Optional. Whether to fetch the site's RFC 9728 protected-resource metadata on the paths that decide auth. Default True. Pass False to keep the client off the network except for the calls you make yourself; discover() still works.
+
         """
 
         self.auth = None
@@ -1255,6 +1257,9 @@ class AsyncERClient(object):
         self._http_session = None
         self.max_retries = kwargs.get(
             'max_http_retries', self.DEFAULT_CONNECTION_RETRIES)
+
+        self._discovery_enabled = kwargs.get('discovery', True)
+        self._protected_resource_metadata = None
 
         raw_service_root = kwargs.get('service_root') or ""
         # Normalize via urlparse: if path contains /api (e.g. /api or /api/v1.0), keep only scheme+netloc+path before /api.
@@ -1608,6 +1613,52 @@ class AsyncERClient(object):
         next successful token request.
         """
         return self._last_auth_error
+
+    @property
+    def protected_resource_metadata(self):
+        """What the most recent ``discover()`` found, or None."""
+        return self._protected_resource_metadata
+
+    async def discover(self):
+        """Fetch the site's RFC 9728 protected-resource metadata.
+
+        Returns the metadata and stores it on the client, or returns None if
+        the site does not serve a usable document. Never raises: discovery is
+        advisory, so an unreachable or silent endpoint must not stand between
+        a caller and a login.
+        """
+        url = discovery_url(self.service_root)
+        if url is None:
+            self._protected_resource_metadata = None
+            return None
+
+        try:
+            response = await self._http_session.get(
+                url,
+                headers={'User-Agent': self.user_agent,
+                         'Accept': 'application/json'},
+                # httpx does not follow redirects by default; requests does,
+                # and a site may well redirect its .well-known path. A
+                # document that ends up naming a different resource is
+                # discarded when it is parsed.
+                follow_redirects=True,
+            )
+        except httpx.HTTPError as e:
+            self.logger.debug('Discovery fetch failed for %s: %s', url, e)
+            self._protected_resource_metadata = None
+            return None
+
+        metadata = None
+        if response.is_success:
+            metadata = parse_protected_resource_metadata(
+                response.text, self.service_root)
+        if metadata is None:
+            self.logger.debug(
+                'No usable protected-resource metadata at %s (status %s)',
+                url, response.status_code)
+
+        self._protected_resource_metadata = metadata
+        return metadata
 
     def _handle_token_error(self, e):
         """Raise the exception class the token endpoint's refusal implies.
