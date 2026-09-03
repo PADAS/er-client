@@ -11,7 +11,7 @@ surprise failure.
 """
 import json
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import pytest_asyncio
@@ -22,6 +22,21 @@ from erclient.client import AsyncERClient
 # The client subtracts a fixed 5-minute safety margin from the token's
 # expires_in before recording auth_expires.
 EXPIRY_SKEW_SECONDS = 5 * 60
+
+
+@pytest.fixture(autouse=True)
+def discovery_not_served():
+    """Default every test here to a site that serves no discovery document.
+
+    That is what these tests assumed before discovery existed, so it keeps
+    their meaning intact — and it keeps the suite off the network, since the
+    sync fetch goes through the module-level ``requests.get``. Tests about
+    discovery patch the same target themselves, which takes precedence.
+    """
+    with patch("erclient.client.requests.get") as mock_get:
+        mock_get.return_value = MagicMock(
+            spec=requests.Response, ok=False, status_code=404, text="")
+        yield mock_get
 
 
 @pytest.fixture

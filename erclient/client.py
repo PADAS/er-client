@@ -21,12 +21,14 @@ from urllib3.util.retry import Retry
 from .api_paths import (DEFAULT_VERSION, VERSION_2_0, event_type_detail_path,
                         event_types_list_path, event_types_patch_path,
                         normalize_version)
-from .discovery import discovery_url, parse_protected_resource_metadata
-from .er_errors import (AuthError, ERClientBadCredentials, ERClientBadRequest,
-                        ERClientException, ERClientInternalError,
-                        ERClientNotFound, ERClientPermissionDenied,
-                        ERClientRateLimitExceeded, ERClientServiceUnreachable,
-                        classify_token_error)
+from .discovery import (classify_authorization_servers, discovery_url,
+                        legacy_auth_warning, looks_like_jwt,
+                        parse_protected_resource_metadata)
+from .er_errors import (AuthError, ERClientAuthWarning, ERClientBadCredentials,
+                        ERClientBadRequest, ERClientException,
+                        ERClientInternalError, ERClientNotFound,
+                        ERClientPermissionDenied, ERClientRateLimitExceeded,
+                        ERClientServiceUnreachable, classify_token_error)
 from .version import __version__
 
 version_string = __version__
@@ -107,6 +109,8 @@ class ERClient(object):
 
         self._discovery_enabled = kwargs.get('discovery', True)
         self._protected_resource_metadata = None
+        self._discovery_done_for_token_mode = False
+        self._auth_warnings_issued = set()
 
         raw_service_root = kwargs.get('service_root') or ""
         # Normalize via urlparse: if path contains /api (e.g. /api or /api/v1.0), keep only scheme+netloc+path before /api.
@@ -200,7 +204,45 @@ class ERClient(object):
     def _auth_is_valid(self):
         return self.auth_expires > datetime.now(tz=timezone.utc)
 
+    def _warn_if_legacy_auth(self, mode):
+        """Warn once per client if these credentials are legacy for this site.
+
+        Silent when discovery found nothing: unavailable metadata is not
+        evidence of anything. Deduplicated by message text so a retry loop
+        does not turn one deprecation into a wall of noise.
+        """
+        metadata = self._protected_resource_metadata
+        if metadata is None:
+            return
+
+        has_das, has_external = classify_authorization_servers(
+            metadata, self.service_root)
+        message = legacy_auth_warning(
+            service_root=self.service_root, has_das=has_das,
+            has_external=has_external, mode=mode)
+        if message and message not in self._auth_warnings_issued:
+            self._auth_warnings_issued.add(message)
+            self.logger.warning(message)
+            warnings.warn(message, ERClientAuthWarning)
+
+    def _discover_for_token_mode(self):
+        """Discover once, on the first use of a caller-supplied token.
+
+        A caller who brought their own token never calls ``login()``, so this
+        is the only path left that can tell them the token is legacy.
+        """
+        if (not self._discovery_enabled
+                or self._discovery_done_for_token_mode
+                or not getattr(self, 'token', None)):
+            return
+
+        self._discovery_done_for_token_mode = True
+        self.discover()
+        self._warn_if_legacy_auth(
+            'jwt_token' if looks_like_jwt(self.token) else 'opaque_token')
+
     def auth_headers(self):
+        self._discover_for_token_mode()
 
         if self.auth:
             if not self._auth_is_valid():
@@ -236,6 +278,12 @@ class ERClient(object):
         return self._token_request(payload)
 
     def login(self):
+        # Refetched on every login rather than cached: a login is rare enough
+        # that one extra GET is cheap, and a site that migrates mid-process is
+        # then noticed at the next one.
+        if self._discovery_enabled:
+            self.discover()
+            self._warn_if_legacy_auth('password')
 
         payload = {'grant_type': 'password',
                    'username': self.username,

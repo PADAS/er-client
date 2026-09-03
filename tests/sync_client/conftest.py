@@ -1,11 +1,25 @@
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
 
 from erclient.client import ERClient
+
+
+@pytest.fixture(autouse=True)
+def discovery_not_served():
+    """Keep these feature tests off the network.
+
+    They all hand the client a token, and the first ``auth_headers()`` call
+    now asks the site for its discovery document. A 404 is the answer that
+    leaves their behavior exactly as it was.
+    """
+    with patch("erclient.client.requests.get") as mock_get:
+        mock_get.return_value = MagicMock(
+            spec=requests.Response, ok=False, status_code=404, text="")
+        yield mock_get
 
 
 def _mock_response(status_code, json_data=None, text=None, ok=None, url="https://fake-site.erdomain.org/api/v1.0/mock"):
