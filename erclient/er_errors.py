@@ -64,6 +64,16 @@ class ERClientException(Exception):
         return f"{base_message}{status_info}{body_info}"
 
 
+class ERClientAuthWarning(UserWarning):
+    """The credentials in hand are legacy for the site they are aimed at.
+
+    A ``UserWarning`` subclass, so it shows by default and a caller who has
+    made their peace with it can silence just this category::
+
+        warnings.filterwarnings("ignore", category=ERClientAuthWarning)
+    """
+
+
 class ERClientBadCredentials(ERClientException):
     pass
 
