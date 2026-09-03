@@ -591,8 +591,10 @@ class TestPasswordGrant:
         ):
             """Through _call the token-endpoint status maps to a distinct exception.
 
-            The sync client flattens all three to "Login failed."; here the
-            status and the endpoint's body both survive.
+            This body carries no OAuth error code, so the status still decides
+            the class. What changed is the message: it is now the same
+            "Login failed." the sync client raises, rather than the
+            "ER ... ON GET ..." text the API's status handler produced.
             """
             client = async_client_factory(**ropc_kwargs)
 
@@ -610,12 +612,13 @@ class TestPasswordGrant:
 
             assert exc_info.value.status_code == status_code
             assert "no good" in exc_info.value.response_body
+            assert str(exc_info.value).startswith("Login failed.")
 
         @pytest.mark.asyncio
         async def test_post_form_maps_the_same_failure(
             self, ropc_kwargs, default_token_url, async_client_factory
         ):
-            """_post_form routes an auth failure through the same status handler."""
+            """_post_form routes an auth failure through the same handler."""
             client = async_client_factory(**ropc_kwargs)
 
             async with respx.mock as respx_mock:
@@ -623,8 +626,10 @@ class TestPasswordGrant:
                     401, json={"error_description": "no good"}
                 )
 
-                with pytest.raises(ERClientBadCredentials):
+                with pytest.raises(ERClientBadCredentials) as exc_info:
                     await client._post_form("activity/events", body={})
+
+            assert str(exc_info.value).startswith("Login failed.")
 
 
 class TestCustomTokenUrl:

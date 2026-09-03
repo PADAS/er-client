@@ -1195,6 +1195,7 @@ class AsyncERClient(object):
 
         self.auth = None
         self.auth_expires = pytz.utc.localize(datetime.min)
+        self._last_auth_error = None
         self._http_session = None
         self.max_retries = kwargs.get(
             'max_http_retries', self.DEFAULT_CONNECTION_RETRIES)
@@ -1541,6 +1542,40 @@ class AsyncERClient(object):
     def _clean_event(self, event):
         return event
 
+    @property
+    def last_auth_error(self):
+        """Why the token endpoint last refused us, or None if it has not.
+
+        The request wrappers classify this into an ``ERClientException``
+        subclass; direct callers of ``login()`` and ``refresh_token()``, which
+        see the raw ``httpx.HTTPStatusError``, can read it here. Cleared by the
+        next successful token request.
+        """
+        return self._last_auth_error
+
+    def _handle_token_error(self, e):
+        """Raise the exception class the token endpoint's refusal implies.
+
+        Called from the wrappers' ``except httpx.HTTPStatusError`` around
+        ``auth_headers()``, so the block's position is what tells us the
+        failure came from the token endpoint rather than from the API.
+        """
+        auth_error = self._last_auth_error or AuthError.from_token_response(
+            status_code=e.response.status_code,
+            response_body=e.response.text,
+            url=self.token_url,
+            grant_type=None,
+        )
+        self.logger.exception(
+            f"Login failed at {self.token_url}. "
+            f"Response Body: {e.response.text}"
+        )
+        raise classify_token_error(auth_error)(
+            message='Login failed.',
+            status_code=auth_error.status_code,
+            response_body=auth_error.response_body,
+        )
+
     def _auth_is_valid(self):
         return self.auth_expires > datetime.now(tz=timezone.utc)
 
@@ -1587,6 +1622,14 @@ class AsyncERClient(object):
         response = await self._http_session.post(self.token_url, data=payload)
 
         if response.status_code != httpx.codes.OK:
+            # Recorded before raising, so the wrapper that catches the httpx
+            # error can classify it by the OAuth error in the body.
+            self._last_auth_error = AuthError.from_token_response(
+                status_code=response.status_code,
+                response_body=response.text,
+                url=self.token_url,
+                grant_type=payload.get('grant_type'),
+            )
             self.auth = None
             self.auth_expires = pytz.utc.localize(datetime.min)
             response.raise_for_status()
@@ -1595,6 +1638,7 @@ class AsyncERClient(object):
         expires_in = int(self.auth['expires_in']) - 5 * 60
         self.auth_expires = datetime.now(
             tz=timezone.utc) + timedelta(seconds=expires_in)
+        self._last_auth_error = None
         return True
 
     def _api_root(self, version=DEFAULT_VERSION):
@@ -1612,7 +1656,7 @@ class AsyncERClient(object):
         try:
             auth_headers = await self.auth_headers()
         except httpx.HTTPStatusError as e:
-            self._handle_http_status_error(path, "POST", e)
+            self._handle_token_error(e)
         else:
             body = body or {}
             headers = {
@@ -1827,7 +1871,7 @@ class AsyncERClient(object):
         try:
             auth_headers = await self.auth_headers()
         except httpx.HTTPStatusError as e:
-            self._handle_http_status_error(url, "GET", e)
+            self._handle_token_error(e)
         headers = {'User-Agent': self.user_agent, **auth_headers}
         if not url.startswith('http'):
             url = self._er_url(url)
@@ -1868,7 +1912,7 @@ class AsyncERClient(object):
         try:
             auth_headers = await self.auth_headers()
         except httpx.HTTPStatusError as e:
-            self._handle_http_status_error(path, method, e)
+            self._handle_token_error(e)
         else:
             params = params or {}
             headers = {
