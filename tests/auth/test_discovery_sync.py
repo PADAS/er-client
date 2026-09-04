@@ -15,77 +15,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+from tests.auth.conftest import AUTH0_ISSUER, JWT_TOKEN, auth_warnings
 
 from erclient.client import ERClient
-from erclient.discovery import DISCOVERY_PATH
 from erclient.er_errors import ERClientAuthWarning
-
-AUTH0_ISSUER = "https://fake-tenant.us.auth0.com"
-# A JWT-shaped token: header is real base64url, the rest is plainly fake.
-JWT_TOKEN = ("eyJhbGciOiAiUlMyNTYiLCAidHlwIjogIkpXVCJ9"
-             ".DUMMY-PAYLOAD.DUMMY-SIGNATURE")
-
-
-def auth_warnings(recorded):
-    """Only this client's auth warnings, ignoring anything else the run emits."""
-    return [w for w in recorded if issubclass(w.category, ERClientAuthWarning)]
-
-
-@pytest.fixture
-def discovery_url(service_root):
-    return f"{service_root}{DISCOVERY_PATH}"
-
-
-@pytest.fixture
-def das_issuer(service_root):
-    """The site's own legacy token endpoint, as it lists itself."""
-    return f"{service_root}/oauth2"
-
-
-@pytest.fixture
-def make_discovery_document(service_root):
-    """Build a document listing whichever authorization servers a test needs."""
-
-    def _factory(*authorization_servers):
-        return {
-            "resource": service_root,
-            "authorization_servers": list(authorization_servers),
-        }
-
-    return _factory
-
-
-@pytest.fixture
-def discovery_document(make_discovery_document, das_issuer):
-    """A document a migrating site would serve: its own issuer plus Auth0."""
-    return make_discovery_document(das_issuer, AUTH0_ISSUER)
-
-
-@pytest.fixture
-def patched_get():
-    """Patch the module-level requests.get the discovery fetch uses."""
-    with patch("erclient.client.requests.get") as mock_get:
-        yield mock_get
-
-
-@pytest.fixture
-def patched_post(token_response, make_requests_response):
-    """Patch the token endpoint so logins succeed."""
-    with patch("erclient.client.requests.post") as mock_post:
-        mock_post.return_value = make_requests_response(
-            200, json_data=token_response)
-        yield mock_post
-
-
-@pytest.fixture
-def serving(patched_get, make_requests_response):
-    """Make the discovery endpoint serve a given document."""
-
-    def _serve(document):
-        patched_get.return_value = make_requests_response(
-            200, json_data=document)
-
-    return _serve
 
 
 class TestDiscoverySucceeds:
@@ -409,15 +342,6 @@ class TestWarnsAboutLegacyCredentials:
                 client.login()
 
         assert "still works but is deprecated" in caplog.text
-
-    def test_password_grant_at_a_migrated_site(
-        self, ropc_kwargs, patched_post, serving, make_discovery_document,
-    ):
-        serving(make_discovery_document(AUTH0_ISSUER))
-        client = ERClient(**ropc_kwargs)
-
-        with pytest.warns(ERClientAuthWarning, match="accepts only Auth0-issued tokens"):
-            client.login()
 
     def test_opaque_token_at_a_migrating_site(
         self, token_kwargs, serving, discovery_document, caplog,

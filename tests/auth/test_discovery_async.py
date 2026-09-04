@@ -14,49 +14,10 @@ import logging
 import httpx
 import pytest
 import respx
+from tests.auth.conftest import AUTH0_ISSUER, JWT_TOKEN, auth_warnings
 
 from erclient.discovery import DISCOVERY_PATH
 from erclient.er_errors import ERClientAuthWarning
-
-AUTH0_ISSUER = "https://fake-tenant.us.auth0.com"
-# A JWT-shaped token: header is real base64url, the rest is plainly fake.
-JWT_TOKEN = ("eyJhbGciOiAiUlMyNTYiLCAidHlwIjogIkpXVCJ9"
-             ".DUMMY-PAYLOAD.DUMMY-SIGNATURE")
-
-
-def auth_warnings(recorded):
-    """Only this client's auth warnings, ignoring anything else the run emits."""
-    return [w for w in recorded if issubclass(w.category, ERClientAuthWarning)]
-
-
-@pytest.fixture
-def discovery_url(service_root):
-    return f"{service_root}{DISCOVERY_PATH}"
-
-
-@pytest.fixture
-def das_issuer(service_root):
-    """The site's own legacy token endpoint, as it lists itself."""
-    return f"{service_root}/oauth2"
-
-
-@pytest.fixture
-def make_discovery_document(service_root):
-    """Build a document listing whichever authorization servers a test needs."""
-
-    def _factory(*authorization_servers):
-        return {
-            "resource": service_root,
-            "authorization_servers": list(authorization_servers),
-        }
-
-    return _factory
-
-
-@pytest.fixture
-def discovery_document(make_discovery_document, das_issuer):
-    """A document a migrating site would serve: its own issuer plus Auth0."""
-    return make_discovery_document(das_issuer, AUTH0_ISSUER)
 
 
 class TestDiscoverySucceeds:
@@ -422,22 +383,6 @@ class TestWarnsAboutLegacyCredentials:
                     await client.login()
 
         assert "still works but is deprecated" in caplog.text
-
-    @pytest.mark.asyncio
-    async def test_password_grant_at_a_migrated_site(
-        self, ropc_kwargs, async_client_factory, discovery_url,
-        make_discovery_document, default_token_url, token_response,
-    ):
-        client = async_client_factory(**ropc_kwargs)
-        async with respx.mock as respx_mock:
-            respx_mock.get(discovery_url).return_value = httpx.Response(
-                200, json=make_discovery_document(AUTH0_ISSUER))
-            respx_mock.post(default_token_url).return_value = httpx.Response(
-                200, json=token_response)
-
-            with pytest.warns(ERClientAuthWarning,
-                              match="accepts only Auth0-issued tokens"):
-                await client.login()
 
     @pytest.mark.asyncio
     async def test_opaque_token_at_a_migrating_site(

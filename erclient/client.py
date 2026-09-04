@@ -21,10 +21,12 @@ from urllib3.util.retry import Retry
 from .api_paths import (DEFAULT_VERSION, VERSION_2_0, event_type_detail_path,
                         event_types_list_path, event_types_patch_path,
                         normalize_version)
-from .discovery import (classify_authorization_servers, discovery_url,
+from .discovery import (classify_authorization_servers,
+                        credential_site_mismatch, discovery_url,
                         legacy_auth_warning, looks_like_jwt,
                         parse_protected_resource_metadata)
-from .er_errors import (AuthError, ERClientAuthWarning, ERClientBadCredentials,
+from .er_errors import (CREDENTIAL_SITE_MISMATCH, AuthError,
+                        ERClientAuthWarning, ERClientBadCredentials,
                         ERClientBadRequest, ERClientException,
                         ERClientInternalError, ERClientNotFound,
                         ERClientPermissionDenied, ERClientRateLimitExceeded,
@@ -225,6 +227,26 @@ class ERClient(object):
             self.logger.warning(message)
             warnings.warn(message, ERClientAuthWarning)
 
+    def _refuse_password_grant(self):
+        """Whether to refuse the password grant outright, and record why.
+
+        ``login()`` only returns a bool, so the reason goes in
+        ``last_auth_error`` for the caller to read and for
+        ``_raise_login_failed()`` to turn into the exception
+        ``auth_headers()`` raises.
+        """
+        message = credential_site_mismatch(
+            metadata=self._protected_resource_metadata,
+            service_root=self.service_root, mode='password')
+        if not message:
+            return False
+
+        self._last_auth_error = AuthError.for_site_mismatch(
+            message, url=self.token_url, grant_type='password')
+        self.auth = None
+        self.auth_expires = pytz.utc.localize(datetime.min)
+        return True
+
     def _discover_for_token_mode(self):
         """Discover once, on the first use of a caller-supplied token.
 
@@ -258,10 +280,18 @@ class ERClient(object):
                 'Accept-Type': 'application/json'}
 
     def _raise_login_failed(self):
-        """Raise the exception class the token endpoint's refusal implies."""
+        """Raise the exception class the last refusal implies.
+
+        A refusal we made ourselves already carries the whole explanation, so
+        it becomes the message; a server's refusal is summarized as a login
+        failure, with its status and body attached for the detail.
+        """
         auth_error = self._last_auth_error
+        message = 'Login failed.'
+        if auth_error and auth_error.error == CREDENTIAL_SITE_MISMATCH:
+            message = auth_error.error_description
         raise classify_token_error(auth_error)(
-            message='Login failed.',
+            message=message,
             status_code=auth_error.status_code if auth_error else None,
             response_body=auth_error.response_body if auth_error else None,
         )
@@ -283,6 +313,8 @@ class ERClient(object):
         # then noticed at the next one.
         if self._discovery_enabled:
             self.discover()
+            if self._refuse_password_grant():
+                return False
             self._warn_if_legacy_auth('password')
 
         payload = {'grant_type': 'password',
@@ -1801,12 +1833,33 @@ class AsyncERClient(object):
             }
         )
 
+    def _refuse_password_grant(self):
+        """Raise if the password grant cannot work at this site, recording why.
+
+        Unlike the sync client's bool-returning ``login()``, this one already
+        raised on failure, so the mismatch raises straight out of it. The
+        wrappers catch ``httpx.HTTPStatusError`` around ``auth_headers()``, not
+        this, so it reaches the caller unchanged.
+        """
+        message = credential_site_mismatch(
+            metadata=self._protected_resource_metadata,
+            service_root=self.service_root, mode='password')
+        if not message:
+            return
+
+        self._last_auth_error = AuthError.for_site_mismatch(
+            message, url=self.token_url, grant_type='password')
+        self.auth = None
+        self.auth_expires = pytz.utc.localize(datetime.min)
+        raise ERClientBadCredentials(message)
+
     async def login(self):
         # Refetched on every login rather than cached: a login is rare enough
         # that one extra GET is cheap, and a site that migrates mid-process is
         # then noticed at the next one.
         if self._discovery_enabled:
             await self.discover()
+            self._refuse_password_grant()
             self._warn_if_legacy_auth('password')
 
         return await self._token_request(

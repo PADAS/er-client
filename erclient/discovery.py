@@ -229,7 +229,9 @@ def legacy_auth_warning(*, service_root, has_das, has_external, mode):
 
     Silent unless the site has an external authorization server, since that is
     what makes legacy credentials a migration problem rather than the only
-    option. ``mode`` is ``"password"``, ``"opaque_token"``, or ``"jwt_token"``.
+    option. Silent, too, where the site no longer lists its own issuer: those
+    credentials cannot work at all, and :func:`credential_site_mismatch` owns
+    them. ``mode`` is ``"password"``, ``"opaque_token"``, or ``"jwt_token"``.
     """
     if not has_external:
         return None
@@ -243,11 +245,7 @@ def legacy_auth_warning(*, service_root, has_das, has_external, mode):
                 "completes its migration. Pass an Auth0-issued access token with "
                 "token= instead."
             )
-        return (
-            f"Site {service_root} accepts only Auth0-issued tokens. "
-            "Username/password login against its legacy token endpoint will "
-            "fail. Pass an Auth0-issued access token with token= instead."
-        )
+        return None
 
     if mode == 'opaque_token':
         if has_das:

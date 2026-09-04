@@ -224,15 +224,12 @@ class TestLegacyAuthWarning:
             "token= instead."
         )
 
-    def test_password_grant_at_a_migrated_site(self):
+    def test_password_grant_at_a_migrated_site_is_not_a_warning(self):
+        """It cannot work at all, so credential_site_mismatch raises instead."""
         assert legacy_auth_warning(
             service_root=SERVICE_ROOT, has_das=False, has_external=True,
             mode="password",
-        ) == (
-            f"Site {SERVICE_ROOT} accepts only Auth0-issued tokens. "
-            "Username/password login against its legacy token endpoint will "
-            "fail. Pass an Auth0-issued access token with token= instead."
-        )
+        ) is None
 
     def test_opaque_token_at_a_migrating_site(self):
         assert legacy_auth_warning(

@@ -18,10 +18,22 @@ import pytest_asyncio
 import requests
 
 from erclient.client import AsyncERClient
+from erclient.discovery import DISCOVERY_PATH
+from erclient.er_errors import ERClientAuthWarning
 
 # The client subtracts a fixed 5-minute safety margin from the token's
 # expires_in before recording auth_expires.
 EXPIRY_SKEW_SECONDS = 5 * 60
+
+AUTH0_ISSUER = "https://fake-tenant.us.auth0.com"
+# A JWT-shaped token: header is real base64url, the rest is plainly fake.
+JWT_TOKEN = ("eyJhbGciOiAiUlMyNTYiLCAidHlwIjogIkpXVCJ9"
+             ".DUMMY-PAYLOAD.DUMMY-SIGNATURE")
+
+
+def auth_warnings(recorded):
+    """Only this client's auth warnings, ignoring anything else the run emits."""
+    return [w for w in recorded if issubclass(w.category, ERClientAuthWarning)]
 
 
 @pytest.fixture(autouse=True)
@@ -73,6 +85,85 @@ def token_kwargs(service_root):
         "service_root": service_root,
         "token": "not-a-real-token",
     }
+
+
+@pytest.fixture
+def discovery_url(service_root):
+    return f"{service_root}{DISCOVERY_PATH}"
+
+
+@pytest.fixture
+def das_issuer(service_root):
+    """The site's own legacy token endpoint, as it lists itself."""
+    return f"{service_root}/oauth2"
+
+
+@pytest.fixture
+def make_discovery_document(service_root):
+    """Build a document listing whichever authorization servers a test needs."""
+
+    def _factory(*authorization_servers):
+        return {
+            "resource": service_root,
+            "authorization_servers": list(authorization_servers),
+        }
+
+    return _factory
+
+
+@pytest.fixture
+def discovery_document(make_discovery_document, das_issuer):
+    """A document a migrating site would serve: its own issuer plus Auth0."""
+    return make_discovery_document(das_issuer, AUTH0_ISSUER)
+
+
+@pytest.fixture
+def external_only_document(make_discovery_document):
+    """A document a fully migrated site would serve: Auth0 and nothing else."""
+    return make_discovery_document(AUTH0_ISSUER)
+
+
+@pytest.fixture
+def password_mismatch_message(service_root):
+    """What the client says when a password grant cannot work at this site.
+
+    Spelled out in full because the mismatch tests assert the message a caller
+    sees verbatim, where the discovery tests only match warnings on a fragment.
+    """
+    return (
+        f"Site {service_root} accepts only Auth0-issued tokens, so "
+        "username/password login against its legacy token endpoint cannot "
+        "work: the token endpoint may still issue a token, but every API "
+        "request would be rejected. Pass an Auth0-issued access token with "
+        "token= instead."
+    )
+
+
+@pytest.fixture
+def patched_get():
+    """Patch the module-level requests.get the discovery fetch uses."""
+    with patch("erclient.client.requests.get") as mock_get:
+        yield mock_get
+
+
+@pytest.fixture
+def patched_post(token_response, make_requests_response):
+    """Patch the token endpoint so logins succeed."""
+    with patch("erclient.client.requests.post") as mock_post:
+        mock_post.return_value = make_requests_response(
+            200, json_data=token_response)
+        yield mock_post
+
+
+@pytest.fixture
+def serving(patched_get, make_requests_response):
+    """Make the discovery endpoint serve a given document."""
+
+    def _serve(document):
+        patched_get.return_value = make_requests_response(
+            200, json_data=document)
+
+    return _serve
 
 
 @pytest.fixture
