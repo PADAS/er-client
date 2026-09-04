@@ -92,7 +92,7 @@ class ERClient(object):
 
         or
 
-        :param token: authorization token
+        :param token: authorization token. Takes precedence over username/password: when both are supplied the token is used and the credentials are ignored.
 
         If posting to the sensors API, the default provider key
         :param provider_key: provider-key for posting observation data (Ex. xyz_provider)
@@ -1353,7 +1353,7 @@ class AsyncERClient(object):
 
         or
 
-        :param token: authorization token
+        :param token: authorization token. Takes precedence over username/password: when both are supplied the token is used and the credentials are ignored.
 
         If posting to the sensors API, the default provider key
         :param provider_key: provider-key for posting observation data (Ex. xyz_provider)
