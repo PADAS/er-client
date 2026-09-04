@@ -288,20 +288,55 @@ class TestLoginDiscovers:
 
             assert not discovery_route.called
 
+
+class TestDiscoveryFailuresLeaveLoginAlone:
+    """Whatever goes wrong with discovery, the login is unaffected.
+
+    Not folded into ``TestLoginDiscovers``: that class silences the warning
+    category, and half of what these assert is that no warning is issued.
+    """
+
     @pytest.mark.asyncio
-    async def test_a_failed_discovery_does_not_stop_the_login(
-        self, ropc_kwargs, async_client_factory, discovery_url,
-        default_token_url, token_response,
+    @pytest.mark.parametrize(
+        "status_code, text, exception",
+        [
+            (404, "", None),
+            (500, "<html><body>Server Error</body></html>", None),
+            (200, "<html><body>Single Page App</body></html>", None),
+            (200, json.dumps({"resource": "https://other-site.erdomain.org",
+                              "authorization_servers": [AUTH0_ISSUER]}), None),
+            (None, None, httpx.ConnectError("no route to host")),
+            (None, None, httpx.ReadTimeout("timed out")),
+        ],
+        ids=[
+            "not_found",
+            "server_error",
+            "not_json",
+            # What a redirect to another site's document looks like by the
+            # time it reaches the parser.
+            "resource_is_another_host",
+            "connection_error",
+            "timeout",
+        ],
+    )
+    async def test_the_login_still_proceeds_and_says_nothing(
+        self, ropc_kwargs, async_client_factory, discovery_url, default_token_url,
+        token_response, status_code, text, exception, recwarn,
     ):
         client = async_client_factory(**ropc_kwargs)
         async with respx.mock as respx_mock:
-            respx_mock.get(discovery_url).mock(
-                side_effect=httpx.ConnectError("no route to host"))
+            discovery_route = respx_mock.get(discovery_url)
+            if exception is not None:
+                discovery_route.mock(side_effect=exception)
+            else:
+                discovery_route.return_value = httpx.Response(
+                    status_code, text=text)
             token_route = respx_mock.post(default_token_url).mock(
                 return_value=httpx.Response(200, json=token_response))
 
             assert await client.login() is True
             assert token_route.called
+            assert auth_warnings(recwarn.list) == []
 
 
 @pytest.mark.filterwarnings("ignore::erclient.er_errors.ERClientAuthWarning")
@@ -525,6 +560,25 @@ class TestStaysSilent:
 
             await client.login()
 
+            assert auth_warnings(recwarn.list) == []
+
+    @pytest.mark.asyncio
+    async def test_opting_out_silences_even_a_fully_migrated_site(
+        self, ropc_kwargs, async_client_factory, discovery_url,
+        make_discovery_document, default_token_url, token_response, recwarn,
+    ):
+        """discovery=False means never asking, so there is nothing to warn about."""
+        client = async_client_factory(**ropc_kwargs, discovery=False)
+        async with respx.mock as respx_mock:
+            discovery_route = respx_mock.get(discovery_url).mock(
+                return_value=httpx.Response(
+                    200, json=make_discovery_document(AUTH0_ISSUER)))
+            respx_mock.post(default_token_url).return_value = httpx.Response(
+                200, json=token_response)
+
+            await client.login()
+
+            assert not discovery_route.called
             assert auth_warnings(recwarn.list) == []
 
 

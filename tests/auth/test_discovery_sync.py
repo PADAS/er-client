@@ -301,14 +301,50 @@ class TestLoginDiscovers:
 
         assert not patched_get.called
 
-    def test_a_failed_discovery_does_not_stop_the_login(
+
+class TestDiscoveryFailuresLeaveLoginAlone:
+    """Whatever goes wrong with discovery, the login is unaffected.
+
+    Not folded into ``TestLoginDiscovers``: that class silences the warning
+    category, and half of what these assert is that no warning is issued.
+    """
+
+    @pytest.mark.parametrize(
+        "status_code, text, exception",
+        [
+            (404, "", None),
+            (500, "<html><body>Server Error</body></html>", None),
+            (200, "<html><body>Single Page App</body></html>", None),
+            (200, json.dumps({"resource": "https://other-site.erdomain.org",
+                              "authorization_servers": [AUTH0_ISSUER]}), None),
+            (None, None, requests.ConnectionError("no route to host")),
+            (None, None, requests.Timeout("timed out")),
+        ],
+        ids=[
+            "not_found",
+            "server_error",
+            "not_json",
+            # What a redirect to another site's document looks like by the
+            # time it reaches the parser.
+            "resource_is_another_host",
+            "connection_error",
+            "timeout",
+        ],
+    )
+    def test_the_login_still_proceeds_and_says_nothing(
         self, ropc_kwargs, patched_get, patched_post, make_requests_response,
+        status_code, text, exception, recwarn,
     ):
-        patched_get.side_effect = requests.ConnectionError("no route to host")
+        if exception is not None:
+            patched_get.side_effect = exception
+        else:
+            patched_get.return_value = make_requests_response(
+                status_code, text=text)
         client = ERClient(**ropc_kwargs)
 
         assert client.login() is True
         assert patched_post.called
+        assert auth_warnings(recwarn.list) == []
 
 
 @pytest.mark.filterwarnings("ignore::erclient.er_errors.ERClientAuthWarning")
@@ -473,6 +509,19 @@ class TestStaysSilent:
 
         client.login()
 
+        assert auth_warnings(recwarn.list) == []
+
+    def test_opting_out_silences_even_a_fully_migrated_site(
+        self, ropc_kwargs, patched_get, patched_post, serving,
+        make_discovery_document, recwarn,
+    ):
+        """discovery=False means never asking, so there is nothing to warn about."""
+        serving(make_discovery_document(AUTH0_ISSUER))
+        client = ERClient(**ropc_kwargs, discovery=False)
+
+        client.login()
+
+        assert not patched_get.called
         assert auth_warnings(recwarn.list) == []
 
 
