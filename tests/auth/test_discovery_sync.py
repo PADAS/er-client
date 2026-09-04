@@ -355,15 +355,6 @@ class TestWarnsAboutLegacyCredentials:
 
         assert "looks like a legacy" in caplog.text
 
-    def test_opaque_token_at_a_migrated_site(
-        self, token_kwargs, serving, make_discovery_document,
-    ):
-        serving(make_discovery_document(AUTH0_ISSUER))
-        client = ERClient(**token_kwargs)
-
-        with pytest.warns(ERClientAuthWarning, match="Requests will be rejected"):
-            client.auth_headers()
-
     def test_the_same_warning_is_issued_once_per_client(
         self, ropc_kwargs, patched_get, patched_post, serving, discovery_document,
         caplog, recwarn,

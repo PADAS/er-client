@@ -401,19 +401,6 @@ class TestWarnsAboutLegacyCredentials:
         assert "looks like a legacy" in caplog.text
 
     @pytest.mark.asyncio
-    async def test_opaque_token_at_a_migrated_site(
-        self, token_kwargs, async_client_factory, discovery_url,
-        make_discovery_document,
-    ):
-        client = async_client_factory(**token_kwargs)
-        async with respx.mock as respx_mock:
-            respx_mock.get(discovery_url).return_value = httpx.Response(
-                200, json=make_discovery_document(AUTH0_ISSUER))
-
-            with pytest.warns(ERClientAuthWarning, match="Requests will be rejected"):
-                await client.auth_headers()
-
-    @pytest.mark.asyncio
     async def test_the_same_warning_is_issued_once_per_client(
         self, ropc_kwargs, async_client_factory, discovery_url,
         discovery_document, default_token_url, token_response, caplog, recwarn,

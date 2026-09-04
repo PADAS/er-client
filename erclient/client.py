@@ -22,7 +22,7 @@ from .api_paths import (DEFAULT_VERSION, VERSION_2_0, event_type_detail_path,
                         event_types_list_path, event_types_patch_path,
                         normalize_version)
 from .discovery import (classify_authorization_servers,
-                        credential_site_mismatch, discovery_url,
+                        credential_site_mismatch, discovery_url, jwt_issuer,
                         legacy_auth_warning, looks_like_jwt,
                         parse_protected_resource_metadata)
 from .er_errors import (CREDENTIAL_SITE_MISMATCH, AuthError,
@@ -112,6 +112,7 @@ class ERClient(object):
         self._discovery_enabled = kwargs.get('discovery', True)
         self._protected_resource_metadata = None
         self._discovery_done_for_token_mode = False
+        self._token_mismatch_message = None
         self._auth_warnings_issued = set()
 
         raw_service_root = kwargs.get('service_root') or ""
@@ -247,12 +248,36 @@ class ERClient(object):
         self.auth_expires = pytz.utc.localize(datetime.min)
         return True
 
+    def _refuse_token(self, mode):
+        """Raise if the token in hand cannot work at this site, recording why.
+
+        The message is kept so every later ``auth_headers()`` raises it again
+        without refetching: a client holding a token the site cannot accept is
+        unusable, and letting the second call through would only move the
+        failure to the API.
+        """
+        message = credential_site_mismatch(
+            metadata=self._protected_resource_metadata,
+            service_root=self.service_root, mode=mode,
+            token_issuer=jwt_issuer(self.token) if mode == 'jwt_token' else None)
+        if not message:
+            return
+
+        self._token_mismatch_message = message
+        self._last_auth_error = AuthError.for_site_mismatch(
+            message, url=None, grant_type=None)
+        raise ERClientBadCredentials(message)
+
     def _discover_for_token_mode(self):
         """Discover once, on the first use of a caller-supplied token.
 
         A caller who brought their own token never calls ``login()``, so this
-        is the only path left that can tell them the token is legacy.
+        is the only path left that can tell them the token is wrong for the
+        site, or merely legacy for it.
         """
+        if self._token_mismatch_message:
+            raise ERClientBadCredentials(self._token_mismatch_message)
+
         if (not self._discovery_enabled
                 or self._discovery_done_for_token_mode
                 or not getattr(self, 'token', None)):
@@ -260,8 +285,9 @@ class ERClient(object):
 
         self._discovery_done_for_token_mode = True
         self.discover()
-        self._warn_if_legacy_auth(
-            'jwt_token' if looks_like_jwt(self.token) else 'opaque_token')
+        mode = 'jwt_token' if looks_like_jwt(self.token) else 'opaque_token'
+        self._refuse_token(mode)
+        self._warn_if_legacy_auth(mode)
 
     def auth_headers(self):
         self._discover_for_token_mode()
@@ -1341,6 +1367,7 @@ class AsyncERClient(object):
         self._discovery_enabled = kwargs.get('discovery', True)
         self._protected_resource_metadata = None
         self._discovery_done_for_token_mode = False
+        self._token_mismatch_message = None
         self._auth_warnings_issued = set()
 
         raw_service_root = kwargs.get('service_root') or ""
@@ -1789,12 +1816,36 @@ class AsyncERClient(object):
             self.logger.warning(message)
             warnings.warn(message, ERClientAuthWarning)
 
+    def _refuse_token(self, mode):
+        """Raise if the token in hand cannot work at this site, recording why.
+
+        The message is kept so every later ``auth_headers()`` raises it again
+        without refetching: a client holding a token the site cannot accept is
+        unusable, and letting the second call through would only move the
+        failure to the API.
+        """
+        message = credential_site_mismatch(
+            metadata=self._protected_resource_metadata,
+            service_root=self.service_root, mode=mode,
+            token_issuer=jwt_issuer(self.token) if mode == 'jwt_token' else None)
+        if not message:
+            return
+
+        self._token_mismatch_message = message
+        self._last_auth_error = AuthError.for_site_mismatch(
+            message, url=None, grant_type=None)
+        raise ERClientBadCredentials(message)
+
     async def _discover_for_token_mode(self):
         """Discover once, on the first use of a caller-supplied token.
 
         A caller who brought their own token never calls ``login()``, so this
-        is the only path left that can tell them the token is legacy.
+        is the only path left that can tell them the token is wrong for the
+        site, or merely legacy for it.
         """
+        if self._token_mismatch_message:
+            raise ERClientBadCredentials(self._token_mismatch_message)
+
         if (not self._discovery_enabled
                 or self._discovery_done_for_token_mode
                 or not getattr(self, 'token', None)):
@@ -1802,8 +1853,9 @@ class AsyncERClient(object):
 
         self._discovery_done_for_token_mode = True
         await self.discover()
-        self._warn_if_legacy_auth(
-            'jwt_token' if looks_like_jwt(self.token) else 'opaque_token')
+        mode = 'jwt_token' if looks_like_jwt(self.token) else 'opaque_token'
+        self._refuse_token(mode)
+        self._warn_if_legacy_auth(mode)
 
     async def auth_headers(self):
         await self._discover_for_token_mode()

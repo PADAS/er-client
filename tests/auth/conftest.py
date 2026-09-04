@@ -9,6 +9,7 @@ A test that locks in a wart carries a ``# wart:`` comment, so the change that
 fixes it flips the assertion on purpose rather than discovering it as a
 surprise failure.
 """
+import base64
 import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
@@ -29,6 +30,27 @@ AUTH0_ISSUER = "https://fake-tenant.us.auth0.com"
 # A JWT-shaped token: header is real base64url, the rest is plainly fake.
 JWT_TOKEN = ("eyJhbGciOiAiUlMyNTYiLCAidHlwIjogIkpXVCJ9"
              ".DUMMY-PAYLOAD.DUMMY-SIGNATURE")
+
+
+def jwt_with_issuer(issuer):
+    """A JWT-shaped token whose payload really does carry this ``iss``.
+
+    Header and payload are base64url with the padding stripped, as a real JWT
+    has them; the signature stays fake, since nothing here verifies it.
+    """
+    def encode(value):
+        return base64.urlsafe_b64encode(
+            json.dumps(value).encode()).decode().rstrip("=")
+
+    return ".".join([encode({"alg": "RS256", "typ": "JWT"}),
+                     encode({"iss": issuer, "sub": "auth0|1"}),
+                     "DUMMY-SIGNATURE"])
+
+
+# The site's own Auth0 tenant, spelled with the trailing slash DAS puts on the
+# issuer claim but not on the discovery document's entry — so the default JWT
+# exercises the normalization rather than an exact string match.
+JWT_WITH_ISSUER = jwt_with_issuer(f"{AUTH0_ISSUER}/")
 
 
 def auth_warnings(recorded):
@@ -137,6 +159,30 @@ def password_mismatch_message(service_root):
         "request would be rejected. Pass an Auth0-issued access token with "
         "token= instead."
     )
+
+
+@pytest.fixture
+def opaque_token_mismatch_message(service_root):
+    """What the client says when a legacy token cannot work at this site."""
+    return (
+        "The token passed with token= looks like a legacy EarthRanger-issued "
+        f"token, but site {service_root} accepts only Auth0-issued tokens. "
+        "Use an Auth0-issued access token."
+    )
+
+
+@pytest.fixture
+def unlisted_issuer_message(service_root):
+    """What the client says about a JWT from an issuer the site does not name."""
+
+    def _message(issuer, accepted):
+        return (
+            f"The token passed with token= was issued by {issuer}, which site "
+            f"{service_root} does not accept. Accepted issuers: "
+            f"{', '.join(accepted)}."
+        )
+
+    return _message
 
 
 @pytest.fixture

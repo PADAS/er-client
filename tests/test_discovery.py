@@ -242,16 +242,12 @@ class TestLegacyAuthWarning:
             "completes its migration. Use an Auth0-issued access token."
         )
 
-    def test_opaque_token_at_a_migrated_site(self):
+    def test_opaque_token_at_a_migrated_site_is_not_a_warning(self):
+        """It cannot work at all, so credential_site_mismatch raises instead."""
         assert legacy_auth_warning(
             service_root=SERVICE_ROOT, has_das=False, has_external=True,
             mode="opaque_token",
-        ) == (
-            "The token passed with token= looks like a legacy "
-            f"EarthRanger-issued token, but site {SERVICE_ROOT} accepts only "
-            "Auth0-issued tokens. Requests will be rejected. Use an "
-            "Auth0-issued access token."
-        )
+        ) is None
 
     @pytest.mark.parametrize("mode", ["password", "opaque_token", "jwt_token"])
     @pytest.mark.parametrize(

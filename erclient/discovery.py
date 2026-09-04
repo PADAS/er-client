@@ -227,39 +227,31 @@ def credential_site_mismatch(*, metadata, service_root, mode, token_issuer=None)
 def legacy_auth_warning(*, service_root, has_das, has_external, mode):
     """The warning these credentials deserve at this site, or None.
 
-    Silent unless the site has an external authorization server, since that is
-    what makes legacy credentials a migration problem rather than the only
-    option. Silent, too, where the site no longer lists its own issuer: those
-    credentials cannot work at all, and :func:`credential_site_mismatch` owns
-    them. ``mode`` is ``"password"``, ``"opaque_token"``, or ``"jwt_token"``.
+    Only a site that lists both its own issuer and an external one is warned
+    about: an external issuer is what makes legacy credentials a migration
+    problem rather than the only option, and the site's own issuer is what
+    makes them still work today. Once it is gone they cannot work at all, and
+    :func:`credential_site_mismatch` owns that. ``mode`` is ``"password"``,
+    ``"opaque_token"``, or ``"jwt_token"``.
     """
-    if not has_external:
+    if not (has_das and has_external):
         return None
 
     if mode == 'password':
-        if has_das:
-            return (
-                f"Site {service_root} supports EarthRanger's Auth0 sign-in. "
-                "Username/password login through the site's legacy token endpoint "
-                "still works but is deprecated and will stop working when the site "
-                "completes its migration. Pass an Auth0-issued access token with "
-                "token= instead."
-            )
-        return None
+        return (
+            f"Site {service_root} supports EarthRanger's Auth0 sign-in. "
+            "Username/password login through the site's legacy token endpoint "
+            "still works but is deprecated and will stop working when the site "
+            "completes its migration. Pass an Auth0-issued access token with "
+            "token= instead."
+        )
 
     if mode == 'opaque_token':
-        if has_das:
-            return (
-                "The token passed with token= looks like a legacy "
-                f"EarthRanger-issued token. Site {service_root} supports Auth0 "
-                "sign-in, and legacy tokens will stop working when the site "
-                "completes its migration. Use an Auth0-issued access token."
-            )
         return (
             "The token passed with token= looks like a legacy "
-            f"EarthRanger-issued token, but site {service_root} accepts only "
-            "Auth0-issued tokens. Requests will be rejected. Use an "
-            "Auth0-issued access token."
+            f"EarthRanger-issued token. Site {service_root} supports Auth0 "
+            "sign-in, and legacy tokens will stop working when the site "
+            "completes its migration. Use an Auth0-issued access token."
         )
 
     return None
