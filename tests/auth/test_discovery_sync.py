@@ -474,3 +474,42 @@ class TestStaysSilent:
         client.login()
 
         assert auth_warnings(recwarn.list) == []
+
+
+class TestTokenTransportErrorsStillPropagate:
+    """Discovery swallows its own transport errors; the token endpoint's are
+    still the caller's to see.
+
+    Both halves matter. A caller with working credentials and an unreachable
+    discovery endpoint must still be able to log in, and a caller whose token
+    endpoint is unreachable must still get the real transport error rather
+    than a classified login failure or a bare False.
+    """
+
+    def test_a_connection_error_on_the_token_post_is_raised_raw(
+        self, ropc_kwargs, patched_get, make_requests_response,
+    ):
+        patched_get.return_value = make_requests_response(404, text="")
+        client = ERClient(**ropc_kwargs)
+
+        with patch("erclient.client.requests.post") as mock_post:
+            mock_post.side_effect = requests.ConnectionError(
+                "no route to host")
+
+            with pytest.raises(requests.ConnectionError):
+                client.login()
+
+    def test_the_same_when_discovery_did_serve_a_document(
+        self, ropc_kwargs, serving, discovery_document,
+    ):
+        """Having metadata in hand changes nothing about how the POST fails."""
+        serving(discovery_document)
+        client = ERClient(**ropc_kwargs)
+
+        with patch("erclient.client.requests.post") as mock_post:
+            mock_post.side_effect = requests.ConnectionError(
+                "no route to host")
+
+            with pytest.warns(ERClientAuthWarning):
+                with pytest.raises(requests.ConnectionError):
+                    client.login()

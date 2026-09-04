@@ -560,3 +560,44 @@ class TestRedirects:
                 200, json={"resource": other_site, "authorization_servers": []})
 
             assert await client.discover() is None
+
+
+class TestTokenTransportErrorsStillPropagate:
+    """Discovery swallows its own transport errors; the token endpoint's are
+    still the caller's to see.
+
+    Both halves matter. A caller with working credentials and an unreachable
+    discovery endpoint must still be able to log in, and a caller whose token
+    endpoint is unreachable must still get the real transport error rather
+    than a classified login failure.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_connection_error_on_the_token_post_is_raised_raw(
+        self, ropc_kwargs, async_client_factory, discovery_url, default_token_url,
+    ):
+        client = async_client_factory(**ropc_kwargs)
+        async with respx.mock as respx_mock:
+            respx_mock.get(discovery_url).return_value = httpx.Response(404)
+            respx_mock.post(default_token_url).mock(
+                side_effect=httpx.ConnectError("no route to host"))
+
+            with pytest.raises(httpx.ConnectError):
+                await client.login()
+
+    @pytest.mark.asyncio
+    async def test_the_same_when_discovery_did_serve_a_document(
+        self, ropc_kwargs, async_client_factory, discovery_url,
+        discovery_document, default_token_url,
+    ):
+        """Having metadata in hand changes nothing about how the POST fails."""
+        client = async_client_factory(**ropc_kwargs)
+        async with respx.mock as respx_mock:
+            respx_mock.get(discovery_url).return_value = httpx.Response(
+                200, json=discovery_document)
+            respx_mock.post(default_token_url).mock(
+                side_effect=httpx.ConnectError("no route to host"))
+
+            with pytest.warns(ERClientAuthWarning):
+                with pytest.raises(httpx.ConnectError):
+                    await client.login()
