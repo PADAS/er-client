@@ -10,8 +10,10 @@ import json
 import pytest
 
 from erclient.discovery import (DISCOVERY_PATH, ProtectedResourceMetadata,
-                                classify_authorization_servers, discovery_url,
-                                legacy_auth_warning, looks_like_jwt,
+                                classify_authorization_servers,
+                                credential_site_mismatch, discovery_url,
+                                jwt_issuer, legacy_auth_warning,
+                                looks_like_jwt, normalize_issuer,
                                 parse_protected_resource_metadata)
 
 SERVICE_ROOT = "https://fake-site.erdomain.org"
@@ -27,16 +29,25 @@ def make_document(resource=SERVICE_ROOT, authorization_servers=(DAS_ISSUER,), **
     return json.dumps(body)
 
 
-def make_jwt(header=None):
+def b64url(text):
+    """Encode a segment the way a JWT does: base64url, padding stripped."""
+    return base64.urlsafe_b64encode(text.encode()).decode().rstrip("=")
+
+
+def make_jwt(header=None, payload=None):
     """A JWT-shaped string.
 
-    Only the header is encoded for real, since that is the only segment
-    ``looks_like_jwt`` decodes; the other two stay plainly fake.
+    The header is always encoded for real, since that is what
+    ``looks_like_jwt`` decodes. The payload is encoded only when one is given;
+    otherwise it stays plainly fake, as does the signature, which nothing here
+    reads.
     """
     header = {"alg": "RS256", "typ": "JWT"} if header is None else header
-    encoded = base64.urlsafe_b64encode(
-        json.dumps(header).encode()).decode().rstrip("=")
-    return f"{encoded}.DUMMY-PAYLOAD.DUMMY-SIGNATURE"
+    segments = [b64url(json.dumps(header)),
+                b64url(json.dumps(payload)) if payload is not None
+                else "DUMMY-PAYLOAD",
+                "DUMMY-SIGNATURE"]
+    return ".".join(segments)
 
 
 class TestDiscoveryUrl:
@@ -268,3 +279,199 @@ class TestLegacyAuthWarning:
             service_root=SERVICE_ROOT, has_das=has_das,
             has_external=has_external, mode="jwt_token",
         ) is None
+
+
+class TestNormalizeIssuer:
+    """Issuer strings are compared as identifiers, not as text.
+
+    DAS validates a JWT's ``iss`` against exactly the string discovery
+    advertises, so the only differences worth forgiving are the ones RFC 3986
+    calls insignificant.
+    """
+
+    def test_strips_one_trailing_slash(self):
+        assert normalize_issuer(f"{AUTH0_ISSUER}/") == AUTH0_ISSUER
+
+    def test_lowercases_scheme_and_host(self):
+        assert normalize_issuer(
+            "HTTPS://FAKE-TENANT.US.AUTH0.COM") == AUTH0_ISSUER
+
+    def test_preserves_path_case(self):
+        """Only scheme and host are case-insensitive; a path is a path."""
+        assert normalize_issuer(
+            f"{SERVICE_ROOT}/OAuth2") == f"{SERVICE_ROOT}/OAuth2"
+
+    def test_preserves_the_port(self):
+        assert normalize_issuer(
+            "https://Fake-Site.erdomain.org:8443/oauth2/"
+        ) == "https://fake-site.erdomain.org:8443/oauth2"
+
+    @pytest.mark.parametrize(
+        "issuer",
+        ["not a url at all", "fake-tenant.us.auth0.com", "https://", ""],
+        ids=["prose", "no_scheme", "no_host", "empty"],
+    )
+    def test_something_that_is_not_a_url_comes_back_unchanged(self, issuer):
+        """Nothing to normalize means nothing to invent; comparison then fails honestly."""
+        assert normalize_issuer(issuer) == issuer
+
+
+class TestJwtIssuer:
+    """The ``iss`` claim, read without trusting it.
+
+    No signature check: an attacker-supplied ``iss`` can only make the client
+    refuse to send a token it was given, which is not an attack.
+    """
+
+    def test_reads_the_issuer_claim(self):
+        token = make_jwt(payload={"iss": AUTH0_ISSUER, "sub": "auth0|1"})
+
+        assert jwt_issuer(token) == AUTH0_ISSUER
+
+    def test_decodes_a_payload_whose_base64_needs_padding(self):
+        """Real JWTs carry no ``=`` padding; we put it back before decoding."""
+        token = make_jwt(payload={"iss": f"{AUTH0_ISSUER}/"})
+        _, payload, _ = token.split(".")
+
+        assert len(payload) % 4 != 0
+        assert jwt_issuer(token) == f"{AUTH0_ISSUER}/"
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"sub": "auth0|1"},
+            {"iss": ""},
+            {"iss": 42},
+            {"iss": None},
+            [AUTH0_ISSUER],
+        ],
+        ids=["no_iss", "iss_empty", "iss_not_a_string", "iss_null",
+             "payload_not_an_object"],
+    )
+    def test_no_usable_issuer_claim(self, payload):
+        assert jwt_issuer(make_jwt(payload=payload)) is None
+
+    def test_payload_that_is_not_json(self):
+        """The placeholder payload is not even base64; this never raises."""
+        assert jwt_issuer(make_jwt()) is None
+
+    @pytest.mark.parametrize(
+        "token",
+        ["dummy-opaque-das-token-000000001", "", None],
+        ids=["opaque_das_token", "empty_string", "none"],
+    )
+    def test_a_token_that_is_not_a_jwt_has_no_issuer(self, token):
+        assert jwt_issuer(token) is None
+
+
+def metadata_listing(*issuers, resource=SERVICE_ROOT):
+    """Metadata for a site that lists exactly these authorization servers."""
+    return ProtectedResourceMetadata(
+        resource=resource, authorization_servers=tuple(issuers), raw={})
+
+
+EXTERNAL_ONLY = metadata_listing(AUTH0_ISSUER)
+BOTH_LISTED = metadata_listing(DAS_ISSUER, AUTH0_ISSUER)
+DAS_ONLY = metadata_listing(DAS_ISSUER)
+
+PASSWORD_MISMATCH = (
+    f"Site {SERVICE_ROOT} accepts only Auth0-issued tokens, so "
+    "username/password login against its legacy token endpoint cannot work: "
+    "the token endpoint may still issue a token, but every API request would "
+    "be rejected. Pass an Auth0-issued access token with token= instead."
+)
+OPAQUE_TOKEN_MISMATCH = (
+    "The token passed with token= looks like a legacy EarthRanger-issued "
+    f"token, but site {SERVICE_ROOT} accepts only Auth0-issued tokens. Use an "
+    "Auth0-issued access token."
+)
+
+
+def mismatch(metadata, mode, token_issuer=None):
+    return credential_site_mismatch(metadata=metadata,
+                                    service_root=SERVICE_ROOT, mode=mode,
+                                    token_issuer=token_issuer)
+
+
+class TestCredentialSiteMismatchWithoutMetadata:
+    """No document, or an uninformative one, means no opinion."""
+
+    @pytest.mark.parametrize("mode", ["password", "opaque_token", "jwt_token"])
+    def test_no_metadata_at_all(self, mode):
+        assert mismatch(None, mode, token_issuer=AUTH0_ISSUER) is None
+
+    @pytest.mark.parametrize("mode", ["password", "opaque_token", "jwt_token"])
+    def test_a_site_that_lists_no_issuers(self, mode):
+        assert mismatch(metadata_listing(), mode,
+                        token_issuer=AUTH0_ISSUER) is None
+
+
+class TestCredentialSiteMismatchForLegacyCredentials:
+    """Password grant and opaque tokens: the site's own issuer must be listed."""
+
+    def test_password_grant_where_only_auth0_is_accepted(self):
+        assert mismatch(EXTERNAL_ONLY, "password") == PASSWORD_MISMATCH
+
+    def test_opaque_token_where_only_auth0_is_accepted(self):
+        assert mismatch(EXTERNAL_ONLY, "opaque_token") == OPAQUE_TOKEN_MISMATCH
+
+    @pytest.mark.parametrize("mode", ["password", "opaque_token"])
+    @pytest.mark.parametrize(
+        "metadata", [BOTH_LISTED, DAS_ONLY], ids=["migrating", "not_migrated"]
+    )
+    def test_legacy_credentials_a_site_still_accepts(self, metadata, mode):
+        """While the site lists its own issuer, legacy credentials can work."""
+        assert mismatch(metadata, mode) is None
+
+    @pytest.mark.parametrize("mode", ["password", "opaque_token"])
+    def test_the_site_issuer_may_carry_a_path(self, mode):
+        """DAS advertises {site}/oauth2, which is still the site itself."""
+        assert mismatch(
+            metadata_listing(f"{SERVICE_ROOT}/oauth2", AUTH0_ISSUER), mode
+        ) is None
+
+
+class TestCredentialSiteMismatchForJwts:
+    """A JWT is refused only when its issuer is not one the site named."""
+
+    def test_an_unlisted_issuer_names_what_the_site_accepts(self):
+        assert mismatch(
+            BOTH_LISTED, "jwt_token", token_issuer="https://other.us.auth0.com"
+        ) == (
+            "The token passed with token= was issued by "
+            f"https://other.us.auth0.com, which site {SERVICE_ROOT} does not "
+            f"accept. Accepted issuers: {DAS_ISSUER}, {AUTH0_ISSUER}."
+        )
+
+    @pytest.mark.parametrize(
+        "metadata", [DAS_ONLY, EXTERNAL_ONLY, BOTH_LISTED],
+        ids=["not_migrated", "migrated", "migrating"],
+    )
+    def test_an_unlisted_issuer_is_refused_at_every_kind_of_site(self, metadata):
+        message = mismatch(metadata, "jwt_token",
+                           token_issuer="https://other.us.auth0.com")
+
+        assert message is not None
+        assert "does not accept" in message
+
+    def test_the_accepted_list_is_normalized(self):
+        """The caller is shown issuers in the form we compared against."""
+        message = mismatch(
+            metadata_listing("HTTPS://FAKE-TENANT.US.AUTH0.COM/"),
+            "jwt_token", token_issuer="https://other.us.auth0.com",
+        )
+
+        assert message.endswith(f"Accepted issuers: {AUTH0_ISSUER}.")
+
+    @pytest.mark.parametrize(
+        "token_issuer",
+        [AUTH0_ISSUER, f"{AUTH0_ISSUER}/", "https://FAKE-TENANT.us.auth0.com"],
+        ids=["exact", "trailing_slash", "host_case"],
+    )
+    def test_a_listed_issuer_is_accepted_however_it_is_spelled(self, token_issuer):
+        assert mismatch(BOTH_LISTED, "jwt_token",
+                        token_issuer=token_issuer) is None
+
+    def test_a_jwt_with_no_issuer_claim_is_not_second_guessed(self):
+        """Unreadable is not the same as wrong; the server can still judge it."""
+        assert mismatch(EXTERNAL_ONLY, "jwt_token", token_issuer=None) is None

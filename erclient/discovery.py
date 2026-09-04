@@ -10,7 +10,7 @@ import base64
 import binascii
 import json
 from dataclasses import dataclass
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 DISCOVERY_PATH = "/.well-known/oauth-protected-resource"
 
@@ -121,6 +121,107 @@ def looks_like_jwt(token):
         return False
 
     return isinstance(header, dict) and 'alg' in header
+
+
+def normalize_issuer(issuer):
+    """An issuer URL in the form we compare and display.
+
+    DAS validates a JWT's ``iss`` against exactly the string the discovery
+    document advertises, so the only differences to forgive are the ones RFC
+    3986 calls insignificant: the case of scheme and host, and a trailing
+    slash. Anything that does not parse as a URL with a scheme and a host comes
+    back untouched — there is nothing to normalize, and the comparison should
+    then simply fail.
+    """
+    parsed = urlparse(issuer or "")
+    if not parsed.scheme or not parsed.hostname:
+        return issuer
+
+    netloc = parsed.hostname.lower()
+    if parsed.port:
+        netloc = f"{netloc}:{parsed.port}"
+    path = parsed.path[:-1] if parsed.path.endswith("/") else parsed.path
+    return urlunparse((parsed.scheme.lower(), netloc, path,
+                       parsed.params, parsed.query, parsed.fragment))
+
+
+def jwt_issuer(token):
+    """The token's ``iss`` claim, or None if there isn't a usable one.
+
+    Read, not trusted: the payload is base64url-decoded with its stripped
+    padding put back, and nothing verifies the signature. A forged ``iss`` can
+    only make this client decline to send a token it was handed, so reading it
+    unverified costs nothing. Never raises.
+    """
+    if not looks_like_jwt(token):
+        return None
+
+    segment = token.split('.')[1]
+    padded = segment + '=' * (-len(segment) % 4)
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(padded))
+    except (ValueError, binascii.Error):
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+    issuer = payload.get('iss')
+    return issuer if isinstance(issuer, str) and issuer else None
+
+
+def credential_site_mismatch(*, metadata, service_root, mode, token_issuer=None):
+    """Why these credentials cannot work at this site, or None.
+
+    Unlike :func:`legacy_auth_warning`, this speaks only to credentials the
+    site's API is certain to reject, so the caller is better served by an error
+    before any request than by a 401 that reads as a bad password. ``mode`` is
+    ``"password"``, ``"opaque_token"``, or ``"jwt_token"``.
+
+    No metadata, or a document listing no authorization servers, means no
+    opinion: the site has told us nothing to act on.
+    """
+    if metadata is None or not metadata.authorization_servers:
+        return None
+
+    if mode in ('password', 'opaque_token'):
+        has_das, has_external = classify_authorization_servers(
+            metadata, service_root)
+        # While the site still lists its own issuer, legacy credentials can
+        # work — a DAS token does for a bypass_auth0 application. That is
+        # legacy_auth_warning's territory, not ours.
+        if not has_external or has_das:
+            return None
+        if mode == 'password':
+            return (
+                f"Site {service_root} accepts only Auth0-issued tokens, so "
+                "username/password login against its legacy token endpoint "
+                "cannot work: the token endpoint may still issue a token, but "
+                "every API request would be rejected. Pass an Auth0-issued "
+                "access token with token= instead."
+            )
+        return (
+            "The token passed with token= looks like a legacy "
+            f"EarthRanger-issued token, but site {service_root} accepts only "
+            "Auth0-issued tokens. Use an Auth0-issued access token."
+        )
+
+    if mode == 'jwt_token':
+        # A JWT whose issuer we could not read is not a JWT we can judge; the
+        # server still will.
+        if token_issuer is None:
+            return None
+        accepted = [normalize_issuer(issuer)
+                    for issuer in metadata.authorization_servers]
+        issuer = normalize_issuer(token_issuer)
+        if issuer in accepted:
+            return None
+        return (
+            f"The token passed with token= was issued by {issuer}, which site "
+            f"{service_root} does not accept. Accepted issuers: "
+            f"{', '.join(accepted)}."
+        )
+
+    return None
 
 
 def legacy_auth_warning(*, service_root, has_das, has_external, mode):

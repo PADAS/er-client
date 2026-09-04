@@ -8,9 +8,9 @@ fallback for bodies that are not OAuth-shaped.
 """
 import pytest
 
-from erclient.er_errors import (AuthError, ERClientBadCredentials,
-                                ERClientBadRequest, ERClientException,
-                                ERClientInternalError,
+from erclient.er_errors import (CREDENTIAL_SITE_MISMATCH, AuthError,
+                                ERClientBadCredentials, ERClientBadRequest,
+                                ERClientException, ERClientInternalError,
                                 ERClientServiceUnreachable,
                                 classify_token_error)
 
@@ -95,6 +95,34 @@ class TestAuthErrorFromTokenResponse:
             auth_error.status_code = 401
 
 
+class TestAuthErrorForSiteMismatch:
+    """A refusal we made ourselves, before any server was asked."""
+
+    MESSAGE = "Site https://fake-site.erdomain.org accepts only Auth0 tokens."
+
+    def test_records_the_reason_with_no_server_fields(self):
+        auth_error = AuthError.for_site_mismatch(
+            self.MESSAGE,
+            url="https://fake-site.erdomain.org/oauth2/token",
+            grant_type="password",
+        )
+
+        assert auth_error.error == CREDENTIAL_SITE_MISMATCH
+        assert auth_error.error_description == self.MESSAGE
+        assert auth_error.status_code is None
+        assert auth_error.response_body is None
+        assert auth_error.url == "https://fake-site.erdomain.org/oauth2/token"
+        assert auth_error.grant_type == "password"
+
+    def test_token_mode_has_no_url_or_grant_type(self):
+        """Nothing was going to be posted anywhere, so there is nothing to name."""
+        auth_error = AuthError.for_site_mismatch(
+            self.MESSAGE, url=None, grant_type=None)
+
+        assert auth_error.url is None
+        assert auth_error.grant_type is None
+
+
 def oauth_error(error, status_code=400):
     """An AuthError for a body carrying the given OAuth error code."""
     return AuthError.from_token_response(
@@ -129,6 +157,13 @@ class TestClassifyByOauthError:
             classify_token_error(oauth_error("invalid_grant", status_code))
             is ERClientBadCredentials
         )
+
+    def test_our_own_site_mismatch_code_is_bad_credentials(self):
+        """The client-side code classifies like the server codes it stands in for."""
+        auth_error = AuthError.for_site_mismatch(
+            "wrong credentials for this site", url=None, grant_type=None)
+
+        assert classify_token_error(auth_error) is ERClientBadCredentials
 
     def test_unknown_error_code_falls_back_to_the_base_exception(self):
         """An OAuth code we do not recognize is not silently mapped by status."""

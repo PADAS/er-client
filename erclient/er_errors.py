@@ -19,6 +19,24 @@ class AuthError:
     grant_type: Optional[str] = None
 
     @classmethod
+    def for_site_mismatch(cls, message, url, grant_type):
+        """Build from our own pre-flight refusal, where no server was consulted.
+
+        The server fields stay ``None`` — there is no status and no body,
+        because nothing was sent. ``url`` and ``grant_type`` name the request
+        we declined to make, and are themselves ``None`` in token mode, where
+        there was no token request to begin with.
+        """
+        return cls(
+            status_code=None,
+            error=CREDENTIAL_SITE_MISMATCH,
+            error_description=message,
+            response_body=None,
+            url=url,
+            grant_type=grant_type,
+        )
+
+    @classmethod
     def from_token_response(cls, status_code, response_body, url, grant_type):
         """Build from a refused token response, taking the OAuth fields if present.
 
@@ -102,6 +120,11 @@ class ERClientNotFound(ERClientException):
     pass
 
 
+# A client-side pseudo error code, not an RFC 6749 one: the client refused the
+# credentials itself because the site's discovery document says they cannot
+# work. Never sent to a server and never received from one.
+CREDENTIAL_SITE_MISMATCH = "credential_site_mismatch"
+
 # RFC 6749 section 5.2 error codes, plus access_denied from the device-code and
 # authorization-code flows.
 _OAUTH_ERROR_TO_EXCEPTION = {
@@ -112,6 +135,8 @@ _OAUTH_ERROR_TO_EXCEPTION = {
     'invalid_request': ERClientBadRequest,
     'unsupported_grant_type': ERClientBadRequest,
     'invalid_scope': ERClientBadRequest,
+    # Ours, not the wire's: the credentials are wrong for this site.
+    CREDENTIAL_SITE_MISMATCH: ERClientBadCredentials,
 }
 
 # Only consulted when the body carries no OAuth error code: a token endpoint
