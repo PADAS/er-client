@@ -9,17 +9,19 @@ The async client raises ``httpx.HTTPStatusError`` out of its token requests
 rather than returning a bool, so its failure behavior diverges from the sync
 client's in ways these tests pin down explicitly.
 """
+import logging
 from datetime import datetime, timezone
 
 import httpx
 import pytest
 import pytz
 import respx
+from tests.auth.conftest import auth_warnings
 from tests.auth.respx_helpers import mock_discovery
 
 from erclient.client import AsyncERClient
-from erclient.er_errors import (ERClientBadCredentials, ERClientBadRequest,
-                                ERClientInternalError)
+from erclient.er_errors import (ERClientAuthWarning, ERClientBadCredentials,
+                                ERClientBadRequest, ERClientInternalError)
 from erclient.version import __version__
 
 
@@ -190,7 +192,8 @@ class TestPreAcquiredToken:
         self, ropc_kwargs, token_kwargs, default_token_url, async_client_factory
     ):
         """When both are given the token is used; the credentials are kept but unused."""
-        client = async_client_factory(**{**ropc_kwargs, **token_kwargs})
+        with pytest.warns(ERClientAuthWarning):
+            client = async_client_factory(**{**ropc_kwargs, **token_kwargs})
 
         async with respx.mock(assert_all_called=False) as respx_mock:
             mock_discovery(respx_mock, client.service_root)
@@ -200,9 +203,43 @@ class TestPreAcquiredToken:
 
             assert headers["Authorization"] == f"Bearer {token_kwargs['token']}"
             assert not token_route.called
+            assert client.username == ropc_kwargs["username"]
+            assert client.password == ropc_kwargs["password"]
 
-        assert client.username == ropc_kwargs["username"]
-        assert client.password == ropc_kwargs["password"]
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("credential", ["username", "password"])
+    async def test_supplying_both_kinds_of_credential_is_worth_saying(
+        self, service_root, token_kwargs, async_client_factory, credential, caplog,
+    ):
+        """Silently ignoring half of what a caller passed is how they end up
+        debugging the wrong credentials."""
+        with caplog.at_level(logging.WARNING):
+            with pytest.warns(ERClientAuthWarning) as recorded:
+                async_client_factory(
+                    **token_kwargs, **{credential: "test-value"})
+
+        assert str(recorded[0].message) == (
+            "Both token= and username/password were supplied; token= takes "
+            "precedence and the username/password are ignored."
+        )
+        assert "token= takes precedence" in caplog.text
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"token": "not-a-real-token"},
+            {"username": "test-user", "password": "test-password"},
+            {"token": "", "username": "test-user", "password": "test-password"},
+        ],
+        ids=["token_alone", "credentials_alone", "empty_token_is_no_token"],
+    )
+    @pytest.mark.asyncio
+    async def test_one_kind_of_credential_is_unremarkable(
+        self, service_root, async_client_factory, kwargs, recwarn,
+    ):
+        async_client_factory(service_root=service_root, **kwargs)
+
+        assert auth_warnings(recwarn.list) == []
 
     def test_empty_token_falls_through_to_password_grant(
         self, service_root, async_client_factory

@@ -9,16 +9,19 @@ The sync client's token requests go through the *module-level* ``requests.post``
 (not ``self._http_session``), so these tests patch ``erclient.client.requests.post``.
 """
 import json
+import logging
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
 import pytz
 import requests
+from tests.auth.conftest import auth_warnings
 
 from erclient.client import ERClient
-from erclient.er_errors import (ERClientBadCredentials, ERClientBadRequest,
-                                ERClientException, ERClientInternalError)
+from erclient.er_errors import (ERClientAuthWarning, ERClientBadCredentials,
+                                ERClientBadRequest, ERClientException,
+                                ERClientInternalError)
 from erclient.version import __version__
 
 
@@ -170,7 +173,8 @@ class TestPreAcquiredToken:
 
     def test_token_wins_over_supplied_credentials(self, ropc_kwargs, token_kwargs):
         """When both are given the token is used; the credentials are kept but unused."""
-        client = ERClient(**{**ropc_kwargs, **token_kwargs})
+        with pytest.warns(ERClientAuthWarning):
+            client = ERClient(**{**ropc_kwargs, **token_kwargs})
 
         with patch("erclient.client.requests.post") as mock_post:
             headers = client.auth_headers()
@@ -179,6 +183,46 @@ class TestPreAcquiredToken:
         assert not mock_post.called
         assert client.username == ropc_kwargs["username"]
         assert client.password == ropc_kwargs["password"]
+
+    @pytest.mark.parametrize("credential", ["username", "password"])
+    def test_supplying_both_kinds_of_credential_is_worth_saying(
+        self, service_root, token_kwargs, credential, caplog,
+    ):
+        """Silently ignoring half of what a caller passed is how they end up
+        debugging the wrong credentials."""
+        with caplog.at_level(logging.WARNING):
+            with pytest.warns(ERClientAuthWarning) as recorded:
+                ERClient(**token_kwargs, **{credential: "test-value"})
+
+        assert str(recorded[0].message) == (
+            "Both token= and username/password were supplied; token= takes "
+            "precedence and the username/password are ignored."
+        )
+        assert "token= takes precedence" in caplog.text
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"token": "not-a-real-token"},
+            {"username": "test-user", "password": "test-password"},
+            {"token": "", "username": "test-user", "password": "test-password"},
+        ],
+        ids=["token_alone", "credentials_alone", "empty_token_is_no_token"],
+    )
+    def test_one_kind_of_credential_is_unremarkable(
+        self, service_root, kwargs, recwarn,
+    ):
+        ERClient(service_root=service_root, **kwargs)
+
+        assert auth_warnings(recwarn.list) == []
+
+    def test_the_warning_costs_no_http(self, ropc_kwargs, token_kwargs):
+        """Construction still touches nothing; only auth_headers() may."""
+        with patch("erclient.client.requests.get") as mock_get:
+            with pytest.warns(ERClientAuthWarning):
+                ERClient(**{**ropc_kwargs, **token_kwargs})
+
+            assert not mock_get.called
 
     def test_empty_token_falls_through_to_password_grant(self, service_root):
         """token="" is falsy, so the token branch is skipped entirely."""

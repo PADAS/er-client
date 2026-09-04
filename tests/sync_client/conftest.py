@@ -45,8 +45,8 @@ def _mock_response(status_code, json_data=None, text=None, ok=None, url="https:/
 def er_server_info():
     return {
         "service_root": "https://fake-site.erdomain.org/api/v1.0",
-        "username": "test",
-        "password": "test",
+        # Token only: a username and password alongside it would be ignored,
+        # and the client now says so.
         "token": "1110c87681cd1d12ad07c2d0f57d15d6079ae5d8",
         "token_url": "https://fake-auth.erdomain.org/oauth2/token",
         "client_id": "das_web_client",

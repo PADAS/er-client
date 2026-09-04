@@ -143,6 +143,15 @@ class ERClient(object):
 
         self.logger = logging.getLogger(self.__class__.__name__)
 
+        if kwargs.get('token') and (self.username or self.password):
+            # Warned about rather than refused: callers pass both today, and
+            # the token has always won.
+            message = ('Both token= and username/password were supplied; '
+                       'token= takes precedence and the username/password '
+                       'are ignored.')
+            self.logger.warning(message)
+            warnings.warn(message, ERClientAuthWarning)
+
         self._http_session = requests.Session()
         retries = Retry(total=5, backoff_factor=1.5, status_forcelist=[502])
         self._http_session.mount("http", HTTPAdapter(max_retries=retries))
@@ -1397,6 +1406,15 @@ class AsyncERClient(object):
         # ToDo: rename the agent name to er-client, or should we keep it for backward compatibility?
         self.user_agent = f'das-client/{version_string}'
         self.logger = logging.getLogger(self.__class__.__name__)
+
+        if kwargs.get('token') and (self.username or self.password):
+            # Warned about rather than refused: callers pass both today, and
+            # the token has always won.
+            message = ('Both token= and username/password were supplied; '
+                       'token= takes precedence and the username/password '
+                       'are ignored.')
+            self.logger.warning(message)
+            warnings.warn(message, ERClientAuthWarning)
 
         transport = httpx.AsyncHTTPTransport(retries=self.max_retries)
         connect_timeout = kwargs.get(
