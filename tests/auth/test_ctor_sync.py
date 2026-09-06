@@ -224,13 +224,27 @@ class TestPreAcquiredToken:
 
             assert not mock_get.called
 
-    def test_empty_token_falls_through_to_password_grant(self, service_root):
-        """token="" is falsy, so the token branch is skipped entirely."""
+    def test_empty_token_is_no_token_at_all(self, service_root):
+        """token="" is falsy, so the token branch is skipped entirely.
+
+        It used to fall through to a password grant of ``None``s. It now falls
+        through to the interactive sign-in, which is what a client holding no
+        credentials should do.
+        """
         client = ERClient(service_root=service_root, token="")
 
-        # wart: an empty token silently selects the password flow instead of failing
         assert client.auth is None
         assert not hasattr(client, "token")
+        assert client._uses_device_code() is True
+
+    def test_empty_token_alongside_credentials_still_means_the_password_grant(
+        self, service_root
+    ):
+        """The legacy path is chosen by the legacy kwargs, not by the empty one."""
+        client = ERClient(service_root=service_root, token="",
+                          username="u", password="p")
+
+        assert client._uses_device_code() is False
 
     def test_token_none_is_same_as_omitted(self, service_root):
         """An explicit token=None behaves exactly like omitting the kwarg."""
@@ -613,7 +627,7 @@ class TestCustomTokenUrl:
 
 
 class TestNoCredentials:
-    """Nothing usable was supplied; the failure is deferred to the first request."""
+    """Nothing was supplied, so the client signs the user in itself."""
 
     def test_constructs_fine(self, service_root):
         client = ERClient(service_root=service_root)
@@ -621,36 +635,26 @@ class TestNoCredentials:
         assert client.auth is None
         assert client.username is None
 
-    def test_posts_a_grant_of_nones_and_fails(
-        self, service_root, default_token_url, make_requests_response
-    ):
-        """The client still posts a password grant, of Nones, and reports "Login failed."."""
+    def test_selects_the_interactive_sign_in(self, service_root):
+        """It used to post a password grant of Nones and report "Login failed."."""
         client = ERClient(service_root=service_root)
 
-        body = {"error": "invalid_request"}
+        assert client._uses_device_code() is True
 
-        with patch(
-            "erclient.client.requests.post",
-            return_value=make_requests_response(400, json_data=body),
-        ) as mock_post:
-            with pytest.raises(ERClientBadRequest) as exc_info:
+    def test_without_a_terminal_it_says_so_and_sends_nothing(
+        self, service_root, no_tty
+    ):
+        """The device-code path is covered in full in test_device_code_sync.py."""
+        client = ERClient(service_root=service_root)
+
+        with patch("erclient.client.requests.post") as mock_post:
+            with pytest.raises(ERClientBadCredentials):
                 client.auth_headers()
 
-            mock_post.assert_called_once()
-            assert mock_post.call_args.args[0] == default_token_url
-            assert mock_post.call_args.kwargs["data"] == {
-                "grant_type": "password",
-                "username": None,
-                "password": None,
-                "client_id": None,
-            }
-
-        assert str(exc_info.value) == (
-            f"Login failed. (status_code=400) (response_body={json.dumps(body)})"
-        )
+        assert not mock_post.called
 
     def test_requests_drops_none_valued_form_fields(self, default_token_url):
-        """Record how requests actually encodes the None payload above.
+        """Record how requests encodes a password payload with None fields.
 
         Locks in the library's behavior so an upgrade that starts sending
         ``username=`` instead of dropping the key is caught here.

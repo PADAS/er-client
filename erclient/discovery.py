@@ -103,8 +103,9 @@ def looks_like_jwt(token):
     """Whether the token is shaped like a JWT.
 
     A shape check only: three segments whose header decodes to a JSON object
-    with an ``alg``. No signature check and no claim decoding — Step 3 compares
-    the issuer claim.
+    with an ``alg``. No signature check and no claim decoding — reading the
+    issuer claim is :func:`jwt_issuer`'s job, and comparing it is
+    :func:`credential_site_mismatch`'s.
 
     An Auth0 *opaque* token would read as legacy here. That is acceptable:
     EarthRanger validates Auth0 tokens as JWTs, so an Auth0 token that works

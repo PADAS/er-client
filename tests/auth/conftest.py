@@ -19,7 +19,8 @@ import pytest_asyncio
 import requests
 
 from erclient.client import AsyncERClient
-from erclient.discovery import DISCOVERY_PATH
+from erclient.device_code import KNOWN_AUTHORIZATION_SERVERS
+from erclient.discovery import DISCOVERY_PATH, normalize_issuer
 from erclient.er_errors import ERClientAuthWarning
 
 # The client subtracts a fixed 5-minute safety margin from the token's
@@ -51,6 +52,85 @@ def jwt_with_issuer(issuer):
 # issuer claim but not on the discovery document's entry — so the default JWT
 # exercises the normalization rather than an exact string match.
 JWT_WITH_ISSUER = jwt_with_issuer(f"{AUTH0_ISSUER}/")
+
+
+def device_code_endpoint(issuer):
+    """Where a tenant takes device-authorization requests, as it advertises it."""
+    return f"{issuer.rstrip('/')}/oauth/device/code"
+
+
+def device_token_endpoint(issuer):
+    """Where a tenant takes token requests, as it advertises it."""
+    return f"{issuer.rstrip('/')}/oauth/token"
+
+
+# The device-code refusals, spelled out here so a test fails when the text a
+# caller reads changes, not only when the exception class does.
+DISCOVERY_DISABLED_MESSAGE = (
+    "Interactive sign-in needs the site's discovery document to find its "
+    "authorization server, but discovery=False was passed. Enable discovery, "
+    "or pass device_code_issuer=."
+)
+INCOMPLETE_OVERRIDE_MESSAGE = (
+    "The issuer passed with device_code_issuer= is not an EarthRanger Auth0 "
+    "tenant this client knows, so device_code_client_id= and "
+    "device_code_audience= are needed too."
+)
+CODE_EXPIRED_MESSAGE = (
+    "The sign-in code expired before it was approved. Call client.login() "
+    "again for a new one."
+)
+SIGN_IN_DECLINED_MESSAGE = (
+    "The sign-in was declined at the authorization server. Call "
+    "client.login() again to retry."
+)
+
+
+def no_terminal_message(service_root):
+    """An implicit first login with nobody to read the prompt."""
+    return (
+        f"Site {service_root} needs an interactive sign-in and no terminal is "
+        "attached. Call client.login() explicitly where you can see the "
+        "prompt, or pass an Auth0-issued access token with token=."
+    )
+
+
+def expired_session_message(service_root):
+    """The same, once a device-code token has run out."""
+    return (
+        f"Your EarthRanger session for {service_root} has expired and no "
+        "terminal is attached to sign in again. Call client.login() "
+        "explicitly, or pass a fresh Auth0-issued access token with token=."
+    )
+
+
+def no_authorization_servers_message(service_root):
+    """The site publishes nothing to sign in against."""
+    return (
+        f"Site {service_root} does not publish its authorization servers, so "
+        "the client cannot sign in interactively. Pass an Auth0-issued access "
+        "token with token=, or pass device_code_issuer= if you know the site's "
+        "Auth0 issuer."
+    )
+
+
+def no_known_tenant_message(service_root, accepted):
+    """It publishes servers, but none this release knows."""
+    return (
+        f"Site {service_root} lists no EarthRanger Auth0 tenant this client "
+        f"knows ({accepted}). Pass an Auth0-issued access token with token=, "
+        "or pass device_code_issuer=, device_code_client_id= and "
+        "device_code_audience= for its tenant."
+    )
+
+
+def metadata_unreadable_message(metadata_url):
+    """The authorization server would not describe itself."""
+    return (
+        "Could not read the authorization server's metadata at "
+        f"{metadata_url}. Try again, or pass an Auth0-issued access token "
+        "with token=."
+    )
 
 
 def auth_warnings(recorded):
@@ -214,6 +294,82 @@ def serving(patched_get, make_requests_response):
     return _serve
 
 
+class FakeDeviceServer:
+    """A site and an Auth0 tenant, answering the sync client by URL.
+
+    The client reaches four endpoints on the device-code path, and a test that
+    cares about one of them still has to get past the other three. Routing by
+    URL rather than by call order also means the assertions about *what* was
+    requested cannot pass by accident when the client asks in the wrong order:
+    ``traffic`` records that separately.
+    """
+
+    def __init__(self, issuer, responses):
+        self.issuer = issuer
+        self._responses = responses
+        self.token_responses = []
+        self.traffic = []
+
+    @property
+    def device_endpoint(self):
+        return device_code_endpoint(self.issuer)
+
+    @property
+    def token_endpoint(self):
+        return device_token_endpoint(self.issuer)
+
+    def get(self, url, **kwargs):
+        self.traffic.append(("GET", url))
+        if url.endswith(DISCOVERY_PATH):
+            return self._responses["discovery"]
+        if url.endswith("/.well-known/openid-configuration"):
+            return self._responses["metadata"]
+        raise AssertionError(f"unexpected GET {url}")
+
+    def post(self, url, **kwargs):
+        self.traffic.append(("POST", url))
+        if url == self.device_endpoint:
+            return self._responses["authorization"]
+        if url == self.token_endpoint:
+            assert self.token_responses, "the client polled more than scripted"
+            return self.token_responses.pop(0)
+        raise AssertionError(f"unexpected POST {url}")
+
+
+@pytest.fixture
+def fake_device_server(
+    patched_get, patched_post, make_requests_response, known_issuer,
+    dev_discovery_document, as_metadata_document, device_authorization_document,
+    device_token_response,
+):
+    """Stand up a fake tenant behind the sync client's requests.get/post.
+
+    Every piece is overridable, so a test that wants a broken metadata
+    document or a scripted poll says only that much.
+    """
+
+    def _serve(*, discovery=None, metadata=None, authorization=None,
+               token_responses=None, issuer=None):
+        issuer = issuer or known_issuer
+        server = FakeDeviceServer(issuer, {
+            "discovery": discovery if discovery is not None
+            else make_requests_response(200, json_data=dev_discovery_document),
+            "metadata": metadata if metadata is not None
+            else make_requests_response(
+                200, json_data=as_metadata_document(issuer)),
+            "authorization": authorization if authorization is not None
+            else make_requests_response(
+                200, json_data=device_authorization_document()),
+        })
+        server.token_responses = list(token_responses) if token_responses else [
+            make_requests_response(200, json_data=device_token_response)]
+        patched_get.side_effect = server.get
+        patched_post.side_effect = server.post
+        return server
+
+    return _serve
+
+
 @pytest.fixture
 def token_response_factory():
     """Build a token-endpoint success body, overriding or dropping fields."""
@@ -236,6 +392,102 @@ def token_response_factory():
 @pytest.fixture
 def token_response(token_response_factory):
     return token_response_factory()
+
+
+@pytest.fixture
+def known_issuer():
+    """An EarthRanger Auth0 tenant this client knows, spelled as discovery serves it."""
+    return "https://auth-dev.pamdas.org/"
+
+
+@pytest.fixture
+def known_server(known_issuer):
+    """The registration that goes with it."""
+    return KNOWN_AUTHORIZATION_SERVERS[normalize_issuer(known_issuer)]
+
+
+@pytest.fixture
+def dev_discovery_document(make_discovery_document, das_issuer, known_issuer):
+    """What a migrating site backed by that tenant serves."""
+    return make_discovery_document(das_issuer, known_issuer)
+
+
+@pytest.fixture
+def as_metadata_document():
+    """An OIDC discovery document for an authorization server."""
+
+    def _factory(issuer, **overrides):
+        document = {
+            "issuer": issuer,
+            "device_authorization_endpoint": device_code_endpoint(issuer),
+            "token_endpoint": device_token_endpoint(issuer),
+            "jwks_uri": f"{issuer.rstrip('/')}/.well-known/jwks.json",
+        }
+        document.update(overrides)
+        return {k: v for k, v in document.items() if v is not None}
+
+    return _factory
+
+
+@pytest.fixture
+def device_authorization_document():
+    """A device-authorization response, with a fast interval for the tests."""
+
+    def _factory(**overrides):
+        document = {
+            "device_code": "device-code-1",
+            "user_code": "WDJB-MJHT",
+            "verification_uri": "https://auth-dev.pamdas.org/activate",
+            "verification_uri_complete": (
+                "https://auth-dev.pamdas.org/activate?user_code=WDJB-MJHT"),
+            "expires_in": 60,
+            "interval": 1,
+        }
+        document.update(overrides)
+        return {k: v for k, v in document.items() if v is not None}
+
+    return _factory
+
+
+@pytest.fixture
+def device_token_response():
+    """What the token endpoint returns once the user approves.
+
+    No ``refresh_token``: the registration does not ask for ``offline_access``,
+    so expiry sends the client back through the whole flow.
+    """
+    return {
+        "access_token": JWT_WITH_ISSUER,
+        "token_type": "Bearer",
+        "expires_in": 172800,
+        "scope": "openid profile email",
+    }
+
+
+@pytest.fixture
+def tty(monkeypatch):
+    """Pretend a user is watching, so an implicit login may prompt them."""
+    monkeypatch.setattr("erclient.client._stdin_is_tty", lambda: True)
+
+
+@pytest.fixture
+def no_tty(monkeypatch):
+    """Pretend nobody is watching: a cron job, a worker, a piped script."""
+    monkeypatch.setattr("erclient.client._stdin_is_tty", lambda: False)
+
+
+@pytest.fixture
+def no_sleep(monkeypatch):
+    """Record what the poller would have waited for, without waiting."""
+    slept = []
+    monkeypatch.setattr("erclient.client.time.sleep", slept.append)
+    return slept
+
+
+@pytest.fixture
+def captured_prompt():
+    """A device_code_prompt callable that keeps what it was told to show."""
+    return []
 
 
 @pytest.fixture
