@@ -241,15 +241,29 @@ class TestPreAcquiredToken:
 
         assert auth_warnings(recwarn.list) == []
 
-    def test_empty_token_falls_through_to_password_grant(
+    def test_empty_token_is_no_token_at_all(
         self, service_root, async_client_factory
     ):
-        """token="" is falsy, so the token branch is skipped entirely."""
+        """token="" is falsy, so the token branch is skipped entirely.
+
+        It used to fall through to a password grant of ``None``s. It now falls
+        through to the interactive sign-in, which is what a client holding no
+        credentials should do.
+        """
         client = async_client_factory(service_root=service_root, token="")
 
-        # wart: an empty token silently selects the password flow instead of failing
         assert client.auth is None
         assert not hasattr(client, "token")
+        assert client._uses_device_code() is True
+
+    def test_empty_token_alongside_credentials_still_means_the_password_grant(
+        self, service_root, async_client_factory
+    ):
+        """The legacy path is chosen by the legacy kwargs, not by the empty one."""
+        client = async_client_factory(service_root=service_root, token="",
+                                      username="u", password="p")
+
+        assert client._uses_device_code() is False
 
     def test_token_none_is_same_as_omitted(self, service_root, async_client_factory):
         """An explicit token=None behaves exactly like omitting the kwarg."""
@@ -738,7 +752,7 @@ class TestCustomTokenUrl:
 
 
 class TestNoCredentials:
-    """Nothing usable was supplied; the failure is deferred to the first request."""
+    """Nothing was supplied, so the client signs the user in itself."""
 
     def test_constructs_fine(self, service_root, async_client_factory):
         client = async_client_factory(service_root=service_root)
@@ -746,12 +760,38 @@ class TestNoCredentials:
         assert client.auth is None
         assert client.username is None
 
+    def test_selects_the_interactive_sign_in(
+        self, service_root, async_client_factory
+    ):
+        """It used to post a password grant of Nones and raise the status error."""
+        client = async_client_factory(service_root=service_root)
+
+        assert client._uses_device_code() is True
+
     @pytest.mark.asyncio
-    async def test_posts_a_grant_of_nones_and_raises(
+    async def test_without_a_terminal_it_says_so_and_sends_nothing(
+        self, service_root, async_client_factory, no_tty
+    ):
+        """The device-code path is covered in full in test_device_code_async.py."""
+        client = async_client_factory(service_root=service_root)
+
+        async with respx.mock as respx_mock:
+            with pytest.raises(ERClientBadCredentials):
+                await client.auth_headers()
+
+            assert not respx_mock.calls
+
+    @pytest.mark.asyncio
+    async def test_the_password_grant_still_sends_empty_strings_for_nones(
         self, service_root, default_token_url, async_client_factory
     ):
-        """The client still posts a password grant, of Nones, and raises the status error."""
-        client = async_client_factory(service_root=service_root)
+        """httpx sends empty strings where requests drops the key entirely.
+
+        Locked in so a library upgrade that changes it is caught here. Reached
+        now with a client_id, since without one there is no password grant.
+        """
+        client = async_client_factory(service_root=service_root,
+                                      client_id="das_web_client")
 
         async with respx.mock as respx_mock:
             mock_discovery(respx_mock, client.service_root)
@@ -763,11 +803,8 @@ class TestNoCredentials:
             with pytest.raises(httpx.HTTPStatusError):
                 await client.auth_headers()
 
-            assert token_route.call_count == 1
-            # httpx sends empty strings where requests drops the key entirely;
-            # locked in so a library upgrade that changes it is caught here.
             assert token_route.calls[0].request.content.decode() == (
-                "grant_type=password&username=&password=&client_id="
+                "grant_type=password&username=&password=&client_id=das_web_client"
             )
 
 

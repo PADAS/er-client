@@ -485,6 +485,18 @@ def no_sleep(monkeypatch):
 
 
 @pytest.fixture
+def no_async_sleep(monkeypatch):
+    """The async poller's waits, recorded rather than served."""
+    slept = []
+
+    async def _sleep(seconds):
+        slept.append(seconds)
+
+    monkeypatch.setattr("erclient.client.asyncio.sleep", _sleep)
+    return slept
+
+
+@pytest.fixture
 def captured_prompt():
     """A device_code_prompt callable that keeps what it was told to show."""
     return []

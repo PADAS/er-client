@@ -389,13 +389,20 @@ class TestPolling:
                     400, json_data={"error": "authorization_pending"}),
             ])
 
-        with patch("erclient.client.time.monotonic", side_effect=[0, 0.5, 2]):
+        def polls():
+            return urls(server.traffic, "POST").count(
+                device_token_endpoint(known_issuer))
+
+        # Keyed off the poll count rather than a fixed sequence: patching
+        # time.monotonic patches it for the HTTP libraries too, and a
+        # scripted one would run out on whoever else reads the clock.
+        with patch("erclient.client.time.monotonic",
+                   side_effect=lambda: 0 if not polls() else 100):
             with pytest.raises(ERClientBadCredentials) as exc_info:
                 client.login()
 
         assert str(exc_info.value) == CODE_EXPIRED_MESSAGE
-        assert urls(server.traffic, "POST").count(
-            device_token_endpoint(known_issuer)) == 1
+        assert polls() == 1
 
     def test_the_user_saying_no(
         self, service_root, fake_device_server, no_sleep, captured_prompt,

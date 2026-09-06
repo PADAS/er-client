@@ -1,3 +1,4 @@
+import asyncio
 import concurrent.futures
 import csv
 import json
@@ -146,7 +147,222 @@ def split_link(url):
     return (url, params)
 
 
-class ERClient(object):
+class _DeviceCodeSupport:
+    """The parts of the device-code sign-in that are not requests.
+
+    Both clients run the same flow, and a caller moving between them should
+    not find that one prompts differently or refuses for different reasons.
+    What genuinely differs is the four requests — one library posts, the other
+    awaits — so those stay in each client and everything around them is here.
+
+    Responses are read through ``status_code``, ``text`` and ``headers``, which
+    ``requests`` and ``httpx`` spell the same way.
+    """
+
+    @staticmethod
+    def _is_success(response):
+        return 200 <= response.status_code < 300
+
+    def _uses_device_code(self):
+        """Whether this client has to sign a user in to get a token.
+
+        Nothing to authenticate with means the device-code flow. Any legacy
+        kwarg at all, even an incomplete set, keeps the password grant: those
+        callers have a working setup or a bug, and neither is improved by
+        silently prompting instead.
+        """
+        return (not getattr(self, 'token', None)
+                and not (self.username or self.password or self.client_id))
+
+    def _write_prompt(self, text):
+        """Show the user the URL and the code.
+
+        stderr by default, so a script whose stdout is piped somewhere stays
+        clean, with the same text logged for whoever reads logs instead.
+        """
+        if self._device_code_prompt:
+            self._device_code_prompt(text)
+            return
+        print(text, file=sys.stderr, flush=True)
+        self.logger.info(text)
+
+    def _show_device_code_prompt(self, authorization):
+        """Tell the user what to do, and optionally open it for them."""
+        self._write_prompt(default_prompt_text(
+            service_root=self.service_root, authorization=authorization))
+        if not self._open_browser:
+            return
+
+        url = (authorization.verification_uri_complete
+               or authorization.verification_uri)
+        try:
+            webbrowser.open(url)
+        except Exception as e:
+            # The URL was printed either way, so this is a convenience that
+            # failed, not a login that did.
+            self.logger.debug('Could not open a browser at %s: %s', url, e)
+
+    def _refuse_device_code(self, message):
+        """Refuse to sign in, recording why, and raise.
+
+        Reached only before anything was asked of an authorization server, so
+        there is no status and no body — the message is the whole story.
+        """
+        self._last_auth_error = AuthError.for_site_mismatch(
+            message, url=None, grant_type=DEVICE_CODE_GRANT)
+        self.auth = None
+        self.auth_expires = pytz.utc.localize(datetime.min)
+        raise ERClientBadCredentials(message)
+
+    def _select_device_code_server(self):
+        """The authorization server to sign in against, or a refusal.
+
+        Called once discovery has had its chance, so what is left to decide is
+        which refusal fits: an override that cannot stand on its own, a site
+        that published nothing, or a site backed by a tenant we have no
+        registration for.
+        """
+        server = select_authorization_server(
+            self._protected_resource_metadata,
+            issuer=self._device_code_issuer,
+            client_id=self._device_code_client_id,
+            audience=self._device_code_audience)
+        if server is not None:
+            return server
+
+        if self._device_code_issuer:
+            self._refuse_device_code(_INCOMPLETE_ISSUER_OVERRIDE)
+        metadata = self._protected_resource_metadata
+        if metadata is None:
+            self._refuse_device_code(
+                _NO_AUTHORIZATION_SERVERS.format(site=self.service_root))
+        self._refuse_device_code(_NO_KNOWN_TENANT.format(
+            site=self.service_root,
+            accepted=', '.join(normalize_issuer(issuer)
+                               for issuer in metadata.authorization_servers)))
+
+    def _device_code_endpoints_from(self, response, server, url):
+        """The two endpoints the metadata document advertises, or raise.
+
+        Unlike site discovery this document is not advisory: without it there
+        is nowhere to send the user, and guessing an authorization server's
+        URL shapes would be a worse failure than saying so.
+        """
+        endpoints = None
+        if self._is_success(response):
+            endpoints = parse_authorization_server_metadata(
+                response.text, server.issuer)
+        if endpoints is None:
+            raise ERClientServiceUnreachable(
+                _METADATA_UNREADABLE.format(metadata_url=url),
+                status_code=response.status_code,
+                response_body=response.text)
+        return endpoints
+
+    def _device_authorization_form(self, server):
+        return {'client_id': server.client_id,
+                'scope': self._device_code_scope,
+                'audience': server.audience}
+
+    def _device_authorization_from(self, response, device_endpoint):
+        """The code to show the user, or raise."""
+        if not self._is_success(response):
+            self._raise_device_code_refusal(response, device_endpoint)
+
+        authorization = parse_device_authorization(response.text)
+        if authorization is None:
+            raise ERClientServiceUnreachable(
+                _METADATA_UNREADABLE.format(metadata_url=device_endpoint),
+                status_code=response.status_code,
+                response_body=response.text)
+        return authorization
+
+    def _device_code_token_form(self, server, authorization):
+        return {'grant_type': DEVICE_CODE_GRANT,
+                'device_code': authorization.device_code,
+                'client_id': server.client_id}
+
+    def _store_device_code_token(self, response):
+        """Keep an approved token, with the same expiry margin as any other."""
+        self.auth = json.loads(response.text)
+        expires_in = int(self.auth['expires_in']) - 5 * 60
+        self.auth_expires = datetime.now(
+            tz=timezone.utc) + timedelta(seconds=expires_in)
+        self._last_auth_error = None
+        return True
+
+    def _device_code_poll_interval(self, response, token_endpoint, interval):
+        """What to wait before polling again, or raise if this was the end.
+
+        RFC 8628 section 3.5. ``authorization_pending`` and ``slow_down`` are
+        not failures and never reach the classifier: they are the flow
+        working. Everything else is classified by the OAuth error in the body,
+        exactly as a refused password grant is.
+        """
+        auth_error = AuthError.from_token_response(
+            status_code=response.status_code,
+            response_body=response.text,
+            url=token_endpoint,
+            grant_type=DEVICE_CODE_GRANT,
+            retry_after=parse_retry_after_header(
+                response.headers.get('Retry-After')),
+        )
+        if auth_error.error == 'authorization_pending':
+            return interval
+        if auth_error.error == 'slow_down':
+            interval += SLOW_DOWN_INCREMENT_SECONDS
+            if auth_error.retry_after:
+                interval = max(interval, auth_error.retry_after)
+            return interval
+        if auth_error.error == 'expired_token':
+            self._device_code_expired(token_endpoint, auth_error)
+        if auth_error.error == 'access_denied':
+            self._last_auth_error = auth_error
+            self.auth = None
+            self.auth_expires = pytz.utc.localize(datetime.min)
+            raise ERClientBadCredentials(_SIGN_IN_DECLINED)
+        self._raise_device_code_refusal(response, token_endpoint)
+
+    def _device_code_expired(self, url, auth_error=None):
+        """The code ran out before the user approved it.
+
+        Recorded as ``expired_token`` even when it was our own deadline that
+        passed rather than the server's: it is the same fact, and a caller
+        reading ``last_auth_error`` should not have to tell the two apart.
+        """
+        self._last_auth_error = auth_error or AuthError(
+            error='expired_token', error_description=_CODE_EXPIRED,
+            url=url, grant_type=DEVICE_CODE_GRANT)
+        self.auth = None
+        self.auth_expires = pytz.utc.localize(datetime.min)
+        raise ERClientBadCredentials(_CODE_EXPIRED)
+
+    def _raise_device_code_refusal(self, response, url):
+        """Record a refusal from the authorization server and raise it.
+
+        The same classification a refused password grant gets: the OAuth error
+        in the body decides, not the status.
+        """
+        auth_error = AuthError.from_token_response(
+            status_code=response.status_code,
+            response_body=response.text,
+            url=url,
+            grant_type=DEVICE_CODE_GRANT,
+            retry_after=parse_retry_after_header(
+                response.headers.get('Retry-After')),
+        )
+        self._last_auth_error = auth_error
+        self.auth = None
+        self.auth_expires = pytz.utc.localize(datetime.min)
+        raise classify_token_error(auth_error)(
+            message='Login failed.',
+            status_code=auth_error.status_code,
+            response_body=auth_error.response_body,
+            retry_after=auth_error.retry_after,
+        )
+
+
+class ERClient(_DeviceCodeSupport):
     """
     ERClient provides basic access to the EarthRanger server API. You will need the server hostname as well as credentials in the form of a username/password or access token.
 
@@ -307,41 +523,6 @@ class ERClient(object):
     def _auth_is_valid(self):
         return self.auth_expires > datetime.now(tz=timezone.utc)
 
-    def _uses_device_code(self):
-        """Whether this client has to sign a user in to get a token.
-
-        Nothing to authenticate with means the device-code flow. Any legacy
-        kwarg at all, even an incomplete set, keeps the password grant: those
-        callers have a working setup or a bug, and neither is improved by
-        silently prompting instead.
-        """
-        return (not getattr(self, 'token', None)
-                and not (self.username or self.password or self.client_id))
-
-    def _write_prompt(self, text):
-        """Show the user the URL and the code.
-
-        stderr by default, so a script whose stdout is piped somewhere stays
-        clean, with the same text logged for whoever reads logs instead.
-        """
-        if self._device_code_prompt:
-            self._device_code_prompt(text)
-            return
-        print(text, file=sys.stderr, flush=True)
-        self.logger.info(text)
-
-    def _refuse_device_code(self, message):
-        """Refuse to sign in, recording why, and raise.
-
-        Reached only before anything was asked of an authorization server, so
-        there is no status and no body — the message is the whole story.
-        """
-        self._last_auth_error = AuthError.for_site_mismatch(
-            message, url=None, grant_type=DEVICE_CODE_GRANT)
-        self.auth = None
-        self.auth_expires = pytz.utc.localize(datetime.min)
-        raise ERClientBadCredentials(message)
-
     def _device_code_server(self):
         """The authorization server to sign in against, or a refusal.
 
@@ -352,35 +533,11 @@ class ERClient(object):
             if not self._discovery_enabled:
                 self._refuse_device_code(_DISCOVERY_DISABLED)
             self.discover()
-
-        server = select_authorization_server(
-            self._protected_resource_metadata,
-            issuer=self._device_code_issuer,
-            client_id=self._device_code_client_id,
-            audience=self._device_code_audience)
-        if server is not None:
-            return server
-
-        if self._device_code_issuer:
-            self._refuse_device_code(_INCOMPLETE_ISSUER_OVERRIDE)
-        metadata = self._protected_resource_metadata
-        if metadata is None:
-            self._refuse_device_code(
-                _NO_AUTHORIZATION_SERVERS.format(site=self.service_root))
-        self._refuse_device_code(_NO_KNOWN_TENANT.format(
-            site=self.service_root,
-            accepted=', '.join(normalize_issuer(issuer)
-                               for issuer in metadata.authorization_servers)))
+        return self._select_device_code_server()
 
     def _device_code_endpoints(self, server):
-        """The tenant's device-authorization and token endpoints, as it advertises them.
-
-        Unlike site discovery, this fetch is not advisory: without it there is
-        nowhere to send the user, and guessing Auth0's URL shapes would be a
-        worse failure than saying so.
-        """
+        """Ask the authorization server to describe itself."""
         url = authorization_server_metadata_url(server.issuer)
-        message = _METADATA_UNREADABLE.format(metadata_url=url)
         try:
             response = requests.get(
                 url,
@@ -391,82 +548,28 @@ class ERClient(object):
         except requests.RequestException as e:
             self.logger.debug(
                 'Authorization server metadata fetch failed for %s: %s', url, e)
-            raise ERClientServiceUnreachable(message)
-
-        endpoints = None
-        if response.ok:
-            endpoints = parse_authorization_server_metadata(
-                response.text, server.issuer)
-        if endpoints is None:
             raise ERClientServiceUnreachable(
-                message, status_code=response.status_code,
-                response_body=response.text)
-        return endpoints
+                _METADATA_UNREADABLE.format(metadata_url=url))
+        return self._device_code_endpoints_from(response, server, url)
 
     def _request_device_authorization(self, server, device_endpoint):
-        """Ask the tenant for a code to show the user."""
+        """Ask for a code to show the user."""
         response = requests.post(
             device_endpoint,
-            data={'client_id': server.client_id,
-                  'scope': self._device_code_scope,
-                  'audience': server.audience},
+            data=self._device_authorization_form(server),
             timeout=DEVICE_CODE_TIMEOUT_SECONDS,
         )
-        if not response.ok:
-            self._raise_device_code_refusal(response, device_endpoint)
-
-        authorization = parse_device_authorization(response.text)
-        if authorization is None:
-            raise ERClientServiceUnreachable(
-                _METADATA_UNREADABLE.format(metadata_url=device_endpoint),
-                status_code=response.status_code,
-                response_body=response.text)
-        return authorization
-
-    def _raise_device_code_refusal(self, response, url):
-        """Record a refusal from the tenant and raise what it implies.
-
-        The same classification the password grant gets: the OAuth error in
-        the body decides, not the status.
-        """
-        auth_error = AuthError.from_token_response(
-            status_code=response.status_code,
-            response_body=response.text,
-            url=url,
-            grant_type=DEVICE_CODE_GRANT,
-            retry_after=parse_retry_after_header(
-                response.headers.get('Retry-After')),
-        )
-        self._last_auth_error = auth_error
-        self.auth = None
-        self.auth_expires = pytz.utc.localize(datetime.min)
-        raise classify_token_error(auth_error)(
-            message='Login failed.',
-            status_code=auth_error.status_code,
-            response_body=auth_error.response_body,
-            retry_after=auth_error.retry_after,
-        )
-
-    def _device_code_expired(self, url, auth_error=None):
-        """The code ran out before the user approved it."""
-        self._last_auth_error = auth_error or AuthError(
-            error='expired_token', error_description=_CODE_EXPIRED,
-            url=url, grant_type=DEVICE_CODE_GRANT)
-        self.auth = None
-        self.auth_expires = pytz.utc.localize(datetime.min)
-        raise ERClientBadCredentials(_CODE_EXPIRED)
+        return self._device_authorization_from(response, device_endpoint)
 
     def _poll_for_device_code_token(self, server, token_endpoint, authorization):
         """Poll until the user approves, declines, or runs out of time.
 
-        RFC 8628 section 3.5. ``authorization_pending`` and ``slow_down`` are
-        not failures, so they never reach the classifier: they are the flow
-        working. The deadline is ours as well as the server's, since a tenant
-        that answers ``authorization_pending`` forever would otherwise be
-        polled forever.
+        The deadline is ours as well as the server's: a tenant that answers
+        ``authorization_pending`` forever would otherwise be polled forever.
         """
         deadline = time.monotonic() + authorization.expires_in
         interval = authorization.interval
+        payload = self._device_code_token_form(server, authorization)
 
         while True:
             time.sleep(interval)
@@ -474,43 +577,12 @@ class ERClient(object):
                 self._device_code_expired(token_endpoint)
 
             response = requests.post(
-                token_endpoint,
-                data={'grant_type': DEVICE_CODE_GRANT,
-                      'device_code': authorization.device_code,
-                      'client_id': server.client_id},
-                timeout=DEVICE_CODE_TIMEOUT_SECONDS,
-            )
-            if response.ok:
-                self.auth = json.loads(response.text)
-                expires_in = int(self.auth['expires_in']) - 5 * 60
-                self.auth_expires = datetime.now(
-                    tz=timezone.utc) + timedelta(seconds=expires_in)
-                self._last_auth_error = None
-                return True
-
-            auth_error = AuthError.from_token_response(
-                status_code=response.status_code,
-                response_body=response.text,
-                url=token_endpoint,
-                grant_type=DEVICE_CODE_GRANT,
-                retry_after=parse_retry_after_header(
-                    response.headers.get('Retry-After')),
-            )
-            if auth_error.error == 'authorization_pending':
-                continue
-            if auth_error.error == 'slow_down':
-                interval += SLOW_DOWN_INCREMENT_SECONDS
-                if auth_error.retry_after:
-                    interval = max(interval, auth_error.retry_after)
-                continue
-            if auth_error.error == 'expired_token':
-                self._device_code_expired(token_endpoint, auth_error)
-            if auth_error.error == 'access_denied':
-                self._last_auth_error = auth_error
-                self.auth = None
-                self.auth_expires = pytz.utc.localize(datetime.min)
-                raise ERClientBadCredentials(_SIGN_IN_DECLINED)
-            self._raise_device_code_refusal(response, token_endpoint)
+                token_endpoint, data=payload,
+                timeout=DEVICE_CODE_TIMEOUT_SECONDS)
+            if self._is_success(response):
+                return self._store_device_code_token(response)
+            interval = self._device_code_poll_interval(
+                response, token_endpoint, interval)
 
     def _device_code_login(self):
         """Sign the user in with RFC 8628 device authorization.
@@ -524,19 +596,7 @@ class ERClient(object):
         device_endpoint, token_endpoint = self._device_code_endpoints(server)
         authorization = self._request_device_authorization(
             server, device_endpoint)
-
-        self._write_prompt(default_prompt_text(
-            service_root=self.service_root, authorization=authorization))
-        if self._open_browser:
-            url = (authorization.verification_uri_complete
-                   or authorization.verification_uri)
-            try:
-                webbrowser.open(url)
-            except Exception as e:
-                # The URL was printed either way, so this is a convenience
-                # that failed, not a login that did.
-                self.logger.debug('Could not open a browser at %s: %s', url, e)
-
+        self._show_device_code_prompt(authorization)
         return self._poll_for_device_code_token(
             server, token_endpoint, authorization)
 
@@ -1672,7 +1732,7 @@ class ERClient(object):
         return self._get('users')
 
 
-class AsyncERClient(object):
+class AsyncERClient(_DeviceCodeSupport):
     """
     AsyncERClient asynchronous usage of EarthRanger server API (asyncio).
     Notice: This client is experimental and only supports a reduced set of features.
@@ -1697,6 +1757,15 @@ class AsyncERClient(object):
         or
 
         :param token: authorization token. Takes precedence over username/password: when both are supplied the token is used and the credentials are ignored.
+
+        or nothing at all: with no token, username, password or client_id, login() signs the user in interactively (RFC 8628 device authorization) against the EarthRanger Auth0 tenant the site's discovery document names. That token carries no refresh token, so an expired session means signing in again.
+
+        :param device_code_issuer: Optional. The Auth0 issuer to sign in against, skipping the discovery lookup. Needs device_code_client_id and device_code_audience unless it is a tenant this release knows.
+        :param device_code_client_id: Optional. Overrides the client id registered for the chosen issuer.
+        :param device_code_audience: Optional. Overrides the API audience requested for the chosen issuer.
+        :param device_code_scope: Optional. Scopes to request; default 'openid profile email'.
+        :param device_code_prompt: Optional. Callable taking the prompt text. Replaces the default, which writes to stderr and logs at INFO.
+        :param open_browser: Optional. Also open the verification URL in a browser. Default False.
 
         If posting to the sensors API, the default provider key
         :param provider_key: provider-key for posting observation data (Ex. xyz_provider)
@@ -1745,6 +1814,14 @@ class AsyncERClient(object):
             self.auth = dict(token_type='Bearer',
                              access_token=kwargs.get('token'))
             self.auth_expires = datetime(2099, 1, 1, tzinfo=pytz.utc)
+
+        self._device_code_issuer = kwargs.get('device_code_issuer')
+        self._device_code_client_id = kwargs.get('device_code_client_id')
+        self._device_code_audience = kwargs.get('device_code_audience')
+        self._device_code_scope = kwargs.get(
+            'device_code_scope') or DEFAULT_SCOPE
+        self._device_code_prompt = kwargs.get('device_code_prompt')
+        self._open_browser = kwargs.get('open_browser', False)
 
         # ToDo: rename the agent name to er-client, or should we keep it for backward compatibility?
         self.user_agent = f'das-client/{version_string}'
@@ -2221,8 +2298,96 @@ class AsyncERClient(object):
         self._refuse_token(mode)
         self._warn_if_legacy_auth(mode)
 
+    async def _device_code_server(self):
+        """The authorization server to sign in against, or a refusal.
+
+        An explicit ``device_code_issuer`` skips discovery: the caller has
+        already answered the question discovery exists to answer.
+        """
+        if not self._device_code_issuer:
+            if not self._discovery_enabled:
+                self._refuse_device_code(_DISCOVERY_DISABLED)
+            await self.discover()
+        return self._select_device_code_server()
+
+    async def _device_code_endpoints(self, server):
+        """Ask the authorization server to describe itself."""
+        url = authorization_server_metadata_url(server.issuer)
+        try:
+            response = await self._http_session.get(
+                url,
+                headers={'User-Agent': self.user_agent,
+                         'Accept': 'application/json'},
+                follow_redirects=True,
+            )
+        except httpx.HTTPError as e:
+            self.logger.debug(
+                'Authorization server metadata fetch failed for %s: %s', url, e)
+            raise ERClientServiceUnreachable(
+                _METADATA_UNREADABLE.format(metadata_url=url))
+        return self._device_code_endpoints_from(response, server, url)
+
+    async def _request_device_authorization(self, server, device_endpoint):
+        """Ask for a code to show the user."""
+        response = await self._http_session.post(
+            device_endpoint, data=self._device_authorization_form(server))
+        return self._device_authorization_from(response, device_endpoint)
+
+    async def _poll_for_device_code_token(self, server, token_endpoint,
+                                          authorization):
+        """Poll until the user approves, declines, or runs out of time.
+
+        The deadline is ours as well as the server's: a tenant that answers
+        ``authorization_pending`` forever would otherwise be polled forever.
+        """
+        deadline = time.monotonic() + authorization.expires_in
+        interval = authorization.interval
+        payload = self._device_code_token_form(server, authorization)
+
+        while True:
+            await asyncio.sleep(interval)
+            if time.monotonic() >= deadline:
+                self._device_code_expired(token_endpoint)
+
+            response = await self._http_session.post(
+                token_endpoint, data=payload)
+            if self._is_success(response):
+                return self._store_device_code_token(response)
+            interval = self._device_code_poll_interval(
+                response, token_endpoint, interval)
+
+    async def _device_code_login(self):
+        """Sign the user in with RFC 8628 device authorization.
+
+        Unlike the password grant, no ``httpx.HTTPStatusError`` escapes here
+        for a wrapper to classify: there is no wrapper between a caller and
+        their own ``login()`` call, so this raises the EarthRanger exception
+        itself, exactly as the sync client does.
+        """
+        server = await self._device_code_server()
+        device_endpoint, token_endpoint = await self._device_code_endpoints(
+            server)
+        authorization = await self._request_device_authorization(
+            server, device_endpoint)
+        self._show_device_code_prompt(authorization)
+        return await self._poll_for_device_code_token(
+            server, token_endpoint, authorization)
+
     async def auth_headers(self):
         await self._discover_for_token_mode()
+
+        # An implicit sign-in needs someone to read the prompt. Without a
+        # terminal, say so before any request rather than printing a code
+        # into a log and polling until it expires.
+        if self._uses_device_code() and not _stdin_is_tty():
+            if self.auth and not self._auth_is_valid():
+                self._refuse_device_code(
+                    _NO_TERMINAL_FOR_EXPIRED_SESSION.format(
+                        site=self.service_root))
+            elif not self.auth:
+                self._refuse_device_code(
+                    _NO_TERMINAL_FOR_FIRST_LOGIN.format(
+                        site=self.service_root))
 
         if self.auth:
             if not self._auth_is_valid():
@@ -2270,6 +2435,9 @@ class AsyncERClient(object):
         raise ERClientBadCredentials(message)
 
     async def login(self):
+        if self._uses_device_code():
+            return await self._device_code_login()
+
         # Refetched on every login rather than cached: a login is rare enough
         # that one extra GET is cheap, and a site that migrates mid-process is
         # then noticed at the next one.
