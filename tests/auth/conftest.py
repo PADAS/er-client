@@ -157,7 +157,8 @@ def password_mismatch_message(service_root):
         "username/password login against its legacy token endpoint cannot "
         "work: the token endpoint may still issue a token, but every API "
         "request would be rejected. Pass an Auth0-issued access token with "
-        "token= instead."
+        "token=, or construct the client with no credentials and call login() "
+        "to sign in interactively."
     )
 
 
@@ -167,7 +168,8 @@ def opaque_token_mismatch_message(service_root):
     return (
         "The token passed with token= looks like a legacy EarthRanger-issued "
         f"token, but site {service_root} accepts only Auth0-issued tokens. "
-        "Use an Auth0-issued access token."
+        "Use an Auth0-issued access token, or construct the client with no "
+        "credentials and call login() to sign in interactively."
     )
 
 

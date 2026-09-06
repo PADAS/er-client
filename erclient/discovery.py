@@ -197,12 +197,15 @@ def credential_site_mismatch(*, metadata, service_root, mode, token_issuer=None)
                 "username/password login against its legacy token endpoint "
                 "cannot work: the token endpoint may still issue a token, but "
                 "every API request would be rejected. Pass an Auth0-issued "
-                "access token with token= instead."
+                "access token with token=, or construct the client with no "
+                "credentials and call login() to sign in interactively."
             )
         return (
             "The token passed with token= looks like a legacy "
             f"EarthRanger-issued token, but site {service_root} accepts only "
-            "Auth0-issued tokens. Use an Auth0-issued access token."
+            "Auth0-issued tokens. Use an Auth0-issued access token, or "
+            "construct the client with no credentials and call login() to "
+            "sign in interactively."
         )
 
     if mode == 'jwt_token':
@@ -243,7 +246,8 @@ def legacy_auth_warning(*, service_root, has_das, has_external, mode):
             "Username/password login through the site's legacy token endpoint "
             "still works but is deprecated and will stop working when the site "
             "completes its migration. Pass an Auth0-issued access token with "
-            "token= instead."
+            "token=, or construct the client with no credentials and call "
+            "login() to sign in interactively."
         )
 
     if mode == 'opaque_token':
@@ -251,7 +255,9 @@ def legacy_auth_warning(*, service_root, has_das, has_external, mode):
             "The token passed with token= looks like a legacy "
             f"EarthRanger-issued token. Site {service_root} supports Auth0 "
             "sign-in, and legacy tokens will stop working when the site "
-            "completes its migration. Use an Auth0-issued access token."
+            "completes its migration. Use an Auth0-issued access token, or "
+            "construct the client with no credentials and call login() to "
+            "sign in interactively."
         )
 
     return None

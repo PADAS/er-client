@@ -221,7 +221,8 @@ class TestLegacyAuthWarning:
             "Username/password login through the site's legacy token endpoint "
             "still works but is deprecated and will stop working when the site "
             "completes its migration. Pass an Auth0-issued access token with "
-            "token= instead."
+            "token=, or construct the client with no credentials and call "
+            "login() to sign in interactively."
         )
 
     def test_password_grant_at_a_migrated_site_is_not_a_warning(self):
@@ -239,7 +240,9 @@ class TestLegacyAuthWarning:
             "The token passed with token= looks like a legacy "
             f"EarthRanger-issued token. Site {SERVICE_ROOT} supports Auth0 "
             "sign-in, and legacy tokens will stop working when the site "
-            "completes its migration. Use an Auth0-issued access token."
+            "completes its migration. Use an Auth0-issued access token, or "
+            "construct the client with no credentials and call login() to "
+            "sign in interactively."
         )
 
     def test_opaque_token_at_a_migrated_site_is_not_a_warning(self):
@@ -371,12 +374,14 @@ PASSWORD_MISMATCH = (
     f"Site {SERVICE_ROOT} accepts only Auth0-issued tokens, so "
     "username/password login against its legacy token endpoint cannot work: "
     "the token endpoint may still issue a token, but every API request would "
-    "be rejected. Pass an Auth0-issued access token with token= instead."
+    "be rejected. Pass an Auth0-issued access token with token=, or construct "
+    "the client with no credentials and call login() to sign in interactively."
 )
 OPAQUE_TOKEN_MISMATCH = (
     "The token passed with token= looks like a legacy EarthRanger-issued "
     f"token, but site {SERVICE_ROOT} accepts only Auth0-issued tokens. Use an "
-    "Auth0-issued access token."
+    "Auth0-issued access token, or construct the client with no credentials "
+    "and call login() to sign in interactively."
 )
 
 

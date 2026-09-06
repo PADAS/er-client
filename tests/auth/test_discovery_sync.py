@@ -355,6 +355,19 @@ class TestWarnsAboutLegacyCredentials:
 
         assert "looks like a legacy" in caplog.text
 
+    def test_the_warning_offers_interactive_sign_in(
+        self, ropc_kwargs, patched_post, serving, discovery_document,
+    ):
+        """The way out of a deprecated credential is named, not just implied."""
+        serving(discovery_document)
+        client = ERClient(**ropc_kwargs)
+
+        with pytest.warns(
+            ERClientAuthWarning,
+            match="call login\\(\\) to sign in interactively",
+        ):
+            client.login()
+
     def test_the_same_warning_is_issued_once_per_client(
         self, ropc_kwargs, patched_get, patched_post, serving, discovery_document,
         caplog, recwarn,
