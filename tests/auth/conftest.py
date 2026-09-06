@@ -262,10 +262,12 @@ def assert_expiry_matches():
 def make_requests_response():
     """Build a mock ``requests.Response`` shaped like the sync client expects."""
 
-    def _factory(status_code, json_data=None, text=None):
+    def _factory(status_code, json_data=None, text=None, headers=None):
         resp = MagicMock(spec=requests.Response)
         resp.status_code = status_code
         resp.ok = 200 <= status_code < 300
+        # A real dict, not a mock: the client reads Retry-After off it.
+        resp.headers = dict(headers or {})
         if json_data is not None:
             resp.text = json.dumps(json_data)
             resp.json.return_value = json_data

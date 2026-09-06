@@ -11,6 +11,7 @@ import pytest
 from erclient.er_errors import (CREDENTIAL_SITE_MISMATCH, AuthError,
                                 ERClientBadCredentials, ERClientBadRequest,
                                 ERClientException, ERClientInternalError,
+                                ERClientRateLimitExceeded,
                                 ERClientServiceUnreachable,
                                 classify_token_error)
 
@@ -95,6 +96,37 @@ class TestAuthErrorFromTokenResponse:
             auth_error.status_code = 401
 
 
+class TestAuthErrorRetryAfter:
+    """How long the server asked us to wait, when it bothered to say."""
+
+    def test_defaults_to_none(self):
+        """Most refusals carry no Retry-After, and that is not an error."""
+        auth_error = AuthError.from_token_response(
+            status_code=400, response_body="", url="", grant_type="password"
+        )
+
+        assert auth_error.retry_after is None
+
+    def test_records_the_parsed_header(self):
+        """The seconds the caller needs are kept alongside the rest of the refusal."""
+        auth_error = AuthError.from_token_response(
+            status_code=429,
+            response_body="",
+            url="https://fake-site.erdomain.org/oauth2/token",
+            grant_type="password",
+            retry_after=7,
+        )
+
+        assert auth_error.retry_after == 7
+
+    def test_our_own_refusal_has_none(self):
+        """Nothing was asked of a server, so no server asked us to wait."""
+        auth_error = AuthError.for_site_mismatch(
+            "wrong credentials for this site", url=None, grant_type=None)
+
+        assert auth_error.retry_after is None
+
+
 class TestAuthErrorForSiteMismatch:
     """A refusal we made ourselves, before any server was asked."""
 
@@ -158,6 +190,11 @@ class TestClassifyByOauthError:
             is ERClientBadCredentials
         )
 
+    def test_expired_token_is_bad_credentials(self):
+        """RFC 8628 section 3.5: the user took too long to approve the code."""
+        assert classify_token_error(
+            oauth_error("expired_token")) is ERClientBadCredentials
+
     def test_our_own_site_mismatch_code_is_bad_credentials(self):
         """The client-side code classifies like the server codes it stands in for."""
         auth_error = AuthError.for_site_mismatch(
@@ -211,7 +248,15 @@ class TestClassifyByStatus:
 
         assert classify_token_error(auth_error) is ERClientBadRequest
 
-    @pytest.mark.parametrize("status_code", [402, 404, 418, 429, 302, None])
+    def test_429_is_a_rate_limit(self):
+        """A throttled token endpoint says so with a status, not an OAuth code."""
+        auth_error = AuthError.from_token_response(
+            status_code=429, response_body="", url="", grant_type="password"
+        )
+
+        assert classify_token_error(auth_error) is ERClientRateLimitExceeded
+
+    @pytest.mark.parametrize("status_code", [402, 404, 418, 302, None])
     def test_anything_else_falls_back_to_the_base_exception(self, status_code):
         auth_error = AuthError.from_token_response(
             status_code=status_code, response_body="", url="", grant_type="password"

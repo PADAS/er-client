@@ -17,6 +17,9 @@ class AuthError:
     response_body: Optional[str] = None
     url: Optional[str] = None
     grant_type: Optional[str] = None
+    # Seconds the endpoint asked us to wait, from its Retry-After header; the
+    # device-code poller reads it to honor a ``slow_down``.
+    retry_after: Optional[int] = None
 
     @classmethod
     def for_site_mismatch(cls, message, url, grant_type):
@@ -37,7 +40,8 @@ class AuthError:
         )
 
     @classmethod
-    def from_token_response(cls, status_code, response_body, url, grant_type):
+    def from_token_response(cls, status_code, response_body, url, grant_type,
+                            retry_after=None):
         """Build from a refused token response, taking the OAuth fields if present.
 
         A body that is not a JSON object, or one whose fields are not strings,
@@ -61,6 +65,7 @@ class AuthError:
             response_body=response_body,
             url=url,
             grant_type=grant_type,
+            retry_after=retry_after,
         )
 
 
@@ -132,6 +137,9 @@ _OAUTH_ERROR_TO_EXCEPTION = {
     'invalid_client': ERClientBadCredentials,
     'unauthorized_client': ERClientBadCredentials,
     'access_denied': ERClientBadCredentials,
+    # RFC 8628 section 3.5: the device code went unapproved for too long, so
+    # there is no credential — the user has to be asked again.
+    'expired_token': ERClientBadCredentials,
     'invalid_request': ERClientBadRequest,
     'unsupported_grant_type': ERClientBadRequest,
     'invalid_scope': ERClientBadRequest,
@@ -144,6 +152,7 @@ _OAUTH_ERROR_TO_EXCEPTION = {
 _STATUS_TO_EXCEPTION = {
     400: ERClientBadRequest,
     401: ERClientBadCredentials,
+    429: ERClientRateLimitExceeded,
     500: ERClientInternalError,
     502: ERClientServiceUnreachable,
     503: ERClientServiceUnreachable,

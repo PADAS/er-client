@@ -15,7 +15,8 @@ import pytz
 import respx
 from tests.auth.respx_helpers import mock_discovery
 
-from erclient.er_errors import ERClientBadCredentials, ERClientBadRequest
+from erclient.er_errors import (ERClientBadCredentials, ERClientBadRequest,
+                                ERClientRateLimitExceeded)
 
 
 class TestLastAuthError:
@@ -220,6 +221,45 @@ class TestWrappersRaiseTheClassifiedError:
 
         assert type(exc_info.value) is ERClientBadRequest
         assert "no good" in exc_info.value.response_body
+
+    @pytest.mark.asyncio
+    async def test_a_throttled_token_endpoint_is_a_rate_limit(
+        self, ropc_kwargs, default_token_url, async_client_factory
+    ):
+        """A bare 429 says how long to wait, and the caller gets both."""
+        client = async_client_factory(**ropc_kwargs)
+
+        async with respx.mock(assert_all_called=False) as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
+            respx_mock.post(default_token_url).return_value = httpx.Response(
+                429, text="", headers={"Retry-After": "12"}
+            )
+
+            with pytest.raises(ERClientRateLimitExceeded) as exc_info:
+                await client.get_me()
+
+        assert type(exc_info.value) is ERClientRateLimitExceeded
+        assert exc_info.value.retry_after == 12
+        assert client.last_auth_error.retry_after == 12
+
+    @pytest.mark.asyncio
+    async def test_a_refusal_without_the_header_leaves_retry_after_unset(
+        self, ropc_kwargs, default_token_url, async_client_factory
+    ):
+        """Nothing is invented for the ordinary refusal that says nothing."""
+        client = async_client_factory(**ropc_kwargs)
+
+        async with respx.mock(assert_all_called=False) as respx_mock:
+            mock_discovery(respx_mock, client.service_root)
+            respx_mock.post(default_token_url).return_value = httpx.Response(
+                400, json={"error": "invalid_grant"}
+            )
+
+            with pytest.raises(ERClientBadCredentials) as exc_info:
+                await client.get_me()
+
+        assert exc_info.value.retry_after is None
+        assert client.last_auth_error.retry_after is None
 
     @pytest.mark.asyncio
     async def test_logs_the_body_at_exception_level(

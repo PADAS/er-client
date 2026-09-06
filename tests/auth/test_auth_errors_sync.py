@@ -15,6 +15,7 @@ import pytz
 from erclient.client import ERClient
 from erclient.er_errors import (ERClientBadCredentials, ERClientBadRequest,
                                 ERClientInternalError,
+                                ERClientRateLimitExceeded,
                                 ERClientServiceUnreachable)
 
 
@@ -201,6 +202,43 @@ class TestAuthHeadersRaisesTheClassifiedError:
             "Login failed. (status_code=400) "
             f"(response_body={json.dumps(body)})"
         )
+
+    def test_a_throttled_token_endpoint_is_a_rate_limit(
+        self, ropc_kwargs, make_requests_response
+    ):
+        """A bare 429 says how long to wait, and the caller gets both."""
+        client = ERClient(**ropc_kwargs)
+
+        with patch(
+            "erclient.client.requests.post",
+            return_value=make_requests_response(
+                429, text="", headers={"Retry-After": "12"}
+            ),
+        ):
+            with pytest.raises(ERClientRateLimitExceeded) as exc_info:
+                client.auth_headers()
+
+        assert type(exc_info.value) is ERClientRateLimitExceeded
+        assert exc_info.value.retry_after == 12
+        assert client.last_auth_error.retry_after == 12
+
+    def test_a_refusal_without_the_header_leaves_retry_after_unset(
+        self, ropc_kwargs, make_requests_response
+    ):
+        """Nothing is invented for the ordinary refusal that says nothing."""
+        client = ERClient(**ropc_kwargs)
+
+        with patch(
+            "erclient.client.requests.post",
+            return_value=make_requests_response(
+                400, json_data={"error": "invalid_grant"}
+            ),
+        ):
+            with pytest.raises(ERClientBadCredentials) as exc_info:
+                client.auth_headers()
+
+        assert exc_info.value.retry_after is None
+        assert client.last_auth_error.retry_after is None
 
     def test_resets_auth_before_raising(
         self, ropc_kwargs, make_requests_response

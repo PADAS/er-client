@@ -329,6 +329,7 @@ class ERClient(object):
             message=message,
             status_code=auth_error.status_code if auth_error else None,
             response_body=auth_error.response_body if auth_error else None,
+            retry_after=auth_error.retry_after if auth_error else None,
         )
 
     def refresh_token(self):
@@ -377,6 +378,8 @@ class ERClient(object):
             response_body=response.text,
             url=self.token_url,
             grant_type=payload.get('grant_type'),
+            retry_after=parse_retry_after_header(
+                response.headers.get('Retry-After')),
         )
         self.auth = None
         self.auth_expires = pytz.utc.localize(datetime.min)
@@ -1799,6 +1802,8 @@ class AsyncERClient(object):
             response_body=e.response.text,
             url=self.token_url,
             grant_type=None,
+            retry_after=parse_retry_after_header(
+                e.response.headers.get('Retry-After')),
         )
         self.logger.exception(
             f"Login failed at {self.token_url}. "
@@ -1808,6 +1813,7 @@ class AsyncERClient(object):
             message='Login failed.',
             status_code=auth_error.status_code,
             response_body=auth_error.response_body,
+            retry_after=auth_error.retry_after,
         )
 
     def _auth_is_valid(self):
@@ -1955,6 +1961,8 @@ class AsyncERClient(object):
                 response_body=response.text,
                 url=self.token_url,
                 grant_type=payload.get('grant_type'),
+                retry_after=parse_retry_after_header(
+                    response.headers.get('Retry-After')),
             )
             self.auth = None
             self.auth_expires = pytz.utc.localize(datetime.min)
