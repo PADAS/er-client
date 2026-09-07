@@ -119,11 +119,11 @@ EarthRanger sites publish the authorization servers they accept at `{service_roo
 
 | The site accepts | With `username`/`password` | With a site-issued (legacy) `token=` | With an Auth0-issued `token=` |
 |---|---|---|---|
-| its own token endpoint only | silent | silent | silent |
+| its own token endpoint only | silent | silent | raises `ERClientBadCredentials` before any request (its `iss` is not listed) |
 | Auth0 **and** its own | warns: deprecated, still works | warns: deprecated, still works | silent |
 | Auth0 only | raises `ERClientBadCredentials` before any request | raises `ERClientBadCredentials` before any request | silent |
 
-An Auth0-issued `token=` is refused the same way, on any row, if its `iss` claim is not one of the authorization servers the site listed — the site validates that claim against exactly the string discovery advertises, so a token from another tenant cannot work anywhere. Issuers are compared ignoring the case of scheme and host and a trailing slash; a JWT whose payload carries no readable `iss` is left alone.
+The `silent` cells in the last column assume the token's `iss` claim is one of the authorization servers the site listed. An Auth0-issued `token=` is refused on any row where it is not — the site validates that claim against exactly the string discovery advertises, so a token from another tenant cannot work anywhere, and a site listing only its own token endpoint has listed no Auth0 issuer to match. Issuers are compared ignoring the case of scheme and host and a trailing slash; a JWT whose payload carries no readable `iss` is left alone.
 
 A token is read as Auth0-issued if it is shaped like a JWT; anything else is assumed to be a site-issued (legacy) token. Warnings go to the `ERClient`/`AsyncERClient` logger at WARNING and to `warnings.warn` as `ERClientAuthWarning`, once per client per distinct message. Silence them with `warnings.filterwarnings("ignore", category=ERClientAuthWarning)`. Supplying `token=` together with a `username` or `password` warns the same way at construction: the token wins, as it always has, and the credentials are ignored.
 
