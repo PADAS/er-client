@@ -87,16 +87,22 @@ A client constructed with no `token`, `username`, `password` or `client_id` sign
 Which authorization server it signs in against comes from the site's own discovery document: the client takes the first issuer the site lists that it holds a registration for, and the registrations are keyed by the **custom domain** a site advertises (`https://auth.pamdas.org`, `https://auth-dev.pamdas.org`), never the canonical Auth0 hostname behind it — EarthRanger validates a token's `iss` against exactly the advertised string. It then reads the tenant's own `/.well-known/openid-configuration` for the endpoints rather than assuming them. `KNOWN_AUTHORIZATION_SERVERS` is importable from `erclient` if you want to see what a release knows; a tenant it does not know needs `device_code_issuer`, `device_code_client_id` and `device_code_audience` together.
 
 ```python
-from erclient import ERClient, ERClientBadCredentials
+from erclient import ERClient, ERClientException
 
 client = ERClient(service_root="https://sandbox.pamdas.org")
 try:
     client.login()          # prints the URL and code, blocks until approved
-except ERClientBadCredentials as e:
-    print(e)                # expired code, declined sign-in, or no tenant to use
+except ERClientException as e:
+    print(e)                # see below for the shapes this takes
 ```
 
-Unlike the password grant, a zero-argument `login()` **raises on failure on both clients** rather than returning `False`; `last_auth_error` is still populated. It refuses before sending anything when the site publishes no authorization servers, lists none this release knows, or when `discovery=False` was passed with no `device_code_issuer`. An authorization server that cannot be read raises `ERClientServiceUnreachable`. While polling, `authorization_pending` and `slow_down` are handled per RFC 8628 §3.5 (the interval grows by five seconds, and a longer `Retry-After` wins); an expired code or a declined sign-in raises `ERClientBadCredentials`.
+Unlike the password grant, a zero-argument `login()` **raises on failure on both clients** rather than returning `False`. It refuses before sending anything, with `ERClientBadCredentials`, in four cases: the site serves no usable discovery document, it lists no Auth0 tenant this release knows, `device_code_issuer=` names a tenant this release does not know without `device_code_client_id=` and `device_code_audience=`, or `discovery=False` was passed with no `device_code_issuer=`. Each of those sets `last_auth_error` to the code `interactive_sign_in_unavailable`.
+
+An authorization server that cannot be read raises `ERClientServiceUnreachable` — a document that does not parse or does not name the issuer we asked about, a device-authorization response missing anything the flow needs, and a verification URI that is not absolute `https` all count. Nothing was refused on those paths, so `last_auth_error` is left as it was rather than describing them.
+
+While polling, `authorization_pending` and `slow_down` are handled per RFC 8628 §3.5: the interval grows by five seconds and a longer `Retry-After` wins, and an `interval` the server sends that is missing, zero or negative falls back to five seconds. An expired code or a declined sign-in raises `ERClientBadCredentials` whose message is the explanation; any other OAuth error from either endpoint is classified by the table under "When sign-in fails", so `ERClientBadRequest` and a bare `ERClientException` are both reachable — which is why the example above catches the base class.
+
+Discovery and the device-code requests run on their own fixed deadlines — five seconds for the two metadata reads, ten for the two device-code POSTs — on both clients. `connect_timeout` and `data_timeout` shape the async client's API calls and do not apply here.
 
 The default prompt goes to **stderr**, so a script whose stdout is piped stays clean, and the client's logger gets one INFO line naming the verification page. That line carries the bare URL, not the prompt text and not the code, so a caller who has run `logging.basicConfig()` — which also writes to stderr — is not shown the same code twice. `device_code_prompt=`, a callable taking the text, replaces both: your callable becomes the only output and nothing is logged.
 
