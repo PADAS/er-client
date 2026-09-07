@@ -364,7 +364,7 @@ class _DeviceCodeSupport:
 
 class ERClient(_DeviceCodeSupport):
     """
-    ERClient provides basic access to the EarthRanger server API. You will need the server hostname as well as credentials in the form of a username/password or access token.
+    ERClient provides basic access to the EarthRanger server API. You will need the server hostname, and either an access token, a username and password with a client id, or nothing at all: with no credentials, ``login()`` signs you in interactively.
 
     The boiler-plate code handles authentication, so you don't have to think about Oauth2 or refresh tokens.
     """
@@ -375,16 +375,18 @@ class ERClient(_DeviceCodeSupport):
 
         :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org). The client assembles the API root as {service_root}/api/{version} (default version v1.0). For backward compatibility, a full API root (Ex. https://sandbox.pamdas.org/api/v1.0) is accepted and normalized to the base.
 
+        :param token: authorization token, ideally Auth0-issued. Nothing is fetched from the token endpoint. Takes precedence over username/password: when both are supplied the token is used and the credentials are ignored.
+
+        or, the legacy password grant:
+
+        :param client_id: Auth client ID (Ex. 'example_client_id'). Its presence selects the password grant.
         :param username: username
         :param password: password
-        :param client_id: Auth client ID (Ex. 'example_client_id')
         :param token_url: Optional. Auth token URL; if omitted, defaults to {service_root}/oauth2/token.
 
-        or
-
-        :param token: authorization token. Takes precedence over username/password: when both are supplied the token is used and the credentials are ignored.
-
         or nothing at all: with no token, username, password or client_id, login() signs the user in interactively (RFC 8628 device authorization) against the EarthRanger Auth0 tenant the site's discovery document names. That token carries no refresh token, so an expired session means signing in again.
+
+        :param discovery: Optional. Whether to fetch the site's RFC 9728 protected-resource metadata on the paths that decide auth. Default True. Pass False to keep the client off the network except for the calls you make yourself; discover() still works.
 
         :param device_code_issuer: Optional. The Auth0 issuer to sign in against, skipping the discovery lookup. Needs device_code_client_id and device_code_audience unless it is a tenant this release knows.
         :param device_code_client_id: Optional. Overrides the client id registered for the chosen issuer.
@@ -397,8 +399,6 @@ class ERClient(_DeviceCodeSupport):
         :param provider_key: provider-key for posting observation data (Ex. xyz_provider)
 
         :param max_http_retries: number of retries, default is 5
-
-        :param discovery: Optional. Whether to fetch the site's RFC 9728 protected-resource metadata on the paths that decide auth. Default True. Pass False to keep the client off the network except for the calls you make yourself; discover() still works.
 
         """
 
@@ -1745,20 +1745,22 @@ class AsyncERClient(_DeviceCodeSupport):
 
     def __init__(self, **kwargs):
         """
-        Initialize an ERClient instance.
+        Initialize an AsyncERClient instance.
 
         :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org). The client assembles the API root as {service_root}/api/{version} (default version v1.0). For backward compatibility, a full API root (Ex. https://sandbox.pamdas.org/api/v1.0) is accepted and normalized to the base.
 
+        :param token: authorization token, ideally Auth0-issued. Nothing is fetched from the token endpoint. Takes precedence over username/password: when both are supplied the token is used and the credentials are ignored.
+
+        or, the legacy password grant:
+
+        :param client_id: Auth client ID (Ex. 'example_client_id'). Its presence selects the password grant.
         :param username: username
         :param password: password
-        :param client_id: Auth client ID (Ex. 'example_client_id')
         :param token_url: Optional. Auth token URL; if omitted, defaults to {service_root}/oauth2/token.
 
-        or
-
-        :param token: authorization token. Takes precedence over username/password: when both are supplied the token is used and the credentials are ignored.
-
         or nothing at all: with no token, username, password or client_id, login() signs the user in interactively (RFC 8628 device authorization) against the EarthRanger Auth0 tenant the site's discovery document names. That token carries no refresh token, so an expired session means signing in again.
+
+        :param discovery: Optional. Whether to fetch the site's RFC 9728 protected-resource metadata on the paths that decide auth. Default True. Pass False to keep the client off the network except for the calls you make yourself; discover() still works.
 
         :param device_code_issuer: Optional. The Auth0 issuer to sign in against, skipping the discovery lookup. Needs device_code_client_id and device_code_audience unless it is a tenant this release knows.
         :param device_code_client_id: Optional. Overrides the client id registered for the chosen issuer.
@@ -1773,8 +1775,6 @@ class AsyncERClient(_DeviceCodeSupport):
         :param max_http_retries: Number of retries on connection errors. default is 5
         :param connect_timeout [seconds]: Maximum amount of time to wait until a socket connection to the requested host is established. Default is 3.1
         :param data_timeout [seconds]:  Maximum duration to wait for a chunk of data to be sent or received. Default is 20
-
-        :param discovery: Optional. Whether to fetch the site's RFC 9728 protected-resource metadata on the paths that decide auth. Default True. Pass False to keep the client off the network except for the calls you make yourself; discover() still works.
 
         """
 
