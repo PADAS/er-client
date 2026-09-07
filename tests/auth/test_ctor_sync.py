@@ -18,7 +18,7 @@ import pytz
 import requests
 from tests.auth.conftest import auth_warnings
 
-from erclient.client import ERClient
+from erclient.client import AsyncERClient, ERClient
 from erclient.er_errors import (ERClientAuthWarning, ERClientBadCredentials,
                                 ERClientBadRequest, ERClientException,
                                 ERClientInternalError)
@@ -671,3 +671,29 @@ class TestNoCredentials:
         ).prepare()
 
         assert prepared.body == "grant_type=password"
+
+
+class TestTheTwoClientsShareTheirAuthLogic:
+    """Anything that is not a request belongs to both clients, not to each.
+
+    Asserted as function identity rather than equal behaviour: a copy that
+    starts out identical is exactly how the two drifted apart before, and only
+    ``is`` catches a member pasted back into one of them.
+    """
+
+    @pytest.mark.parametrize(
+        "name",
+        ["_warn_if_legacy_auth", "_refuse_token", "_uses_device_code",
+         "_refuse_device_code", "_init_auth_options"],
+    )
+    def test_the_same_function_object_serves_both(self, name):
+        assert getattr(ERClient, name) is getattr(AsyncERClient, name)
+
+    @pytest.mark.parametrize(
+        "name", ["last_auth_error", "protected_resource_metadata"])
+    def test_the_same_property_serves_both(self, name):
+        assert vars(ERClient).get(name) is None, (
+            f"{name} is redefined on ERClient rather than inherited")
+        assert vars(AsyncERClient).get(name) is None, (
+            f"{name} is redefined on AsyncERClient rather than inherited")
+        assert getattr(ERClient, name) is getattr(AsyncERClient, name)

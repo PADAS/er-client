@@ -148,13 +148,17 @@ def split_link(url):
     return (url, params)
 
 
-class _DeviceCodeSupport:
-    """The parts of the device-code sign-in that are not requests.
+class _AuthSupport:
+    """The parts of authentication that are not requests.
 
-    Both clients run the same flow, and a caller moving between them should
-    not find that one prompts differently or refuses for different reasons.
-    What genuinely differs is the four requests — one library posts, the other
-    awaits — so those stay in each client and everything around them is here.
+    Both clients authenticate the same way, and a caller moving between them
+    should not find that one prompts differently, warns differently, or
+    refuses for different reasons. What genuinely differs is the requests —
+    one library posts, the other awaits — so those stay in each client and
+    everything around them is here: reading the auth kwargs, the properties
+    that expose what the last attempt found, the legacy-credential warning,
+    the pre-flight refusals, and the whole of the device-code flow bar its
+    four requests.
 
     Responses are read through ``status_code``, ``text`` and ``headers``, which
     ``requests`` and ``httpx`` spell the same way.
@@ -163,6 +167,88 @@ class _DeviceCodeSupport:
     @staticmethod
     def _is_success(response):
         return 200 <= response.status_code < 300
+
+    def _init_auth_options(self, kwargs):
+        """Read the auth kwargs that neither client interprets its own way.
+
+        Called from both constructors once ``username``, ``password`` and
+        ``logger`` are set, since the warning below reads all three.
+        """
+        self._device_code_issuer = kwargs.get('device_code_issuer')
+        self._device_code_client_id = kwargs.get('device_code_client_id')
+        self._device_code_audience = kwargs.get('device_code_audience')
+        self._device_code_scope = kwargs.get(
+            'device_code_scope') or DEFAULT_SCOPE
+        self._device_code_prompt = kwargs.get('device_code_prompt')
+        self._open_browser = kwargs.get('open_browser', False)
+
+        if kwargs.get('token') and (self.username or self.password):
+            # Warned about rather than refused: callers pass both today, and
+            # the token has always won.
+            message = ('Both token= and username/password were supplied; '
+                       'token= takes precedence and the username/password '
+                       'are ignored.')
+            self.logger.warning(message)
+            warnings.warn(message, ERClientAuthWarning)
+
+    @property
+    def last_auth_error(self):
+        """Why the token endpoint last refused us, or None if it has not.
+
+        Where a caller reads a reason the return value does not carry: the
+        sync ``login()`` and ``refresh_token()`` only return a bool, and their
+        async twins raise ``httpx.HTTPStatusError`` for a refused password
+        grant, which the request wrappers classify into an
+        ``ERClientException`` subclass but a direct caller sees raw. Cleared
+        by the next successful token request.
+        """
+        return self._last_auth_error
+
+    @property
+    def protected_resource_metadata(self):
+        """What the most recent ``discover()`` found, or None."""
+        return self._protected_resource_metadata
+
+    def _warn_if_legacy_auth(self, mode):
+        """Warn once per client if these credentials are legacy for this site.
+
+        Silent when discovery found nothing: unavailable metadata is not
+        evidence of anything. Deduplicated by message text so a retry loop
+        does not turn one deprecation into a wall of noise.
+        """
+        metadata = self._protected_resource_metadata
+        if metadata is None:
+            return
+
+        has_das, has_external = classify_authorization_servers(
+            metadata, self.service_root)
+        message = legacy_auth_warning(
+            service_root=self.service_root, has_das=has_das,
+            has_external=has_external, mode=mode)
+        if message and message not in self._auth_warnings_issued:
+            self._auth_warnings_issued.add(message)
+            self.logger.warning(message)
+            warnings.warn(message, ERClientAuthWarning)
+
+    def _refuse_token(self, mode):
+        """Raise if the token in hand cannot work at this site, recording why.
+
+        The message is kept so every later ``auth_headers()`` raises it again
+        without refetching: a client holding a token the site cannot accept is
+        unusable, and letting the second call through would only move the
+        failure to the API.
+        """
+        message = credential_site_mismatch(
+            metadata=self._protected_resource_metadata,
+            service_root=self.service_root, mode=mode,
+            token_issuer=jwt_issuer(self.token) if mode == 'jwt_token' else None)
+        if not message:
+            return
+
+        self._token_mismatch_message = message
+        self._last_auth_error = AuthError.client_refusal(
+            message, error=CREDENTIAL_SITE_MISMATCH, url=None, grant_type=None)
+        raise ERClientBadCredentials(message)
 
     def _uses_device_code(self):
         """Whether this client has to sign a user in to get a token.
@@ -364,7 +450,7 @@ class _DeviceCodeSupport:
         )
 
 
-class ERClient(_DeviceCodeSupport):
+class ERClient(_AuthSupport):
     """
     ERClient provides basic access to the EarthRanger server API. You will need the server hostname, and either an access token, a username and password with a client id, or nothing at all: with no credentials, ``login()`` signs you in interactively.
 
@@ -440,46 +526,16 @@ class ERClient(_DeviceCodeSupport):
                              access_token=kwargs.get('token'))
             self.auth_expires = datetime(2099, 1, 1, tzinfo=pytz.utc)
 
-        self._device_code_issuer = kwargs.get('device_code_issuer')
-        self._device_code_client_id = kwargs.get('device_code_client_id')
-        self._device_code_audience = kwargs.get('device_code_audience')
-        self._device_code_scope = kwargs.get(
-            'device_code_scope') or DEFAULT_SCOPE
-        self._device_code_prompt = kwargs.get('device_code_prompt')
-        self._open_browser = kwargs.get('open_browser', False)
-
         self.user_agent = 'das-client/{}'.format(version_string)
 
         self.logger = logging.getLogger(self.__class__.__name__)
 
-        if kwargs.get('token') and (self.username or self.password):
-            # Warned about rather than refused: callers pass both today, and
-            # the token has always won.
-            message = ('Both token= and username/password were supplied; '
-                       'token= takes precedence and the username/password '
-                       'are ignored.')
-            self.logger.warning(message)
-            warnings.warn(message, ERClientAuthWarning)
+        self._init_auth_options(kwargs)
 
         self._http_session = requests.Session()
         retries = Retry(total=5, backoff_factor=1.5, status_forcelist=[502])
         self._http_session.mount("http", HTTPAdapter(max_retries=retries))
         self._http_session.mount("https", HTTPAdapter(max_retries=retries))
-
-    @property
-    def last_auth_error(self):
-        """Why the token endpoint last refused us, or None if it has not.
-
-        ``login()`` and ``refresh_token()`` only return a bool, so this is
-        where a caller checking credentials reads the reason. Cleared by the
-        next successful token request.
-        """
-        return self._last_auth_error
-
-    @property
-    def protected_resource_metadata(self):
-        """What the most recent ``discover()`` found, or None."""
-        return self._protected_resource_metadata
 
     def discover(self):
         """Fetch the site's RFC 9728 protected-resource metadata.
@@ -602,27 +658,6 @@ class ERClient(_DeviceCodeSupport):
         return self._poll_for_device_code_token(
             server, token_endpoint, authorization)
 
-    def _warn_if_legacy_auth(self, mode):
-        """Warn once per client if these credentials are legacy for this site.
-
-        Silent when discovery found nothing: unavailable metadata is not
-        evidence of anything. Deduplicated by message text so a retry loop
-        does not turn one deprecation into a wall of noise.
-        """
-        metadata = self._protected_resource_metadata
-        if metadata is None:
-            return
-
-        has_das, has_external = classify_authorization_servers(
-            metadata, self.service_root)
-        message = legacy_auth_warning(
-            service_root=self.service_root, has_das=has_das,
-            has_external=has_external, mode=mode)
-        if message and message not in self._auth_warnings_issued:
-            self._auth_warnings_issued.add(message)
-            self.logger.warning(message)
-            warnings.warn(message, ERClientAuthWarning)
-
     def _refuse_password_grant(self):
         """Whether to refuse the password grant outright, and record why.
 
@@ -643,26 +678,6 @@ class ERClient(_DeviceCodeSupport):
         self.auth = None
         self.auth_expires = pytz.utc.localize(datetime.min)
         return True
-
-    def _refuse_token(self, mode):
-        """Raise if the token in hand cannot work at this site, recording why.
-
-        The message is kept so every later ``auth_headers()`` raises it again
-        without refetching: a client holding a token the site cannot accept is
-        unusable, and letting the second call through would only move the
-        failure to the API.
-        """
-        message = credential_site_mismatch(
-            metadata=self._protected_resource_metadata,
-            service_root=self.service_root, mode=mode,
-            token_issuer=jwt_issuer(self.token) if mode == 'jwt_token' else None)
-        if not message:
-            return
-
-        self._token_mismatch_message = message
-        self._last_auth_error = AuthError.client_refusal(
-            message, error=CREDENTIAL_SITE_MISMATCH, url=None, grant_type=None)
-        raise ERClientBadCredentials(message)
 
     def _discover_for_token_mode(self):
         """Discover once, on the first use of a caller-supplied token.
@@ -1736,7 +1751,7 @@ class ERClient(_DeviceCodeSupport):
         return self._get('users')
 
 
-class AsyncERClient(_DeviceCodeSupport):
+class AsyncERClient(_AuthSupport):
     """
     AsyncERClient asynchronous usage of EarthRanger server API (asyncio).
     Notice: This client is experimental and only supports a reduced set of features.
@@ -1819,26 +1834,11 @@ class AsyncERClient(_DeviceCodeSupport):
                              access_token=kwargs.get('token'))
             self.auth_expires = datetime(2099, 1, 1, tzinfo=pytz.utc)
 
-        self._device_code_issuer = kwargs.get('device_code_issuer')
-        self._device_code_client_id = kwargs.get('device_code_client_id')
-        self._device_code_audience = kwargs.get('device_code_audience')
-        self._device_code_scope = kwargs.get(
-            'device_code_scope') or DEFAULT_SCOPE
-        self._device_code_prompt = kwargs.get('device_code_prompt')
-        self._open_browser = kwargs.get('open_browser', False)
-
         # ToDo: rename the agent name to er-client, or should we keep it for backward compatibility?
         self.user_agent = f'das-client/{version_string}'
         self.logger = logging.getLogger(self.__class__.__name__)
 
-        if kwargs.get('token') and (self.username or self.password):
-            # Warned about rather than refused: callers pass both today, and
-            # the token has always won.
-            message = ('Both token= and username/password were supplied; '
-                       'token= takes precedence and the username/password '
-                       'are ignored.')
-            self.logger.warning(message)
-            warnings.warn(message, ERClientAuthWarning)
+        self._init_auth_options(kwargs)
 
         transport = httpx.AsyncHTTPTransport(retries=self.max_retries)
         connect_timeout = kwargs.get(
@@ -2154,22 +2154,6 @@ class AsyncERClient(_DeviceCodeSupport):
     def _clean_event(self, event):
         return event
 
-    @property
-    def last_auth_error(self):
-        """Why the token endpoint last refused us, or None if it has not.
-
-        The request wrappers classify this into an ``ERClientException``
-        subclass; direct callers of ``login()`` and ``refresh_token()``, which
-        see the raw ``httpx.HTTPStatusError``, can read it here. Cleared by the
-        next successful token request.
-        """
-        return self._last_auth_error
-
-    @property
-    def protected_resource_metadata(self):
-        """What the most recent ``discover()`` found, or None."""
-        return self._protected_resource_metadata
-
     async def discover(self):
         """Fetch the site's RFC 9728 protected-resource metadata.
 
@@ -2246,47 +2230,6 @@ class AsyncERClient(_DeviceCodeSupport):
 
     def _auth_is_valid(self):
         return self.auth_expires > datetime.now(tz=timezone.utc)
-
-    def _warn_if_legacy_auth(self, mode):
-        """Warn once per client if these credentials are legacy for this site.
-
-        Silent when discovery found nothing: unavailable metadata is not
-        evidence of anything. Deduplicated by message text so a retry loop
-        does not turn one deprecation into a wall of noise.
-        """
-        metadata = self._protected_resource_metadata
-        if metadata is None:
-            return
-
-        has_das, has_external = classify_authorization_servers(
-            metadata, self.service_root)
-        message = legacy_auth_warning(
-            service_root=self.service_root, has_das=has_das,
-            has_external=has_external, mode=mode)
-        if message and message not in self._auth_warnings_issued:
-            self._auth_warnings_issued.add(message)
-            self.logger.warning(message)
-            warnings.warn(message, ERClientAuthWarning)
-
-    def _refuse_token(self, mode):
-        """Raise if the token in hand cannot work at this site, recording why.
-
-        The message is kept so every later ``auth_headers()`` raises it again
-        without refetching: a client holding a token the site cannot accept is
-        unusable, and letting the second call through would only move the
-        failure to the API.
-        """
-        message = credential_site_mismatch(
-            metadata=self._protected_resource_metadata,
-            service_root=self.service_root, mode=mode,
-            token_issuer=jwt_issuer(self.token) if mode == 'jwt_token' else None)
-        if not message:
-            return
-
-        self._token_mismatch_message = message
-        self._last_auth_error = AuthError.client_refusal(
-            message, error=CREDENTIAL_SITE_MISMATCH, url=None, grant_type=None)
-        raise ERClientBadCredentials(message)
 
     async def _discover_for_token_mode(self):
         """Discover once, on the first use of a caller-supplied token.
