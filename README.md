@@ -98,7 +98,7 @@ except ERClientBadCredentials as e:
 
 Unlike the password grant, a zero-argument `login()` **raises on failure on both clients** rather than returning `False`; `last_auth_error` is still populated. It refuses before sending anything when the site publishes no authorization servers, lists none this release knows, or when `discovery=False` was passed with no `device_code_issuer`. An authorization server that cannot be read raises `ERClientServiceUnreachable`. While polling, `authorization_pending` and `slow_down` are handled per RFC 8628 §3.5 (the interval grows by five seconds, and a longer `Retry-After` wins); an expired code or a declined sign-in raises `ERClientBadCredentials`.
 
-The prompt goes to **stderr**, so a script whose stdout is piped stays clean, and to the client's logger at INFO. Replace it with `device_code_prompt=`, a callable taking the text.
+The prompt goes to **stderr**, so a script whose stdout is piped stays clean. The client's logger gets a one-line INFO summary naming the verification page rather than the prompt itself, so a caller who has run `logging.basicConfig()` — which also writes to stderr — is not shown the same code twice. Replace the prompt with `device_code_prompt=`, a callable taking the text.
 
 The arguments that shape the interactive sign-in, all optional:
 
@@ -279,7 +279,7 @@ Unrecognised keywords are silently ignored rather than rejected, so a typo such 
 | `device_code_client_id` | `None` | Overrides the client id registered for the chosen issuer. Required with `device_code_issuer` for a tenant this release does not know. |
 | `device_code_audience` | `None` | Overrides the API audience requested for the chosen issuer. Required on the same terms as `device_code_client_id`. |
 | `device_code_scope` | `"openid profile email"` | Scopes to request. No `offline_access`: the registration issues no refresh token. |
-| `device_code_prompt` | `None` | Callable taking the prompt text, replacing the default that writes to stderr and logs at INFO. |
+| `device_code_prompt` | `None` | Callable taking the prompt text, replacing the default that writes to stderr and logs a one-line summary at INFO. |
 | `open_browser` | `False` | Also open the verification URL with `webbrowser.open()`. A browser that will not open is logged at DEBUG and ignored — the URL was printed either way. |
 | `provider_key` | `None` | Required for sensor and camera-trap posts; it becomes a path segment. |
 | `max_http_retries` | `5` | Connection-level retries. **Effective on async only** — the sync client accepts and stores it but never uses it; sync retry behavior is fixed (5 session-level retries on 502, plus per-request retries in GETs). |

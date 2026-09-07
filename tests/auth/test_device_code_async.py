@@ -747,7 +747,7 @@ class TestOverrides:
 class TestPromptRouting:
     """Where the code is shown, and who else gets told."""
 
-    async def test_the_default_writes_to_stderr_and_the_log(
+    async def test_the_default_writes_to_stderr_and_summarizes_to_the_log(
         self, flow, no_async_sleep, capsys, caplog,
     ):
         async with respx.mock as respx_mock:
@@ -759,7 +759,28 @@ class TestPromptRouting:
         captured = capsys.readouterr()
         assert "WDJB-MJHT" in captured.err
         assert captured.out == ""
-        assert "WDJB-MJHT" in caplog.text
+        assert "https://auth-dev.pamdas.org/activate" in caplog.text
+
+    async def test_the_prompt_is_shown_exactly_once(
+        self, flow, no_async_sleep, capsys, caplog,
+    ):
+        """As on the sync client: stderr and a stderr-configured log would
+        otherwise show the same code twice."""
+        async with respx.mock as respx_mock:
+            client = flow(respx_mock)
+
+            with caplog.at_level(logging.INFO, logger="AsyncERClient"):
+                await client.login()
+
+        captured = capsys.readouterr()
+        # The prompt itself names the code twice on purpose (RFC 8628 section
+        # 5.4: the user confirms the page shows the same one), so what must
+        # not double is the prompt, and the log must not carry the code at all.
+        opening = "You are about to authorize the EarthRanger Python Client"
+        appearances = captured.err.count(opening) + sum(
+            record.getMessage().count(opening) for record in caplog.records)
+        assert appearances == 1
+        assert "WDJB-MJHT" not in caplog.text
 
     async def test_opening_the_browser_when_asked(
         self, flow, no_async_sleep, captured_prompt, monkeypatch,

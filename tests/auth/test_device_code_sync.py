@@ -783,7 +783,7 @@ class TestOverrides:
 class TestPromptRouting:
     """Where the code is shown, and who else gets told."""
 
-    def test_the_default_writes_to_stderr_and_the_log(
+    def test_the_default_writes_to_stderr_and_summarizes_to_the_log(
         self, service_root, fake_device_server, no_sleep, capsys, caplog,
     ):
         """stdout stays clean for a script whose output is being piped."""
@@ -797,7 +797,29 @@ class TestPromptRouting:
         assert "WDJB-MJHT" in captured.err
         assert captured.err.endswith("\n")
         assert captured.out == ""
-        assert "WDJB-MJHT" in caplog.text
+        assert "https://auth-dev.pamdas.org/activate" in caplog.text
+
+    def test_the_prompt_is_shown_exactly_once(
+        self, service_root, fake_device_server, no_sleep, capsys, caplog,
+    ):
+        """logging.basicConfig() sends records to stderr, where the prompt has
+        just been written; a reader shown the code twice cannot tell which
+        copy to act on, or whether two sign-ins are pending."""
+        client = ERClient(service_root=service_root)
+        fake_device_server()
+
+        with caplog.at_level(logging.INFO, logger="ERClient"):
+            client.login()
+
+        captured = capsys.readouterr()
+        # The prompt itself names the code twice on purpose (RFC 8628 section
+        # 5.4: the user confirms the page shows the same one), so what must
+        # not double is the prompt, and the log must not carry the code at all.
+        opening = "You are about to authorize the EarthRanger Python Client"
+        appearances = captured.err.count(opening) + sum(
+            record.getMessage().count(opening) for record in caplog.records)
+        assert appearances == 1
+        assert "WDJB-MJHT" not in caplog.text
 
     def test_a_callable_takes_over_entirely(
         self, service_root, fake_device_server, no_sleep, captured_prompt,

@@ -287,22 +287,32 @@ class _AuthSupport:
         return (not self.token
                 and not (self.username or self.password or self.client_id))
 
-    def _write_prompt(self, text):
+    def _write_prompt(self, text, verification_uri):
         """Show the user the URL and the code.
 
         stderr by default, so a script whose stdout is piped somewhere stays
-        clean, with the same text logged for whoever reads logs instead.
+        clean. The log gets a one-line summary rather than the prompt itself:
+        ``logging.basicConfig()`` sends records to stderr too, so logging the
+        prompt showed it twice to anyone who had called it, and a reader shown
+        the same code twice cannot tell which copy to act on.
+
+        The summary names the bare ``verification_uri``, not the complete one,
+        which carries the user code in its query string and would put the code
+        back in the log.
         """
         if self._device_code_prompt:
             self._device_code_prompt(text)
             return
         print(text, file=sys.stderr, flush=True)
-        self.logger.info(text)
+        self.logger.info(
+            'Waiting for the user to approve sign-in at %s', verification_uri)
 
     def _show_device_code_prompt(self, authorization):
         """Tell the user what to do, and optionally open it for them."""
-        self._write_prompt(default_prompt_text(
-            service_root=self.service_root, authorization=authorization))
+        self._write_prompt(
+            default_prompt_text(service_root=self.service_root,
+                                authorization=authorization),
+            authorization.verification_uri)
         if not self._open_browser:
             return
 
@@ -523,7 +533,7 @@ class ERClient(_AuthSupport):
         :param device_code_client_id: Optional. Overrides the client id registered for the chosen issuer.
         :param device_code_audience: Optional. Overrides the API audience requested for the chosen issuer.
         :param device_code_scope: Optional. Scopes to request; default 'openid profile email'.
-        :param device_code_prompt: Optional. Callable taking the prompt text. Replaces the default, which writes to stderr and logs at INFO.
+        :param device_code_prompt: Optional. Callable taking the prompt text. Replaces the default, which writes to stderr and logs a one-line summary at INFO.
         :param open_browser: Optional. Also open the verification URL in a browser. Default False.
 
         If posting to the sensors API, the default provider key
@@ -1825,7 +1835,7 @@ class AsyncERClient(_AuthSupport):
         :param device_code_client_id: Optional. Overrides the client id registered for the chosen issuer.
         :param device_code_audience: Optional. Overrides the API audience requested for the chosen issuer.
         :param device_code_scope: Optional. Scopes to request; default 'openid profile email'.
-        :param device_code_prompt: Optional. Callable taking the prompt text. Replaces the default, which writes to stderr and logs at INFO.
+        :param device_code_prompt: Optional. Callable taking the prompt text. Replaces the default, which writes to stderr and logs a one-line summary at INFO.
         :param open_browser: Optional. Also open the verification URL in a browser. Default False.
 
         If posting to the sensors API, the default provider key
