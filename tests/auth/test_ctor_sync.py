@@ -673,6 +673,17 @@ class TestNoCredentials:
         assert prepared.body == "grant_type=password"
 
 
+class TestTheBothCredentialsWarningPointsAtTheCaller:
+    """The construction that supplied both is the line worth reporting."""
+
+    def test_it_blames_the_constructor_call(self, service_root):
+        with pytest.warns(ERClientAuthWarning) as record:
+            ERClient(service_root=service_root, token="a-token",
+                     username="someone")
+
+        assert record[0].filename == __file__
+
+
 class TestTheTwoClientsShareTheirAuthLogic:
     """Anything that is not a request belongs to both clients, not to each.
 

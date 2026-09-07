@@ -205,7 +205,8 @@ class _AuthSupport:
                        'token= takes precedence and the username/password '
                        'are ignored.')
             self.logger.warning(message)
-            warnings.warn(message, ERClientAuthWarning)
+            # Two frames up is the constructor, three is whoever called it.
+            warnings.warn(message, ERClientAuthWarning, stacklevel=3)
 
     @property
     def last_auth_error(self):
@@ -225,12 +226,20 @@ class _AuthSupport:
         """What the most recent ``discover()`` found, or None."""
         return self._protected_resource_metadata
 
-    def _warn_if_legacy_auth(self, mode):
+    def _warn_if_legacy_auth(self, mode, *, stacklevel):
         """Warn once per client if these credentials are legacy for this site.
 
         Silent when discovery found nothing: unavailable metadata is not
         evidence of anything. Deduplicated by message text so a retry loop
         does not turn one deprecation into a wall of noise.
+
+        ``stacklevel`` comes from the caller because the distance to the user
+        is not the same on both paths in: ``login()`` is one call from them,
+        while token mode reaches here through ``auth_headers()``. It has no
+        default, so a new caller has to count rather than inherit someone
+        else's depth. A warning raised while a *request* method is fetching
+        auth reports that method's line inside this module rather than the
+        caller's, since the depth then varies with which method they called.
         """
         metadata = self._protected_resource_metadata
         if metadata is None:
@@ -244,7 +253,7 @@ class _AuthSupport:
         if message and message not in self._auth_warnings_issued:
             self._auth_warnings_issued.add(message)
             self.logger.warning(message)
-            warnings.warn(message, ERClientAuthWarning)
+            warnings.warn(message, ERClientAuthWarning, stacklevel=stacklevel)
 
     def _refuse_token(self, mode):
         """Raise if the token in hand cannot work at this site, recording why.
@@ -722,7 +731,7 @@ class ERClient(_AuthSupport):
         self.discover()
         mode = 'jwt_token' if looks_like_jwt(self.token) else 'opaque_token'
         self._refuse_token(mode)
-        self._warn_if_legacy_auth(mode)
+        self._warn_if_legacy_auth(mode, stacklevel=4)
 
     def auth_headers(self):
         self._discover_for_token_mode()
@@ -794,7 +803,7 @@ class ERClient(_AuthSupport):
             self.discover()
             if self._refuse_password_grant():
                 return False
-            self._warn_if_legacy_auth('password')
+            self._warn_if_legacy_auth('password', stacklevel=3)
 
         payload = {'grant_type': 'password',
                    'username': self.username,
@@ -2273,7 +2282,7 @@ class AsyncERClient(_AuthSupport):
         await self.discover()
         mode = 'jwt_token' if looks_like_jwt(self.token) else 'opaque_token'
         self._refuse_token(mode)
-        self._warn_if_legacy_auth(mode)
+        self._warn_if_legacy_auth(mode, stacklevel=4)
 
     async def _device_code_server(self):
         """The authorization server to sign in against, or a refusal.
@@ -2431,7 +2440,7 @@ class AsyncERClient(_AuthSupport):
         if self._discovery_enabled:
             await self.discover()
             self._refuse_password_grant()
-            self._warn_if_legacy_auth('password')
+            self._warn_if_legacy_auth('password', stacklevel=3)
 
         return await self._token_request(
             payload={

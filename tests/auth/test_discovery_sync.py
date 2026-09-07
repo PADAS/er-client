@@ -490,3 +490,34 @@ class TestTokenTransportErrorsStillPropagate:
             with pytest.warns(ERClientAuthWarning):
                 with pytest.raises(requests.ConnectionError):
                     client.login()
+
+
+class TestWarningsPointAtTheCaller:
+    """A caller holding several clients has to see which line warned.
+
+    Without a ``stacklevel`` every one of these reports a line inside
+    ``client.py``, which tells the reader nothing they did not know.
+    """
+
+    def test_the_password_grant_warning_blames_the_login_call(
+        self, ropc_kwargs, patched_post, serving, discovery_document,
+    ):
+        serving(discovery_document)
+        client = ERClient(**ropc_kwargs)
+
+        with pytest.warns(ERClientAuthWarning) as record:
+            client.login()
+
+        assert record[0].filename == __file__
+
+    def test_the_token_mode_warning_blames_the_auth_headers_call(
+        self, token_kwargs, serving, discovery_document,
+    ):
+        """A different depth: this one comes up through _discover_for_token_mode."""
+        serving(discovery_document)
+        client = ERClient(**token_kwargs)
+
+        with pytest.warns(ERClientAuthWarning) as record:
+            client.auth_headers()
+
+        assert record[0].filename == __file__

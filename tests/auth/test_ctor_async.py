@@ -841,3 +841,14 @@ class TestLifecycle:
             # wart: a bare RuntimeError, not an ERClientException
             with pytest.raises(RuntimeError, match="client has been closed"):
                 await client.get_me()
+
+
+class TestTheBothCredentialsWarningPointsAtTheCaller:
+    """The construction that supplied both is the line worth reporting."""
+
+    def test_it_blames_the_constructor_call(self, service_root):
+        with pytest.warns(ERClientAuthWarning) as record:
+            AsyncERClient(service_root=service_root, token="a-token",
+                          username="someone")
+
+        assert record[0].filename == __file__

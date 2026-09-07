@@ -609,3 +609,40 @@ class TestTokenTransportErrorsStillPropagate:
             with pytest.warns(ERClientAuthWarning):
                 with pytest.raises(httpx.ConnectError):
                     await client.login()
+
+
+class TestWarningsPointAtTheCaller:
+    """The async depths have to match the sync ones, coroutine frames and all."""
+
+    @pytest.mark.asyncio
+    async def test_the_password_grant_warning_blames_the_login_call(
+        self, ropc_kwargs, async_client_factory, discovery_url,
+        discovery_document, default_token_url, token_response,
+    ):
+        client = async_client_factory(**ropc_kwargs)
+        async with respx.mock as respx_mock:
+            respx_mock.get(discovery_url).mock(
+                return_value=httpx.Response(200, json=discovery_document))
+            respx_mock.post(default_token_url).mock(
+                return_value=httpx.Response(200, json=token_response))
+
+            with pytest.warns(ERClientAuthWarning) as record:
+                await client.login()
+
+        assert record[0].filename == __file__
+
+    @pytest.mark.asyncio
+    async def test_the_token_mode_warning_blames_the_auth_headers_call(
+        self, token_kwargs, async_client_factory, discovery_url,
+        discovery_document,
+    ):
+        """A different depth: this one comes up through _discover_for_token_mode."""
+        client = async_client_factory(**token_kwargs)
+        async with respx.mock as respx_mock:
+            respx_mock.get(discovery_url).mock(
+                return_value=httpx.Response(200, json=discovery_document))
+
+            with pytest.warns(ERClientAuthWarning) as record:
+                await client.auth_headers()
+
+        assert record[0].filename == __file__
