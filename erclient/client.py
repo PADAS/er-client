@@ -176,10 +176,13 @@ class _AuthSupport:
     def _clear_auth(self):
         """Drop whatever token was in hand and date its expiry to the past.
 
-        Every refusal and failure path ends here, so a client whose login just
-        failed cannot be left holding a stale token that ``_auth_is_valid()``
-        would then wave through. The constructors set the same two fields
-        directly: that is the initial state, not a clearing.
+        Every path that refuses credentials or is refused by a token endpoint
+        ends here, so a client whose login just failed cannot be left holding
+        a stale token that ``_auth_is_valid()`` would then wave through. An
+        authorization server we could not read is not one of those: nothing
+        was refused, so ``ERClientServiceUnreachable`` leaves both fields as
+        it found them. The constructors set them directly, which is the
+        initial state rather than a clearing.
         """
         self.auth = None
         self.auth_expires = pytz.utc.localize(datetime.min)

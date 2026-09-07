@@ -98,7 +98,7 @@ except ERClientBadCredentials as e:
 
 Unlike the password grant, a zero-argument `login()` **raises on failure on both clients** rather than returning `False`; `last_auth_error` is still populated. It refuses before sending anything when the site publishes no authorization servers, lists none this release knows, or when `discovery=False` was passed with no `device_code_issuer`. An authorization server that cannot be read raises `ERClientServiceUnreachable`. While polling, `authorization_pending` and `slow_down` are handled per RFC 8628 §3.5 (the interval grows by five seconds, and a longer `Retry-After` wins); an expired code or a declined sign-in raises `ERClientBadCredentials`.
 
-The prompt goes to **stderr**, so a script whose stdout is piped stays clean. The client's logger gets a one-line INFO summary naming the verification page rather than the prompt itself, so a caller who has run `logging.basicConfig()` — which also writes to stderr — is not shown the same code twice. Replace the prompt with `device_code_prompt=`, a callable taking the text.
+The default prompt goes to **stderr**, so a script whose stdout is piped stays clean, and the client's logger gets one INFO line naming the verification page. That line carries the bare URL, not the prompt text and not the code, so a caller who has run `logging.basicConfig()` — which also writes to stderr — is not shown the same code twice. `device_code_prompt=`, a callable taking the text, replaces both: your callable becomes the only output and nothing is logged.
 
 The arguments that shape the interactive sign-in, all optional:
 
