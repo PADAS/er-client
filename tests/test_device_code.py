@@ -358,6 +358,24 @@ class TestParseDeviceAuthorization:
         assert parse_device_authorization(
             device_authorization(expires_in=expires_in)) is None
 
+    @pytest.mark.parametrize(
+        "verification_uri",
+        ["http://example.com/activate", "javascript:alert(1)", "activate"],
+        ids=["plain_http", "javascript_scheme", "no_scheme"],
+    )
+    def test_a_uri_we_would_not_send_a_user_to(self, verification_uri):
+        """This one is opened in a browser, so it gets the endpoint check too."""
+        assert parse_device_authorization(
+            device_authorization(verification_uri=verification_uri)) is None
+
+    def test_an_unusable_complete_uri_is_dropped(self):
+        """The optional one is a convenience: without it the user types the code."""
+        authorization = parse_device_authorization(device_authorization(
+            verification_uri_complete="http://example.com/activate?user_code=X"))
+
+        assert authorization.verification_uri_complete is None
+        assert authorization.verification_uri == f"{DEV_ISSUER}/activate"
+
 
 class TestDefaultPromptText:
     """What the user reads before they go and approve the code."""

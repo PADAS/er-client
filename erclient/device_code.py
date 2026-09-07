@@ -201,6 +201,11 @@ def parse_device_authorization(text):
     poll with, the code and URL the user needs, and how long any of it is good
     for. The optional two are conveniences, so a malformed one falls back to
     its default rather than failing a flow that would otherwise work.
+
+    Both verification URIs go through the same ``https`` check the endpoints
+    do: they are printed to the user and, with ``open_browser=True``, handed
+    to ``webbrowser.open()``, which is no place for whatever scheme an
+    authorization server happened to send.
     """
     body = _parsed_object(text)
     if body is None:
@@ -208,7 +213,7 @@ def parse_device_authorization(text):
 
     device_code = _non_empty_string(body.get('device_code'))
     user_code = _non_empty_string(body.get('user_code'))
-    verification_uri = _non_empty_string(body.get('verification_uri'))
+    verification_uri = _https_endpoint(body.get('verification_uri'))
     expires_in = _positive_whole_number(body.get('expires_in'))
     if not (device_code and user_code and verification_uri) or expires_in is None:
         return None
@@ -218,7 +223,7 @@ def parse_device_authorization(text):
         device_code=device_code,
         user_code=user_code,
         verification_uri=verification_uri,
-        verification_uri_complete=_non_empty_string(
+        verification_uri_complete=_https_endpoint(
             body.get('verification_uri_complete')),
         expires_in=expires_in,
         interval=DEFAULT_POLL_INTERVAL_SECONDS if interval is None else interval,
