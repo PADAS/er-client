@@ -8,7 +8,8 @@ fallback for bodies that are not OAuth-shaped.
 """
 import pytest
 
-from erclient.er_errors import (CREDENTIAL_SITE_MISMATCH, AuthError,
+from erclient.er_errors import (CREDENTIAL_SITE_MISMATCH,
+                                INTERACTIVE_SIGN_IN_UNAVAILABLE, AuthError,
                                 ERClientBadCredentials, ERClientBadRequest,
                                 ERClientException, ERClientInternalError,
                                 ERClientRateLimitExceeded,
@@ -121,20 +122,22 @@ class TestAuthErrorRetryAfter:
 
     def test_our_own_refusal_has_none(self):
         """Nothing was asked of a server, so no server asked us to wait."""
-        auth_error = AuthError.for_site_mismatch(
-            "wrong credentials for this site", url=None, grant_type=None)
+        auth_error = AuthError.client_refusal(
+            "wrong credentials for this site",
+            error=CREDENTIAL_SITE_MISMATCH, url=None, grant_type=None)
 
         assert auth_error.retry_after is None
 
 
-class TestAuthErrorForSiteMismatch:
+class TestAuthErrorClientRefusal:
     """A refusal we made ourselves, before any server was asked."""
 
     MESSAGE = "Site https://fake-site.erdomain.org accepts only Auth0 tokens."
 
     def test_records_the_reason_with_no_server_fields(self):
-        auth_error = AuthError.for_site_mismatch(
+        auth_error = AuthError.client_refusal(
             self.MESSAGE,
+            error=CREDENTIAL_SITE_MISMATCH,
             url="https://fake-site.erdomain.org/oauth2/token",
             grant_type="password",
         )
@@ -148,11 +151,21 @@ class TestAuthErrorForSiteMismatch:
 
     def test_token_mode_has_no_url_or_grant_type(self):
         """Nothing was going to be posted anywhere, so there is nothing to name."""
-        auth_error = AuthError.for_site_mismatch(
-            self.MESSAGE, url=None, grant_type=None)
+        auth_error = AuthError.client_refusal(
+            self.MESSAGE, error=CREDENTIAL_SITE_MISMATCH, url=None,
+            grant_type=None)
 
         assert auth_error.url is None
         assert auth_error.grant_type is None
+
+    def test_the_caller_says_which_refusal_it_is(self):
+        """The two client-side codes stand for different facts about the site."""
+        auth_error = AuthError.client_refusal(
+            "no terminal is attached", error=INTERACTIVE_SIGN_IN_UNAVAILABLE,
+            url=None, grant_type="urn:ietf:params:oauth:grant-type:device_code")
+
+        assert auth_error.error == INTERACTIVE_SIGN_IN_UNAVAILABLE
+        assert auth_error.status_code is None
 
 
 def oauth_error(error, status_code=400):
@@ -195,10 +208,12 @@ class TestClassifyByOauthError:
         assert classify_token_error(
             oauth_error("expired_token")) is ERClientBadCredentials
 
-    def test_our_own_site_mismatch_code_is_bad_credentials(self):
-        """The client-side code classifies like the server codes it stands in for."""
-        auth_error = AuthError.for_site_mismatch(
-            "wrong credentials for this site", url=None, grant_type=None)
+    @pytest.mark.parametrize(
+        "error", [CREDENTIAL_SITE_MISMATCH, INTERACTIVE_SIGN_IN_UNAVAILABLE])
+    def test_our_own_codes_are_bad_credentials(self, error):
+        """The client-side codes classify like the server codes they stand in for."""
+        auth_error = AuthError.client_refusal(
+            "the client refused", error=error, url=None, grant_type=None)
 
         assert classify_token_error(auth_error) is ERClientBadCredentials
 

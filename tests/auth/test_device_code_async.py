@@ -36,7 +36,7 @@ from erclient.client import (DEVICE_CODE_TIMEOUT_SECONDS,
                              DISCOVERY_TIMEOUT_SECONDS)
 from erclient.device_code import (DEFAULT_SCOPE, DEVICE_CODE_GRANT,
                                   KNOWN_AUTHORIZATION_SERVERS)
-from erclient.er_errors import (CREDENTIAL_SITE_MISMATCH,
+from erclient.er_errors import (INTERACTIVE_SIGN_IN_UNAVAILABLE,
                                 ERClientBadCredentials, ERClientBadRequest,
                                 ERClientServiceUnreachable)
 
@@ -575,7 +575,10 @@ class TestThereIsNoTenantToSignInAgainst:
         assert exc_info.value.status_code is None
         assert client.auth is None
         auth_error = client.last_auth_error
-        assert auth_error.error == CREDENTIAL_SITE_MISMATCH
+        # Not credential_site_mismatch: the site's document did not say these
+        # credentials cannot work, it said nothing we could sign in against.
+        assert auth_error.error == INTERACTIVE_SIGN_IN_UNAVAILABLE
+        assert auth_error.status_code is None
         assert auth_error.error_description == message
         assert auth_error.grant_type == DEVICE_CODE_GRANT
 
@@ -783,6 +786,8 @@ class TestImplicitLogin:
                 await client.get_me()
 
         assert str(exc_info.value) == no_terminal_message(service_root)
+        assert client.last_auth_error.error == INTERACTIVE_SIGN_IN_UNAVAILABLE
+        assert client.last_auth_error.status_code is None
         assert client.last_auth_error.grant_type == DEVICE_CODE_GRANT
 
     async def test_an_explicit_login_proceeds_without_a_terminal(
@@ -861,3 +866,5 @@ class TestExpiry:
             assert len(respx_mock.calls) == calls_before
 
         assert str(exc_info.value) == expired_session_message(service_root)
+        assert client.last_auth_error.error == INTERACTIVE_SIGN_IN_UNAVAILABLE
+        assert client.last_auth_error.status_code is None

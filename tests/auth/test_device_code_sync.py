@@ -32,7 +32,7 @@ from tests.auth.conftest import (CODE_EXPIRED_MESSAGE,
 from erclient.client import ERClient
 from erclient.device_code import (DEFAULT_SCOPE, DEVICE_CODE_GRANT,
                                   KNOWN_AUTHORIZATION_SERVERS)
-from erclient.er_errors import (CREDENTIAL_SITE_MISMATCH,
+from erclient.er_errors import (INTERACTIVE_SIGN_IN_UNAVAILABLE,
                                 ERClientBadCredentials, ERClientBadRequest,
                                 ERClientServiceUnreachable)
 
@@ -608,7 +608,10 @@ class TestThereIsNoTenantToSignInAgainst:
         assert exc_info.value.status_code is None
         assert client.auth is None
         auth_error = client.last_auth_error
-        assert auth_error.error == CREDENTIAL_SITE_MISMATCH
+        # Not credential_site_mismatch: the site's document did not say these
+        # credentials cannot work, it said nothing we could sign in against.
+        assert auth_error.error == INTERACTIVE_SIGN_IN_UNAVAILABLE
+        assert auth_error.status_code is None
         assert auth_error.error_description == message
         assert auth_error.grant_type == DEVICE_CODE_GRANT
         if server is not None:
@@ -835,6 +838,8 @@ class TestImplicitLogin:
             client.auth_headers()
 
         assert str(exc_info.value) == no_terminal_message(service_root)
+        assert client.last_auth_error.error == INTERACTIVE_SIGN_IN_UNAVAILABLE
+        assert client.last_auth_error.status_code is None
         assert client.last_auth_error.grant_type == DEVICE_CODE_GRANT
         assert not patched_get.called
         assert not patched_post.called
@@ -915,4 +920,6 @@ class TestExpiry:
             client.auth_headers()
 
         assert str(exc_info.value) == expired_session_message(service_root)
+        assert client.last_auth_error.error == INTERACTIVE_SIGN_IN_UNAVAILABLE
+        assert client.last_auth_error.status_code is None
         assert patched_get.call_count == calls_before

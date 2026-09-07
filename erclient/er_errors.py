@@ -22,17 +22,22 @@ class AuthError:
     retry_after: Optional[int] = None
 
     @classmethod
-    def for_site_mismatch(cls, message, url, grant_type):
+    def client_refusal(cls, message, error, url, grant_type):
         """Build from our own pre-flight refusal, where no server was consulted.
 
         The server fields stay ``None`` — there is no status and no body,
         because nothing was sent. ``url`` and ``grant_type`` name the request
         we declined to make, and are themselves ``None`` in token mode, where
         there was no token request to begin with.
+
+        ``error`` is one of the client-side pseudo-codes below, and the caller
+        picks it: "these credentials cannot work here" and "there is no way to
+        sign in interactively" are different facts about a site, and a caller
+        reading ``last_auth_error`` should be able to tell them apart.
         """
         return cls(
             status_code=None,
-            error=CREDENTIAL_SITE_MISMATCH,
+            error=error,
             error_description=message,
             response_body=None,
             url=url,
@@ -130,6 +135,12 @@ class ERClientNotFound(ERClientException):
 # work. Never sent to a server and never received from one.
 CREDENTIAL_SITE_MISMATCH = "credential_site_mismatch"
 
+# The other client-side pseudo code: there were no credentials to refuse, and
+# the interactive sign-in that would have got some cannot run — discovery is
+# off, no terminal is attached, the issuer override is incomplete, or the site
+# names no tenant this client knows. Also never on the wire.
+INTERACTIVE_SIGN_IN_UNAVAILABLE = "interactive_sign_in_unavailable"
+
 # RFC 6749 section 5.2 error codes, plus access_denied from the device-code and
 # authorization-code flows.
 _OAUTH_ERROR_TO_EXCEPTION = {
@@ -143,8 +154,10 @@ _OAUTH_ERROR_TO_EXCEPTION = {
     'invalid_request': ERClientBadRequest,
     'unsupported_grant_type': ERClientBadRequest,
     'invalid_scope': ERClientBadRequest,
-    # Ours, not the wire's: the credentials are wrong for this site.
+    # Ours, not the wire's: the credentials are wrong for this site, or there
+    # is no interactive sign-in available to get any.
     CREDENTIAL_SITE_MISMATCH: ERClientBadCredentials,
+    INTERACTIVE_SIGN_IN_UNAVAILABLE: ERClientBadCredentials,
 }
 
 # Only consulted when the body carries no OAuth error code: a token endpoint

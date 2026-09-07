@@ -35,7 +35,8 @@ from .discovery import (classify_authorization_servers,
                         credential_site_mismatch, discovery_url, jwt_issuer,
                         legacy_auth_warning, looks_like_jwt, normalize_issuer,
                         parse_protected_resource_metadata)
-from .er_errors import (CREDENTIAL_SITE_MISMATCH, AuthError,
+from .er_errors import (CREDENTIAL_SITE_MISMATCH,
+                        INTERACTIVE_SIGN_IN_UNAVAILABLE, AuthError,
                         ERClientAuthWarning, ERClientBadCredentials,
                         ERClientBadRequest, ERClientException,
                         ERClientInternalError, ERClientNotFound,
@@ -208,8 +209,9 @@ class _DeviceCodeSupport:
         Reached only before anything was asked of an authorization server, so
         there is no status and no body — the message is the whole story.
         """
-        self._last_auth_error = AuthError.for_site_mismatch(
-            message, url=None, grant_type=DEVICE_CODE_GRANT)
+        self._last_auth_error = AuthError.client_refusal(
+            message, error=INTERACTIVE_SIGN_IN_UNAVAILABLE, url=None,
+            grant_type=DEVICE_CODE_GRANT)
         self.auth = None
         self.auth_expires = pytz.utc.localize(datetime.min)
         raise ERClientBadCredentials(message)
@@ -635,8 +637,9 @@ class ERClient(_DeviceCodeSupport):
         if not message:
             return False
 
-        self._last_auth_error = AuthError.for_site_mismatch(
-            message, url=self.token_url, grant_type='password')
+        self._last_auth_error = AuthError.client_refusal(
+            message, error=CREDENTIAL_SITE_MISMATCH, url=self.token_url,
+            grant_type='password')
         self.auth = None
         self.auth_expires = pytz.utc.localize(datetime.min)
         return True
@@ -657,8 +660,8 @@ class ERClient(_DeviceCodeSupport):
             return
 
         self._token_mismatch_message = message
-        self._last_auth_error = AuthError.for_site_mismatch(
-            message, url=None, grant_type=None)
+        self._last_auth_error = AuthError.client_refusal(
+            message, error=CREDENTIAL_SITE_MISMATCH, url=None, grant_type=None)
         raise ERClientBadCredentials(message)
 
     def _discover_for_token_mode(self):
@@ -720,7 +723,8 @@ class ERClient(_DeviceCodeSupport):
         """
         auth_error = self._last_auth_error
         message = 'Login failed.'
-        if auth_error and auth_error.error == CREDENTIAL_SITE_MISMATCH:
+        if auth_error and auth_error.error in (CREDENTIAL_SITE_MISMATCH,
+                                               INTERACTIVE_SIGN_IN_UNAVAILABLE):
             message = auth_error.error_description
         raise classify_token_error(auth_error)(
             message=message,
@@ -2280,8 +2284,8 @@ class AsyncERClient(_DeviceCodeSupport):
             return
 
         self._token_mismatch_message = message
-        self._last_auth_error = AuthError.for_site_mismatch(
-            message, url=None, grant_type=None)
+        self._last_auth_error = AuthError.client_refusal(
+            message, error=CREDENTIAL_SITE_MISMATCH, url=None, grant_type=None)
         raise ERClientBadCredentials(message)
 
     async def _discover_for_token_mode(self):
@@ -2445,8 +2449,9 @@ class AsyncERClient(_DeviceCodeSupport):
         if not message:
             return
 
-        self._last_auth_error = AuthError.for_site_mismatch(
-            message, url=self.token_url, grant_type='password')
+        self._last_auth_error = AuthError.client_refusal(
+            message, error=CREDENTIAL_SITE_MISMATCH, url=self.token_url,
+            grant_type='password')
         self.auth = None
         self.auth_expires = pytz.utc.localize(datetime.min)
         raise ERClientBadCredentials(message)
