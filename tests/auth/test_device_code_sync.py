@@ -13,6 +13,7 @@ and says so when there isn't one.
 """
 import json
 import logging
+import webbrowser
 from datetime import datetime
 from unittest.mock import patch
 
@@ -39,6 +40,8 @@ from erclient.er_errors import (INTERACTIVE_SIGN_IN_UNAVAILABLE,
 
 PROD_ISSUER = "https://auth.pamdas.org/"
 OTHER_ISSUER = "https://someone-elses-tenant.us.auth0.com/"
+VERIFICATION_URL = (
+    "https://auth-dev.pamdas.org/activate?user_code=WDJB-MJHT")
 
 
 def urls(traffic, method=None):
@@ -834,17 +837,35 @@ class TestPromptRouting:
         mock_open.assert_called_once_with(
             "https://auth-dev.pamdas.org/activate?user_code=WDJB-MJHT")
 
+    @pytest.mark.parametrize(
+        "patch_kwargs",
+        [
+            {"return_value": False},
+            {"side_effect": OSError("no display")},
+            {"side_effect": webbrowser.Error("no runnable browser")},
+        ],
+        ids=["returns_false", "raises_oserror", "raises_webbrowser_error"],
+    )
     def test_a_browser_that_will_not_open_is_not_a_failure(
         self, service_root, fake_device_server, no_sleep, captured_prompt,
+        caplog, patch_kwargs,
     ):
-        """The URL was printed either way, so there is nothing to fail about."""
+        """The URL was printed either way, so there is nothing to fail about.
+
+        Returning False is the ordinary outcome where no browser is
+        registered at all, and it used to pass in complete silence.
+        """
         client = ERClient(service_root=service_root, open_browser=True,
                           device_code_prompt=captured_prompt.append)
         fake_device_server()
 
-        with patch("erclient.client.webbrowser.open",
-                   side_effect=OSError("no display")):
-            assert client.login() is True
+        with caplog.at_level(logging.DEBUG, logger="ERClient"):
+            with patch("erclient.client.webbrowser.open", **patch_kwargs):
+                assert client.login() is True
+
+        assert any(VERIFICATION_URL in record.getMessage()
+                   for record in caplog.records
+                   if record.levelno == logging.DEBUG)
 
 
 class TestImplicitLogin:

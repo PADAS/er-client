@@ -308,12 +308,20 @@ class _AuthSupport:
 
         url = (authorization.verification_uri_complete
                or authorization.verification_uri)
+        # Narrow, because the URL was printed either way: this is a
+        # convenience that failed, not a login that did, and swallowing a
+        # TypeError from our own call would hide a bug behind that excuse.
+        # webbrowser.Error is not an OSError, and is what the module raises
+        # when it cannot find a browser to run.
         try:
-            webbrowser.open(url)
-        except Exception as e:
-            # The URL was printed either way, so this is a convenience that
-            # failed, not a login that did.
+            opened = webbrowser.open(url)
+        except (OSError, webbrowser.Error) as e:
             self.logger.debug('Could not open a browser at %s: %s', url, e)
+        else:
+            # The documented outcome when nothing is registered to open it,
+            # which until now passed in silence.
+            if not opened:
+                self.logger.debug('No browser was available to open %s', url)
 
     def _device_code_refusal(self, message):
         """The refusal for a sign-in that cannot even be started.

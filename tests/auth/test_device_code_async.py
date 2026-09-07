@@ -13,7 +13,9 @@ own ``login()`` call.
 """
 import json
 import logging
+import webbrowser
 from datetime import datetime
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -43,6 +45,8 @@ from erclient.er_errors import (INTERACTIVE_SIGN_IN_UNAVAILABLE,
 
 PROD_ISSUER = "https://auth.pamdas.org/"
 OTHER_ISSUER = "https://someone-elses-tenant.us.auth0.com/"
+VERIFICATION_URL = (
+    "https://auth-dev.pamdas.org/activate?user_code=WDJB-MJHT")
 
 pytestmark = pytest.mark.asyncio
 
@@ -771,6 +775,31 @@ class TestPromptRouting:
 
         assert opened == [
             "https://auth-dev.pamdas.org/activate?user_code=WDJB-MJHT"]
+
+    @pytest.mark.parametrize(
+        "patch_kwargs",
+        [
+            {"return_value": False},
+            {"side_effect": OSError("no display")},
+            {"side_effect": webbrowser.Error("no runnable browser")},
+        ],
+        ids=["returns_false", "raises_oserror", "raises_webbrowser_error"],
+    )
+    async def test_a_browser_that_will_not_open_is_not_a_failure(
+        self, flow, no_async_sleep, captured_prompt, caplog, patch_kwargs,
+    ):
+        """The URL was printed either way, so there is nothing to fail about."""
+        with patch("erclient.client.webbrowser.open", **patch_kwargs):
+            async with respx.mock as respx_mock:
+                client = flow(respx_mock, open_browser=True,
+                              device_code_prompt=captured_prompt.append)
+
+                with caplog.at_level(logging.DEBUG, logger="AsyncERClient"):
+                    assert await client.login() is True
+
+        assert any(VERIFICATION_URL in record.getMessage()
+                   for record in caplog.records
+                   if record.levelno == logging.DEBUG)
 
 
 class TestImplicitLogin:
