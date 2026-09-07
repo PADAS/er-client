@@ -139,9 +139,9 @@ The warning rows change nothing — what worked before still works, and a failin
 
 ### When sign-in fails
 
-A failed sign-in has one of three shapes. Either the server refused (the message is `Login failed.`, with the status and body attached), or the client refused before sending anything because the site cannot accept the credentials (the message is the explanation, and `status_code` is `None`), or the interactive flow did not complete (an expired code, a declined sign-in, or no terminal to show the prompt on).
+A failed sign-in has one of three shapes. Either the server refused (the message is `Login failed.`, with the status and body attached), or the client refused before sending anything — the credentials cannot work at this site, or there is no interactive sign-in available to get any, including when no terminal is attached to show the prompt on — in which case the message is the explanation and `status_code` is `None`, or an interactive sign-in that did start did not finish, because the code expired or the user declined.
 
-A refusal from the token endpoint is classified by the OAuth `error` code in the response body rather than by HTTP status, which token endpoints use inconsistently (RFC 6749 section 5.2 allows either `400` or `401` for the same condition). Both clients raise the same subclass, with the message `Login failed.` and `exc.status_code` / `exc.response_body` populated, plus `exc.retry_after` in seconds when the refusal carried a `Retry-After` header:
+A refusal from the token endpoint is classified by the OAuth `error` code in the response body rather than by HTTP status, which token endpoints use inconsistently (RFC 6749 section 5.2 allows either `400` or `401` for the same condition). Both clients raise the same subclass, with the message `Login failed.` and `exc.status_code` / `exc.response_body` populated, plus `exc.retry_after` in seconds when the refusal carried a `Retry-After` header — with one exception, noted under the table:
 
 | In the body | Exception |
 |---|---|
@@ -150,6 +150,8 @@ A refusal from the token endpoint is classified by the OAuth `error` code in the
 | no OAuth `error` — status decides: 401, 400, 429, 500, 502/503/504 | `ERClientBadCredentials`, `ERClientBadRequest`, `ERClientRateLimitExceeded`, `ERClientInternalError`, `ERClientServiceUnreachable` |
 | `credential_site_mismatch`, `interactive_sign_in_unavailable` — the client's own codes, never sent or received on the wire | `ERClientBadCredentials` |
 | anything else (unknown code, other status, unparseable body) | `ERClientException` |
+
+The exception is `expired_token` and `access_denied` **while polling for an interactive sign-in**, where they are not a refusal of anything you supplied but the flow's own two endings. The class is still `ERClientBadCredentials`, but the message is the explanation — `The sign-in code expired before it was approved.` or `The sign-in was declined at the authorization server.` — and `exc.status_code`, `exc.response_body` and `exc.retry_after` are all `None`. The server's status, body and OAuth code are on `last_auth_error` as usual. Reaching the same two codes any other way — from the device-authorization request, or from a password grant — gives the `Login failed.` shape in the table.
 
 Whether `login()` itself raises depends on the client and the grant. Sync `login()` returns `False` for a failed password grant and raises for a failed interactive sign-in. Async `login()` raises in both cases: `httpx.HTTPStatusError` for a password grant refused when you called `login()` or `refresh_token()` directly, and the classified subclass above for an interactive sign-in. On both clients the classification always applies when a request method such as `get_events()` triggers the login, and on sync `auth_headers()` raises the classified subclass too.
 
