@@ -15,7 +15,9 @@ import httpx
 import pytest
 import respx
 from tests.auth.conftest import AUTH0_ISSUER, JWT_TOKEN, auth_warnings
+from tests.auth.respx_helpers import flat_timeout, timeout_of
 
+from erclient.client import DISCOVERY_TIMEOUT_SECONDS
 from erclient.discovery import DISCOVERY_PATH
 from erclient.er_errors import ERClientAuthWarning
 
@@ -68,6 +70,26 @@ class TestDiscoverySucceeds:
             request = route.calls.last.request
             assert request.headers["user-agent"] == client.user_agent
             assert request.headers["accept"] == "application/json"
+
+
+class TestDiscoveryHasItsOwnDeadline:
+    """Advisory reads get a short deadline, not the caller's API timeouts."""
+
+    @pytest.mark.asyncio
+    async def test_the_fetch_does_not_inherit_the_api_timeouts(
+        self, ropc_kwargs, async_client_factory, discovery_url,
+        discovery_document,
+    ):
+        """A 97-second read timeout is the caller's business, not discovery's."""
+        client = async_client_factory(**ropc_kwargs, data_timeout=97)
+        async with respx.mock as respx_mock:
+            respx_mock.get(discovery_url).mock(
+                return_value=httpx.Response(200, json=discovery_document))
+
+            await client.discover()
+
+            assert timeout_of(respx_mock, discovery_url, "GET") == flat_timeout(
+                DISCOVERY_TIMEOUT_SECONDS)
 
 
 class TestDiscoveryFails:

@@ -2173,6 +2173,12 @@ class AsyncERClient(_DeviceCodeSupport):
         the site does not serve a usable document. Never raises: discovery is
         advisory, so an unreachable or silent endpoint must not stand between
         a caller and a login.
+
+        Given its own short deadline rather than the caller's API timeouts,
+        matching the sync client, which fetches this off its retrying session
+        entirely. This one stays on the shared session, so the transport's
+        connection retries still apply: a refused connection is retried up to
+        ``max_http_retries`` times, each attempt bounded by the deadline here.
         """
         url = discovery_url(self.service_root)
         if url is None:
@@ -2189,6 +2195,7 @@ class AsyncERClient(_DeviceCodeSupport):
                 # document that ends up naming a different resource is
                 # discarded when it is parsed.
                 follow_redirects=True,
+                timeout=httpx.Timeout(DISCOVERY_TIMEOUT_SECONDS),
             )
         except httpx.HTTPError as e:
             self.logger.debug('Discovery fetch failed for %s: %s', url, e)
@@ -2311,7 +2318,11 @@ class AsyncERClient(_DeviceCodeSupport):
         return self._select_device_code_server()
 
     async def _device_code_endpoints(self, server):
-        """Ask the authorization server to describe itself."""
+        """Ask the authorization server to describe itself.
+
+        On the metadata deadline, not the caller's API timeouts, as in
+        ``discover()``.
+        """
         url = authorization_server_metadata_url(server.issuer)
         try:
             response = await self._http_session.get(
@@ -2319,6 +2330,7 @@ class AsyncERClient(_DeviceCodeSupport):
                 headers={'User-Agent': self.user_agent,
                          'Accept': 'application/json'},
                 follow_redirects=True,
+                timeout=httpx.Timeout(DISCOVERY_TIMEOUT_SECONDS),
             )
         except httpx.HTTPError as e:
             self.logger.debug(
@@ -2328,9 +2340,13 @@ class AsyncERClient(_DeviceCodeSupport):
         return self._device_code_endpoints_from(response, server, url)
 
     async def _request_device_authorization(self, server, device_endpoint):
-        """Ask for a code to show the user."""
+        """Ask for a code to show the user.
+
+        Short deadline: a user is waiting on the prompt this produces.
+        """
         response = await self._http_session.post(
-            device_endpoint, data=self._device_authorization_form(server))
+            device_endpoint, data=self._device_authorization_form(server),
+            timeout=httpx.Timeout(DEVICE_CODE_TIMEOUT_SECONDS))
         return self._device_authorization_from(response, device_endpoint)
 
     async def _poll_for_device_code_token(self, server, token_endpoint,
@@ -2350,7 +2366,8 @@ class AsyncERClient(_DeviceCodeSupport):
                 self._device_code_expired(token_endpoint)
 
             response = await self._http_session.post(
-                token_endpoint, data=payload)
+                token_endpoint, data=payload,
+                timeout=httpx.Timeout(DEVICE_CODE_TIMEOUT_SECONDS))
             if self._is_success(response):
                 return self._store_device_code_token(response)
             interval = self._device_code_poll_interval(

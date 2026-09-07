@@ -28,9 +28,12 @@ from tests.auth.conftest import (CODE_EXPIRED_MESSAGE,
                                  no_authorization_servers_message,
                                  no_known_tenant_message, no_terminal_message)
 from tests.auth.respx_helpers import (KNOWN_ISSUER, device_code_endpoint,
-                                      device_token_endpoint, metadata_endpoint,
-                                      mock_device_flow, traffic)
+                                      device_token_endpoint, flat_timeout,
+                                      metadata_endpoint, mock_device_flow,
+                                      timeout_of, traffic)
 
+from erclient.client import (DEVICE_CODE_TIMEOUT_SECONDS,
+                             DISCOVERY_TIMEOUT_SECONDS)
 from erclient.device_code import (DEFAULT_SCOPE, DEVICE_CODE_GRANT,
                                   KNOWN_AUTHORIZATION_SERVERS)
 from erclient.er_errors import (CREDENTIAL_SITE_MISMATCH,
@@ -244,6 +247,40 @@ class TestTheHappyPath:
             "scope": DEFAULT_SCOPE,
             "audience": prod.audience,
         }
+
+
+class TestTheFlowHasItsOwnDeadlines:
+    """A user is watching, so these requests keep off the caller's timeouts."""
+
+    async def test_each_request_carries_its_own(
+        self, flow, no_async_sleep, captured_prompt, device_token_response,
+        discovery_url,
+    ):
+        """The sync client spells these out; routing them through the session
+        would silently hand them the caller's API timeouts instead."""
+        async with respx.mock as respx_mock:
+            client = flow(respx_mock, data_timeout=97,
+                          device_code_prompt=captured_prompt.append,
+                          token_responses=[
+                              httpx.Response(
+                                  400,
+                                  json={"error": "authorization_pending"}),
+                              httpx.Response(200, json=device_token_response),
+                          ])
+
+            await client.login()
+
+            discovery = flat_timeout(DISCOVERY_TIMEOUT_SECONDS)
+            device_code = flat_timeout(DEVICE_CODE_TIMEOUT_SECONDS)
+            assert timeout_of(respx_mock, discovery_url, "GET") == discovery
+            assert timeout_of(
+                respx_mock, metadata_endpoint(KNOWN_ISSUER), "GET") == discovery
+            assert timeout_of(
+                respx_mock, device_code_endpoint(KNOWN_ISSUER),
+                "POST") == device_code
+            assert timeout_of(
+                respx_mock, device_token_endpoint(KNOWN_ISSUER),
+                "POST") == device_code
 
 
 class TestPolling:

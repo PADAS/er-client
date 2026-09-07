@@ -55,6 +55,25 @@ def traffic(respx_mock):
             for call in respx_mock.calls]
 
 
+def flat_timeout(seconds):
+    """What httpx records for a request sent with ``httpx.Timeout(seconds)``."""
+    return {"connect": seconds, "read": seconds,
+            "write": seconds, "pool": seconds}
+
+
+def timeout_of(respx_mock, url, method):
+    """The deadline httpx recorded for the first such request.
+
+    A per-request timeout replaces the client's default outright, so this is
+    how a test tells a dedicated deadline from one inherited from the caller's
+    API timeouts.
+    """
+    for call in respx_mock.calls:
+        if call.request.method == method and str(call.request.url) == url:
+            return call.request.extensions["timeout"]
+    raise AssertionError(f"the client made no {method} to {url}")
+
+
 def mock_discovery(respx_mock, service_root, status_code=404, json_body=None):
     """Register the discovery endpoint on a test's own respx router.
 
