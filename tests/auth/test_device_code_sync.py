@@ -357,6 +357,26 @@ class TestPolling:
 
         assert no_sleep == [1, 30]
 
+    def test_an_interval_the_poller_could_not_wait_for(
+        self, service_root, fake_device_server, no_sleep, captured_prompt,
+        make_requests_response, device_authorization_document,
+        device_token_response,
+    ):
+        """A negative interval is time.sleep()'s ValueError; poll on the default."""
+        client = ERClient(service_root=service_root,
+                          device_code_prompt=captured_prompt.append)
+        fake_device_server(
+            authorization=make_requests_response(
+                200, json_data=device_authorization_document(interval=-1)),
+            token_responses=[
+                make_requests_response(
+                    400, json_data={"error": "authorization_pending"}),
+                make_requests_response(200, json_data=device_token_response),
+            ])
+
+        assert client.login() is True
+        assert no_sleep and all(seconds > 0 for seconds in no_sleep)
+
     def test_the_code_expiring_at_the_server(
         self, service_root, fake_device_server, no_sleep, captured_prompt,
         make_requests_response,

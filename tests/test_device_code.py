@@ -344,6 +344,20 @@ class TestParseDeviceAuthorization:
         assert authorization.interval == DEFAULT_POLL_INTERVAL_SECONDS
         assert authorization.verification_uri_complete is None
 
+    @pytest.mark.parametrize("interval", [0, -1, -5])
+    def test_an_interval_that_is_not_a_wait_falls_back_too(self, interval):
+        """Zero is a tight polling loop and a negative one is not a duration."""
+        authorization = parse_device_authorization(
+            device_authorization(interval=interval))
+
+        assert authorization.interval == DEFAULT_POLL_INTERVAL_SECONDS
+
+    @pytest.mark.parametrize("expires_in", [0, -1])
+    def test_a_lifetime_that_has_already_run_out(self, expires_in):
+        """A code whose deadline passed before the first poll cannot be polled on."""
+        assert parse_device_authorization(
+            device_authorization(expires_in=expires_in)) is None
+
 
 class TestDefaultPromptText:
     """What the user reads before they go and approve the code."""

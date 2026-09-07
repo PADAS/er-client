@@ -307,6 +307,27 @@ class TestPolling:
 
         assert no_async_sleep == [1, 30]
 
+    async def test_an_interval_the_poller_could_not_wait_for(
+        self, flow, no_async_sleep, captured_prompt,
+        device_authorization_document, device_token_response,
+    ):
+        """A negative interval is a wait that never was; poll on the default."""
+        async with respx.mock as respx_mock:
+            client = flow(
+                respx_mock, device_code_prompt=captured_prompt.append,
+                authorization=httpx.Response(
+                    200, json=device_authorization_document(interval=-1)),
+                token_responses=[
+                    httpx.Response(400,
+                                   json={"error": "authorization_pending"}),
+                    httpx.Response(200, json=device_token_response),
+                ])
+
+            assert await client.login() is True
+
+        assert no_async_sleep and all(
+            seconds > 0 for seconds in no_async_sleep)
+
     async def test_the_code_expiring_at_the_server(
         self, flow, no_async_sleep, captured_prompt,
     ):

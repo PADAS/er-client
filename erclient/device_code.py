@@ -184,6 +184,16 @@ def _whole_number(value):
     return value
 
 
+def _positive_whole_number(value):
+    """The same, for the fields that are only meaningful above zero.
+
+    A ``0`` or negative ``interval`` is not a wait the poller can take, and a
+    lifetime that has already run out leaves nothing to poll on.
+    """
+    number = _whole_number(value)
+    return number if number is not None and number > 0 else None
+
+
 def parse_device_authorization(text):
     """A device-authorization response, or None if we could not poll on it.
 
@@ -199,11 +209,11 @@ def parse_device_authorization(text):
     device_code = _non_empty_string(body.get('device_code'))
     user_code = _non_empty_string(body.get('user_code'))
     verification_uri = _non_empty_string(body.get('verification_uri'))
-    expires_in = _whole_number(body.get('expires_in'))
+    expires_in = _positive_whole_number(body.get('expires_in'))
     if not (device_code and user_code and verification_uri) or expires_in is None:
         return None
 
-    interval = _whole_number(body.get('interval'))
+    interval = _positive_whole_number(body.get('interval'))
     return DeviceAuthorization(
         device_code=device_code,
         user_code=user_code,
