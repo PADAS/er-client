@@ -638,6 +638,23 @@ class TestThereIsNoTenantToSignInAgainst:
             assert not [url for url in urls(server.traffic, "GET")
                         if "openid-configuration" in url]
 
+    def test_selecting_a_server_with_nothing_to_go_on_raises(
+        self, service_root,
+    ):
+        """Called directly, so the refusal is pinned where it is decided.
+
+        Through login() the same refusal could be coming from anywhere on the
+        path; this says the selector itself ends the flow rather than handing
+        back a None for someone else to trip over.
+        """
+        client = ERClient(service_root=service_root)
+
+        with pytest.raises(ERClientBadCredentials) as exc_info:
+            client._select_device_code_server()
+
+        assert str(exc_info.value) == no_authorization_servers_message(
+            service_root)
+
     def test_discovery_turned_off_and_no_issuer_given(
         self, service_root, patched_get, patched_post,
     ):

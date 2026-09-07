@@ -305,17 +305,21 @@ class _AuthSupport:
             # failed, not a login that did.
             self.logger.debug('Could not open a browser at %s: %s', url, e)
 
-    def _refuse_device_code(self, message):
-        """Refuse to sign in, recording why, and raise.
+    def _device_code_refusal(self, message):
+        """The refusal for a sign-in that cannot even be started.
 
         Reached only before anything was asked of an authorization server, so
         there is no status and no body — the message is the whole story.
+
+        Records the reason and clears auth, then hands the exception back for
+        the caller to ``raise``, so that a reader of the call site can see the
+        flow end there instead of having to know this never returns.
         """
         self._last_auth_error = AuthError.client_refusal(
             message, error=INTERACTIVE_SIGN_IN_UNAVAILABLE, url=None,
             grant_type=DEVICE_CODE_GRANT)
         self._clear_auth()
-        raise ERClientBadCredentials(message)
+        return ERClientBadCredentials(message)
 
     def _select_device_code_server(self):
         """The authorization server to sign in against, or a refusal.
@@ -334,12 +338,12 @@ class _AuthSupport:
             return server
 
         if self._device_code_issuer:
-            self._refuse_device_code(_INCOMPLETE_ISSUER_OVERRIDE)
+            raise self._device_code_refusal(_INCOMPLETE_ISSUER_OVERRIDE)
         metadata = self._protected_resource_metadata
         if metadata is None:
-            self._refuse_device_code(
+            raise self._device_code_refusal(
                 _NO_AUTHORIZATION_SERVERS.format(site=self.service_root))
-        self._refuse_device_code(_NO_KNOWN_TENANT.format(
+        raise self._device_code_refusal(_NO_KNOWN_TENANT.format(
             site=self.service_root,
             accepted=', '.join(normalize_issuer(issuer)
                                for issuer in metadata.authorization_servers)))
@@ -375,7 +379,7 @@ class _AuthSupport:
         "metadata" here would point at the one thing that worked.
         """
         if not self._is_success(response):
-            self._raise_device_code_refusal(response, device_endpoint)
+            raise self._device_code_refused(response, device_endpoint)
 
         authorization = parse_device_authorization(response.text)
         if authorization is None:
@@ -423,31 +427,35 @@ class _AuthSupport:
                 interval = max(interval, auth_error.retry_after)
             return interval
         if auth_error.error == 'expired_token':
-            self._device_code_expired(token_endpoint, auth_error)
+            raise self._device_code_expiry(token_endpoint, auth_error)
         if auth_error.error == 'access_denied':
             self._last_auth_error = auth_error
             self._clear_auth()
             raise ERClientBadCredentials(_SIGN_IN_DECLINED)
-        self._raise_device_code_refusal(response, token_endpoint)
+        raise self._device_code_refused(response, token_endpoint)
 
-    def _device_code_expired(self, url, auth_error=None):
-        """The code ran out before the user approved it.
+    def _device_code_expiry(self, url, auth_error=None):
+        """The refusal for a code that ran out before it was approved.
 
         Recorded as ``expired_token`` even when it was our own deadline that
         passed rather than the server's: it is the same fact, and a caller
         reading ``last_auth_error`` should not have to tell the two apart.
+
+        Returns the exception for the caller to ``raise``, as
+        :meth:`_device_code_refusal` does.
         """
         self._last_auth_error = auth_error or AuthError(
             error='expired_token', error_description=_CODE_EXPIRED,
             url=url, grant_type=DEVICE_CODE_GRANT)
         self._clear_auth()
-        raise ERClientBadCredentials(_CODE_EXPIRED)
+        return ERClientBadCredentials(_CODE_EXPIRED)
 
-    def _raise_device_code_refusal(self, response, url):
-        """Record a refusal from the authorization server and raise it.
+    def _device_code_refused(self, response, url):
+        """The refusal an authorization server sent us, as an exception.
 
         The same classification a refused password grant gets: the OAuth error
-        in the body decides, not the status.
+        in the body decides, not the status. Returned rather than raised, as
+        :meth:`_device_code_refusal` is.
         """
         auth_error = AuthError.from_token_response(
             status_code=response.status_code,
@@ -459,7 +467,7 @@ class _AuthSupport:
         )
         self._last_auth_error = auth_error
         self._clear_auth()
-        raise classify_token_error(auth_error)(
+        return classify_token_error(auth_error)(
             message='Login failed.',
             status_code=auth_error.status_code,
             response_body=auth_error.response_body,
@@ -606,7 +614,7 @@ class ERClient(_AuthSupport):
         """
         if not self._device_code_issuer:
             if not self._discovery_enabled:
-                self._refuse_device_code(_DISCOVERY_DISABLED)
+                raise self._device_code_refusal(_DISCOVERY_DISABLED)
             self.discover()
         return self._select_device_code_server()
 
@@ -649,7 +657,7 @@ class ERClient(_AuthSupport):
         while True:
             time.sleep(interval)
             if time.monotonic() >= deadline:
-                self._device_code_expired(token_endpoint)
+                raise self._device_code_expiry(token_endpoint)
 
             response = requests.post(
                 token_endpoint, data=payload,
@@ -724,11 +732,11 @@ class ERClient(_AuthSupport):
         # into a log and polling until it expires.
         if self._uses_device_code() and not _stdin_is_tty():
             if self.auth and not self._auth_is_valid():
-                self._refuse_device_code(
+                raise self._device_code_refusal(
                     _NO_TERMINAL_FOR_EXPIRED_SESSION.format(
                         site=self.service_root))
             elif not self.auth:
-                self._refuse_device_code(
+                raise self._device_code_refusal(
                     _NO_TERMINAL_FOR_FIRST_LOGIN.format(
                         site=self.service_root))
 
@@ -2275,7 +2283,7 @@ class AsyncERClient(_AuthSupport):
         """
         if not self._device_code_issuer:
             if not self._discovery_enabled:
-                self._refuse_device_code(_DISCOVERY_DISABLED)
+                raise self._device_code_refusal(_DISCOVERY_DISABLED)
             await self.discover()
         return self._select_device_code_server()
 
@@ -2325,7 +2333,7 @@ class AsyncERClient(_AuthSupport):
         while True:
             await asyncio.sleep(interval)
             if time.monotonic() >= deadline:
-                self._device_code_expired(token_endpoint)
+                raise self._device_code_expiry(token_endpoint)
 
             response = await self._http_session.post(
                 token_endpoint, data=payload,
@@ -2360,11 +2368,11 @@ class AsyncERClient(_AuthSupport):
         # into a log and polling until it expires.
         if self._uses_device_code() and not _stdin_is_tty():
             if self.auth and not self._auth_is_valid():
-                self._refuse_device_code(
+                raise self._device_code_refusal(
                     _NO_TERMINAL_FOR_EXPIRED_SESSION.format(
                         site=self.service_root))
             elif not self.auth:
-                self._refuse_device_code(
+                raise self._device_code_refusal(
                     _NO_TERMINAL_FOR_FIRST_LOGIN.format(
                         site=self.service_root))
 

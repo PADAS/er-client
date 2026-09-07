@@ -684,7 +684,7 @@ class TestTheTwoClientsShareTheirAuthLogic:
     @pytest.mark.parametrize(
         "name",
         ["_warn_if_legacy_auth", "_refuse_token", "_uses_device_code",
-         "_refuse_device_code", "_init_auth_options", "_clear_auth"],
+         "_device_code_refusal", "_init_auth_options", "_clear_auth"],
     )
     def test_the_same_function_object_serves_both(self, name):
         assert getattr(ERClient, name) is getattr(AsyncERClient, name)
