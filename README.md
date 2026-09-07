@@ -53,6 +53,23 @@ client = ERClient(
 client = ERClient(service_root="https://sandbox.pamdas.org", token="your_bearer_token")
 ```
 
+Or with no credentials at all, and sign in as yourself:
+
+```python
+client = ERClient(service_root="https://sandbox.pamdas.org")
+client.login()
+```
+
+```
+You are about to authorize the EarthRanger Python Client to access https://sandbox.pamdas.org as your user.
+Open https://auth.pamdas.org/activate?user_code=WDJB-MJHT in a browser and confirm that it shows the code WDJB-MJHT.
+Waiting for approval...
+```
+
+Approve it in the browser and `login()` returns; the client holds the token from
+then on. It lasts about two days and cannot be refreshed, so call `login()` again
+when it expires. See "Signing in interactively" under Best practices.
+
 Common patterns:
 
 ```python
@@ -129,6 +146,9 @@ async def main():
 asyncio.run(main())
 ```
 
+The async client signs in interactively too, on the same terms — construct it with
+no credentials and `await client.login()`.
+
 Without a context manager, create the client and call `await client.close()` when finished:
 
 ```python
@@ -176,8 +196,16 @@ Unrecognised keywords are silently ignored rather than rejected, so a typo such 
 | `discovery` | `True` | Whether to fetch the site's protected-resource metadata on the paths that decide auth, warn about legacy credentials, and refuse credentials the site cannot accept. See "Discovery and legacy-auth warnings" under Best practices. |
 | `connect_timeout` | `3.1` | Seconds. **Async only.** |
 | `data_timeout` | `20` | Seconds. **Async only.** |
+| `device_code_issuer` | `None` | Sign in against this Auth0 issuer instead of the one the site's discovery document names. Skips the discovery lookup. |
+| `device_code_client_id` | `None` | Overrides the client id registered for the chosen issuer. Required with `device_code_issuer` for a tenant this release does not know. |
+| `device_code_audience` | `None` | Overrides the API audience requested for the chosen issuer. Required on the same terms as `device_code_client_id`. |
+| `device_code_scope` | `"openid profile email"` | Scopes to request. No `offline_access`: the registration issues no refresh token. |
+| `device_code_prompt` | `None` | Callable taking the prompt text, replacing the default that writes to stderr and logs at INFO. |
+| `open_browser` | `False` | Also open the verification URL with `webbrowser.open()`. A browser that will not open is logged at DEBUG and ignored — the URL was printed either way. |
 
-Use either `token`, or `client_id` + `username` + `password`.
+Use either `token`, or `client_id` + `username` + `password`, or nothing at all and
+`login()`. The `device_code_*` arguments and `open_browser` only apply to that last
+case; see "Signing in interactively" under Best practices.
 
 ## API versions
 
@@ -238,6 +266,7 @@ Behaviors that are **not** shared, despite the common signatures above:
 | HTTP error → exception subclass | only 403 / 404 are consistent; other codes often raise plain `ERClientException`, and 401 / 502 / 504 vary by method | common statuses (400, 401, 403, 404, 409, 429, 500, 502, 503, 504) mapped to subclasses; others raise plain `ERClientException` |
 | `exc.status_code` / `exc.response_body` / `exc.retry_after` | never set (always `None`) for API errors; the status is recoverable only from the exception type, or from the message text for unmapped codes. Login failures are the exception: `status_code` and `response_body` are set, and `retry_after` when the token endpoint sent the header | populated on every HTTP error |
 | Login failure | `auth_headers()` raises the classified subclass; `login()` returns `False` | request methods raise the classified subclass; `login()` raises `httpx.HTTPStatusError` |
+| Interactive sign-in failure | `login()` raises | `login()` raises the same class — never `httpx.HTTPStatusError` |
 | Helpers only on one client | `get_subject`, `get_source_by_id`, `get_sources`, `get_subjects`, `pulse` | `get_feature_group`, `get_source_subjects`, `get_source_assignments` |
 
 ## Best practices
@@ -254,7 +283,7 @@ Behaviors that are **not** shared, despite the common signatures above:
   | `credential_site_mismatch` — the client's own code, never sent or received on the wire | `ERClientBadCredentials` |
   | anything else (unknown code, other status, unparseable body) | `ERClientException` |
 
-  Sync `login()` still reports failure as `False` rather than raising, so read `client.last_auth_error` for the reason — an `AuthError` carrying `status_code`, `error`, `error_description`, `response_body`, `url`, `grant_type` and `retry_after`. It is `None` until a token request is refused, and is cleared by the next successful one. It is also set when the client refuses credentials itself, before sending anything (see "Discovery and legacy-auth warnings" below); `status_code` and `response_body` are then `None`, since no server was consulted, and the exception's message is the whole explanation rather than `Login failed.`. It is available on both clients, which matters on async, where `login()` and `refresh_token()` raise `httpx.HTTPStatusError` when called directly; the classification happens only when a request method such as `get_events()` triggers the login.
+  Sync `login()` still reports a failed **password grant** as `False` rather than raising (the interactive sign-in raises on both clients — see below), so read `client.last_auth_error` for the reason — an `AuthError` carrying `status_code`, `error`, `error_description`, `response_body`, `url`, `grant_type` and `retry_after`. It is `None` until a token request is refused, and is cleared by the next successful one. It is also set when the client refuses credentials itself, before sending anything (see "Discovery and legacy-auth warnings" below); `status_code` and `response_body` are then `None`, since no server was consulted, and the exception's message is the whole explanation rather than `Login failed.`. It is available on both clients, which matters on async, where `login()` and `refresh_token()` raise `httpx.HTTPStatusError` when called directly; the classification happens only when a request method such as `get_events()` triggers the login.
 * **Discovery and legacy-auth warnings:** EarthRanger sites publish the authorization servers they accept at `{service_root}/.well-known/oauth-protected-resource` ([RFC 9728](https://www.rfc-editor.org/rfc/rfc9728.html)). Both clients fetch it on every `login()`, and once on the first `auth_headers()` when you passed `token=` — never during construction, and never on a refresh. What the site says decides whether you get a warning:
 
   | The site accepts | With `username`/`password` | With a site-issued `token=` | With an Auth0 `token=` |
@@ -267,7 +296,28 @@ Behaviors that are **not** shared, despite the common signatures above:
 
   A token is read as Auth0-issued if it is shaped like a JWT; anything else is assumed to be a legacy EarthRanger-issued token. Warnings go to the `ERClient`/`AsyncERClient` logger at WARNING and to `warnings.warn` as `ERClientAuthWarning`, once per client per distinct message. Silence them with `warnings.filterwarnings("ignore", category=ERClientAuthWarning)`. Supplying `token=` together with a `username` or `password` warns the same way at construction: the token wins, as it always has, and the credentials are ignored.
 
+  Both the warnings and the refusals name the way out: pass an Auth0-issued token, or construct the client with no credentials and call `login()` to sign in interactively.
+
   The warning rows change nothing — what worked before still works, and a failing login still raises exactly what it raised before. The raise rows are the cases the site's API would reject on every call: sync `login()` returns `False` without posting and `auth_headers()` raises, async `login()` raises directly, and in `token=` mode every `auth_headers()` raises. Discovery itself never blocks auth: a 404, a 5xx, a malformed document or an unreachable endpoint all just mean "no metadata", logged at DEBUG, and no metadata means no warning and no refusal. Pass `discovery=False` to the constructor to switch off the automatic fetches, the warnings and the refusals entirely; `client.discover()` still works, returning `ProtectedResourceMetadata | None`, and `client.protected_resource_metadata` holds whatever the last fetch found.
+* **Signing in interactively:** A client constructed with no `token`, `username`, `password` or `client_id` signs the user in with the device-authorization grant ([RFC 8628](https://www.rfc-editor.org/rfc/rfc8628.html)) instead of posting a password grant. Any one of those four keywords, even on its own, keeps the old path. `token=""` counts as no token.
+
+  Which authorization server it signs in against comes from the site's own discovery document: the client takes the first issuer the site lists that it holds a registration for, and the registrations are keyed by the **custom domain** a site advertises (`https://auth.pamdas.org`, `https://auth-dev.pamdas.org`), never the canonical Auth0 hostname behind it — EarthRanger validates a token's `iss` against exactly the advertised string. It then reads the tenant's own `/.well-known/openid-configuration` for the endpoints rather than assuming them. `KNOWN_AUTHORIZATION_SERVERS` is importable from `erclient` if you want to see what a release knows; a tenant it does not know needs `device_code_issuer`, `device_code_client_id` and `device_code_audience` together.
+
+  ```python
+  from erclient import ERClient, ERClientBadCredentials
+
+  client = ERClient(service_root="https://sandbox.pamdas.org")
+  try:
+      client.login()          # prints the URL and code, blocks until approved
+  except ERClientBadCredentials as e:
+      print(e)                # expired code, declined sign-in, or no tenant to use
+  ```
+
+  Unlike the password grant, a zero-argument `login()` **raises on failure on both clients** rather than returning `False`; `last_auth_error` is still populated. It refuses before sending anything when the site publishes no authorization servers, lists none this release knows, or when `discovery=False` was passed with no `device_code_issuer`. An authorization server that cannot be read raises `ERClientServiceUnreachable`. While polling, `authorization_pending` and `slow_down` are handled per RFC 8628 §3.5 (the interval grows by five seconds, and a longer `Retry-After` wins); an expired code or a declined sign-in raises `ERClientBadCredentials`.
+
+  The prompt goes to **stderr**, so a script whose stdout is piped stays clean, and to the client's logger at INFO. Replace it with `device_code_prompt=`, a callable taking the text.
+
+  The token carries **no refresh token** — the registration does not ask for `offline_access` — so it simply expires, after roughly two days. An explicit `login()` always proceeds, including in a notebook, which reports no terminal on stdin. An *implicit* one does not: when a request method finds no token, or an expired one, and stdin is not a terminal, it raises `ERClientBadCredentials` telling you to call `login()` where you can see the prompt or to pass `token=`. Printing a code into a log nobody is reading and then polling until it expires helps no one.
 * **Time ranges:** Pass timezone-aware `datetime` for `start`/`end` — correct on both clients. Sync silently ignores ISO strings there; async accepts them. Filter `date_range` bounds are ISO 8601 strings with timezone, e.g. `"2023-11-10T00:00:00-06:00"`.
 * **Sensor/camera-trap posts:** Set `provider_key` on the client when posting sensor observations or camera trap reports.
 * **Large reads:** Sync: consider `get_objects_multithreaded` for big list endpoints. Async: use `page_size` and optional `batch_size` in `get_events`/`get_observations`; cursor-based pagination is used by default.
