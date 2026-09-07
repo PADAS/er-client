@@ -190,6 +190,7 @@ class _AuthSupport:
         Called from both constructors once ``username``, ``password`` and
         ``logger`` are set, since the warning below reads all three.
         """
+        self.token = kwargs.get('token')
         self._device_code_issuer = kwargs.get('device_code_issuer')
         self._device_code_client_id = kwargs.get('device_code_client_id')
         self._device_code_audience = kwargs.get('device_code_audience')
@@ -198,7 +199,7 @@ class _AuthSupport:
         self._device_code_prompt = kwargs.get('device_code_prompt')
         self._open_browser = kwargs.get('open_browser', False)
 
-        if kwargs.get('token') and (self.username or self.password):
+        if self.token and (self.username or self.password):
             # Warned about rather than refused: callers pass both today, and
             # the token has always won.
             message = ('Both token= and username/password were supplied; '
@@ -283,7 +284,7 @@ class _AuthSupport:
         callers have a working setup or a bug, and neither is improved by
         silently prompting instead.
         """
-        return (not getattr(self, 'token', None)
+        return (not self.token
                 and not (self.username or self.password or self.client_id))
 
     def _write_prompt(self, text):
@@ -555,7 +556,6 @@ class ERClient(_AuthSupport):
         self.realtime_url = kwargs.get('realtime_url')
 
         if kwargs.get('token'):
-            self.token = kwargs.get('token')
             self.auth = dict(token_type='Bearer',
                              access_token=kwargs.get('token'))
             self.auth_expires = datetime(2099, 1, 1, tzinfo=pytz.utc)
@@ -724,7 +724,7 @@ class ERClient(_AuthSupport):
 
         if (not self._discovery_enabled
                 or self._discovery_done_for_token_mode
-                or not getattr(self, 'token', None)):
+                or not self.token):
             return
 
         self._discovery_done_for_token_mode = True
@@ -1861,7 +1861,6 @@ class AsyncERClient(_AuthSupport):
         self.realtime_url = kwargs.get('realtime_url')
 
         if kwargs.get('token'):
-            self.token = kwargs.get('token')
             self.auth = dict(token_type='Bearer',
                              access_token=kwargs.get('token'))
             self.auth_expires = datetime(2099, 1, 1, tzinfo=pytz.utc)
@@ -2275,7 +2274,7 @@ class AsyncERClient(_AuthSupport):
 
         if (not self._discovery_enabled
                 or self._discovery_done_for_token_mode
-                or not getattr(self, 'token', None)):
+                or not self.token):
             return
 
         self._discovery_done_for_token_mode = True

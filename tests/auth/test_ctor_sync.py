@@ -90,6 +90,7 @@ class TestConstruction:
         assert client.client_id is None
         assert client.provider_key is None
         assert client.realtime_url is None
+        assert client.token is None
 
     class TestTokenUrl:
         """Where the client will post, decided entirely at construction time."""
@@ -234,7 +235,7 @@ class TestPreAcquiredToken:
         client = ERClient(service_root=service_root, token="")
 
         assert client.auth is None
-        assert not hasattr(client, "token")
+        assert client.token == ""
         assert client._uses_device_code() is True
 
     def test_empty_token_alongside_credentials_still_means_the_password_grant(
@@ -252,7 +253,7 @@ class TestPreAcquiredToken:
         omitted = ERClient(service_root=service_root)
 
         assert explicit.auth is omitted.auth is None
-        assert not hasattr(explicit, "token")
+        assert explicit.token is omitted.token is None
         assert explicit.auth_expires == omitted.auth_expires
 
     def test_rejected_token_surfaces_from_the_api_call(
@@ -284,7 +285,7 @@ class TestPasswordGrant:
 
         assert client.auth is None
         assert client.auth_expires == pytz.utc.localize(datetime.min)
-        assert not hasattr(client, "token")
+        assert client.token is None
 
     class TestFirstLogin:
 
