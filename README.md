@@ -15,7 +15,7 @@ The earthranger-client (er-client) is a Python library for accessing the EarthRa
 
 ## Quick Start
 
-See `docs/examples/simple-example.py` for a full sync example (pulse, subjects, tracks, create event, attach file, query events).
+See `docs/examples/simple-example.py` for a full sync example (pulse, subjects, tracks, create event, attach file, query events). See `docs/examples/interactive-example.py` for signing in as yourself from a terminal or notebook, with no credentials in the script.
 
 ## Installation
 
