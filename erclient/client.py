@@ -168,6 +168,17 @@ class _AuthSupport:
     def _is_success(response):
         return 200 <= response.status_code < 300
 
+    def _clear_auth(self):
+        """Drop whatever token was in hand and date its expiry to the past.
+
+        Every refusal and failure path ends here, so a client whose login just
+        failed cannot be left holding a stale token that ``_auth_is_valid()``
+        would then wave through. The constructors set the same two fields
+        directly: that is the initial state, not a clearing.
+        """
+        self.auth = None
+        self.auth_expires = pytz.utc.localize(datetime.min)
+
     def _init_auth_options(self, kwargs):
         """Read the auth kwargs that neither client interprets its own way.
 
@@ -298,8 +309,7 @@ class _AuthSupport:
         self._last_auth_error = AuthError.client_refusal(
             message, error=INTERACTIVE_SIGN_IN_UNAVAILABLE, url=None,
             grant_type=DEVICE_CODE_GRANT)
-        self.auth = None
-        self.auth_expires = pytz.utc.localize(datetime.min)
+        self._clear_auth()
         raise ERClientBadCredentials(message)
 
     def _select_device_code_server(self):
@@ -406,8 +416,7 @@ class _AuthSupport:
             self._device_code_expired(token_endpoint, auth_error)
         if auth_error.error == 'access_denied':
             self._last_auth_error = auth_error
-            self.auth = None
-            self.auth_expires = pytz.utc.localize(datetime.min)
+            self._clear_auth()
             raise ERClientBadCredentials(_SIGN_IN_DECLINED)
         self._raise_device_code_refusal(response, token_endpoint)
 
@@ -421,8 +430,7 @@ class _AuthSupport:
         self._last_auth_error = auth_error or AuthError(
             error='expired_token', error_description=_CODE_EXPIRED,
             url=url, grant_type=DEVICE_CODE_GRANT)
-        self.auth = None
-        self.auth_expires = pytz.utc.localize(datetime.min)
+        self._clear_auth()
         raise ERClientBadCredentials(_CODE_EXPIRED)
 
     def _raise_device_code_refusal(self, response, url):
@@ -440,8 +448,7 @@ class _AuthSupport:
                 response.headers.get('Retry-After')),
         )
         self._last_auth_error = auth_error
-        self.auth = None
-        self.auth_expires = pytz.utc.localize(datetime.min)
+        self._clear_auth()
         raise classify_token_error(auth_error)(
             message='Login failed.',
             status_code=auth_error.status_code,
@@ -675,8 +682,7 @@ class ERClient(_AuthSupport):
         self._last_auth_error = AuthError.client_refusal(
             message, error=CREDENTIAL_SITE_MISMATCH, url=self.token_url,
             grant_type='password')
-        self.auth = None
-        self.auth_expires = pytz.utc.localize(datetime.min)
+        self._clear_auth()
         return True
 
     def _discover_for_token_mode(self):
@@ -800,8 +806,7 @@ class ERClient(_AuthSupport):
             retry_after=parse_retry_after_header(
                 response.headers.get('Retry-After')),
         )
-        self.auth = None
-        self.auth_expires = pytz.utc.localize(datetime.min)
+        self._clear_auth()
         return False
 
     def _api_root(self, version=DEFAULT_VERSION):
@@ -2395,8 +2400,7 @@ class AsyncERClient(_AuthSupport):
         self._last_auth_error = AuthError.client_refusal(
             message, error=CREDENTIAL_SITE_MISMATCH, url=self.token_url,
             grant_type='password')
-        self.auth = None
-        self.auth_expires = pytz.utc.localize(datetime.min)
+        self._clear_auth()
         raise ERClientBadCredentials(message)
 
     async def login(self):
@@ -2437,8 +2441,7 @@ class AsyncERClient(_AuthSupport):
                 retry_after=parse_retry_after_header(
                     response.headers.get('Retry-After')),
             )
-            self.auth = None
-            self.auth_expires = pytz.utc.localize(datetime.min)
+            self._clear_auth()
             response.raise_for_status()
 
         self.auth = response.json()
