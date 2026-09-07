@@ -133,6 +133,19 @@ def metadata_unreadable_message(metadata_url):
     )
 
 
+def device_authorization_unreadable_message(url):
+    """It described itself, then answered the device request with nonsense.
+
+    A different document from the one above, so a different message: naming
+    the metadata here would send a reader to an endpoint that worked.
+    """
+    return (
+        f"The authorization server at {url} returned a device-authorization "
+        "response the client could not read. Try again, or pass an "
+        "Auth0-issued access token with token=."
+    )
+
+
 def auth_warnings(recorded):
     """Only this client's auth warnings, ignoring anything else the run emits."""
     return [w for w in recorded if issubclass(w.category, ERClientAuthWarning)]

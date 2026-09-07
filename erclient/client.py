@@ -81,6 +81,11 @@ _METADATA_UNREADABLE = (
     "Could not read the authorization server's metadata at {metadata_url}. "
     "Try again, or pass an Auth0-issued access token with token=."
 )
+_DEVICE_AUTHORIZATION_UNREADABLE = (
+    "The authorization server at {url} returned a device-authorization "
+    "response the client could not read. Try again, or pass an Auth0-issued "
+    "access token with token=."
+)
 _CODE_EXPIRED = (
     "The sign-in code expired before it was approved. Call client.login() "
     "again for a new one."
@@ -363,14 +368,19 @@ class _AuthSupport:
                 'audience': server.audience}
 
     def _device_authorization_from(self, response, device_endpoint):
-        """The code to show the user, or raise."""
+        """The code to show the user, or raise.
+
+        A 200 the parser cannot use is its own failure, not the metadata
+        one: the document that named this endpoint was read fine, so saying
+        "metadata" here would point at the one thing that worked.
+        """
         if not self._is_success(response):
             self._raise_device_code_refusal(response, device_endpoint)
 
         authorization = parse_device_authorization(response.text)
         if authorization is None:
             raise ERClientServiceUnreachable(
-                _METADATA_UNREADABLE.format(metadata_url=device_endpoint),
+                _DEVICE_AUTHORIZATION_UNREADABLE.format(url=device_endpoint),
                 status_code=response.status_code,
                 response_body=response.text)
         return authorization

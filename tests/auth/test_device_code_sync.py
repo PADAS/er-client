@@ -23,6 +23,7 @@ from tests.auth.conftest import (CODE_EXPIRED_MESSAGE,
                                  DISCOVERY_DISABLED_MESSAGE,
                                  INCOMPLETE_OVERRIDE_MESSAGE,
                                  SIGN_IN_DECLINED_MESSAGE,
+                                 device_authorization_unreadable_message,
                                  device_code_endpoint, device_token_endpoint,
                                  expired_session_message,
                                  metadata_unreadable_message,
@@ -499,8 +500,26 @@ class TestTheTenantRefusesToStart:
             client.login()
 
         assert str(exc_info.value).startswith(
-            metadata_unreadable_message(device_code_endpoint(known_issuer)))
+            device_authorization_unreadable_message(
+                device_code_endpoint(known_issuer)))
         assert device_token_endpoint(known_issuer) not in urls(server.traffic)
+
+    def test_the_message_names_the_endpoint_that_actually_failed(
+        self, service_root, fake_device_server, no_sleep, captured_prompt,
+        make_requests_response, known_issuer,
+    ):
+        """The metadata document parsed; it is this response that did not."""
+        client = ERClient(service_root=service_root,
+                          device_code_prompt=captured_prompt.append)
+        fake_device_server(
+            authorization=make_requests_response(
+                200, json_data={"unexpected": True}))
+
+        with pytest.raises(ERClientServiceUnreachable) as exc_info:
+            client.login()
+
+        assert device_code_endpoint(known_issuer) in str(exc_info.value)
+        assert "metadata" not in str(exc_info.value)
 
 
 class TestTheAuthorizationServerWillNotDescribeItself:
