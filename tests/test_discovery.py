@@ -245,6 +245,9 @@ class TestLooksLikeJwt:
             "DUMMY-HEADER..DUMMY-SIGNATURE",
             "DUMMY-HEADER.DUMMY-PAYLOAD.DUMMY-SIGNATURE.DUMMY-EXTRA",
             "",
+            None,
+            42,
+            b"a.b.c",
         ],
         ids=[
             "two_dots_but_garbage_header",
@@ -253,6 +256,9 @@ class TestLooksLikeJwt:
             "empty_segment",
             "too_many_segments",
             "empty_string",
+            "none",
+            "not_a_string",
+            "bytes",
         ],
     )
     def test_non_jwts(self, token):
@@ -431,8 +437,9 @@ class TestJwtIssuer:
 
     @pytest.mark.parametrize(
         "token",
-        ["dummy-opaque-das-token-000000001", "", None],
-        ids=["opaque_das_token", "empty_string", "none"],
+        ["dummy-opaque-das-token-000000001", "", None, 42, b"a.b.c"],
+        ids=["opaque_das_token", "empty_string", "none", "not_a_string",
+             "bytes"],
     )
     def test_a_token_that_is_not_a_jwt_has_no_issuer(self, token):
         assert jwt_issuer(token) is None

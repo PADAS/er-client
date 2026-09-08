@@ -159,8 +159,11 @@ def looks_like_jwt(token):
 
     An Auth0 *opaque* token would read as legacy here. That is acceptable:
     EarthRanger validates Auth0 tokens as JWTs, so an Auth0 token that works
-    against a site is always a JWT.
+    against a site is always a JWT. Anything that is not a string is not a
+    JWT either, and says so rather than raising from ``split``. Never raises.
     """
+    if not isinstance(token, str):
+        return False
     segments = token.split('.') if token else []
     if len(segments) != 3 or not all(segments):
         return False
