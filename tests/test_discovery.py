@@ -350,6 +350,18 @@ class TestNormalizeIssuer:
             "https://Fake-Site.erdomain.org:8443/oauth2/"
         ) == "https://fake-site.erdomain.org:8443/oauth2"
 
+    @pytest.mark.parametrize(
+        "issuer",
+        ["https://user@FAKE-TENANT.us.auth0.com/",
+         "https://user:secret@fake-tenant.us.auth0.com",
+         "https://@fake-tenant.us.auth0.com"],
+        ids=["user", "user_and_password", "empty_userinfo"],
+    )
+    def test_userinfo_is_left_alone(self, issuer):
+        """Rebuilding from the host would drop it and let the issuer pass as
+        the accepted one; the server would not agree."""
+        assert normalize_issuer(issuer) == issuer
+
     def test_keeps_the_brackets_around_an_ipv6_literal(self):
         """``hostname`` strips them; without them the port is ambiguous."""
         assert normalize_issuer(
@@ -536,11 +548,17 @@ class TestCredentialSiteMismatchForJwts:
 
     @pytest.mark.parametrize(
         "token_issuer",
-        ["https://[broken", "https://other.us.auth0.com:notaport"],
-        ids=["malformed_ipv6", "non_numeric_port"],
+        ["https://[broken", "https://other.us.auth0.com:notaport",
+         f"https://user@{AUTH0_ISSUER[len('https://'):]}"],
+        ids=["malformed_ipv6", "non_numeric_port",
+             "accepted_host_with_userinfo"],
     )
     def test_an_issuer_claim_urlparse_chokes_on_is_a_mismatch(self, token_issuer):
-        """A forged or garbled iss is refused like any unlisted one, not raised."""
+        """A forged or garbled iss is refused like any unlisted one, not raised.
+
+        The last case is the accepted issuer with userinfo in front of the
+        host: DAS compares the string exactly, so it is not the accepted issuer.
+        """
         assert mismatch(BOTH_LISTED, "jwt_token", token_issuer=token_issuer) == (
             f"The token passed with token= was issued by {token_issuer}, which "
             f"site {SERVICE_ROOT} does not accept. Accepted issuers: "

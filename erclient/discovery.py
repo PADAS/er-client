@@ -171,10 +171,15 @@ def normalize_issuer(issuer):
     3986 calls insignificant: the case of scheme and host, and a trailing
     slash. Anything that does not parse as a URL with a scheme and a host —
     including one ``urlparse`` chokes on — comes back untouched: there is
-    nothing to normalize, and the comparison should then simply fail.
+    nothing to normalize, and the comparison should then simply fail. So does
+    one carrying userinfo: rebuilding the netloc from the host alone would
+    drop it, and ``https://user@tenant`` would then pass as ``https://tenant``
+    when the server would refuse it.
     """
     parsed = parse_absolute_url(issuer)
     if parsed is None:
+        return issuer
+    if parsed.username is not None or parsed.password is not None:
         return issuer
 
     netloc = parsed.hostname.lower()
