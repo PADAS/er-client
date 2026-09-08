@@ -27,7 +27,7 @@ from .api_paths import (DEFAULT_VERSION, VERSION_2_0, event_type_detail_path,
 from .device_code import (DEFAULT_SCOPE, DEVICE_CODE_GRANT,
                           SLOW_DOWN_INCREMENT_SECONDS,
                           authorization_server_metadata_url,
-                          default_prompt_text,
+                          default_prompt_text, is_https_url,
                           parse_authorization_server_metadata,
                           parse_device_authorization,
                           select_authorization_server)
@@ -60,6 +60,11 @@ _DISCOVERY_DISABLED = (
     "Interactive sign-in needs the site's discovery document to find its "
     "authorization server, but discovery=False was passed. Enable discovery, "
     "or pass device_code_issuer=."
+)
+_ISSUER_OVERRIDE_NOT_HTTPS = (
+    "The issuer passed with device_code_issuer= must be an absolute https URL "
+    "such as https://auth.pamdas.org: the client fetches the authorization "
+    "server's metadata from it, and would not do so over plain http."
 )
 _INCOMPLETE_ISSUER_OVERRIDE = (
     "The issuer passed with device_code_issuer= is not an EarthRanger Auth0 "
@@ -356,10 +361,12 @@ class _AuthSupport:
         """The authorization server to sign in against, or a refusal.
 
         Called once discovery has had its chance, so what is left to decide is
-        which refusal fits: an override that cannot stand on its own, a site
-        that published nothing, or a site backed by a tenant we have no
-        registration for.
+        which refusal fits: an override that is not an https URL or cannot
+        stand on its own, a site that published nothing, or a site backed by a
+        tenant we have no registration for.
         """
+        if self._device_code_issuer and not is_https_url(self._device_code_issuer):
+            raise self._device_code_refusal(_ISSUER_OVERRIDE_NOT_HTTPS)
         server = select_authorization_server(
             self._protected_resource_metadata,
             issuer=self._device_code_issuer,
@@ -532,7 +539,7 @@ class ERClient(_AuthSupport):
 
         :param discovery: Optional. Whether to fetch the site's RFC 9728 protected-resource metadata on the paths that decide auth. Default True. Pass False to keep the client off the network except for the calls you make yourself; discover() still works.
 
-        :param device_code_issuer: Optional. The Auth0 issuer to sign in against, skipping the discovery lookup. Needs device_code_client_id and device_code_audience unless it is a tenant this release knows.
+        :param device_code_issuer: Optional. The Auth0 issuer to sign in against, skipping the discovery lookup. Must be an absolute https URL. Needs device_code_client_id and device_code_audience unless it is a tenant this release knows.
         :param device_code_client_id: Optional. Overrides the client id registered for the chosen issuer.
         :param device_code_audience: Optional. Overrides the API audience requested for the chosen issuer.
         :param device_code_scope: Optional. Scopes to request; default 'openid profile email'.
@@ -1834,7 +1841,7 @@ class AsyncERClient(_AuthSupport):
 
         :param discovery: Optional. Whether to fetch the site's RFC 9728 protected-resource metadata on the paths that decide auth. Default True. Pass False to keep the client off the network except for the calls you make yourself; discover() still works.
 
-        :param device_code_issuer: Optional. The Auth0 issuer to sign in against, skipping the discovery lookup. Needs device_code_client_id and device_code_audience unless it is a tenant this release knows.
+        :param device_code_issuer: Optional. The Auth0 issuer to sign in against, skipping the discovery lookup. Must be an absolute https URL. Needs device_code_client_id and device_code_audience unless it is a tenant this release knows.
         :param device_code_client_id: Optional. Overrides the client id registered for the chosen issuer.
         :param device_code_audience: Optional. Overrides the API audience requested for the chosen issuer.
         :param device_code_scope: Optional. Scopes to request; default 'openid profile email'.

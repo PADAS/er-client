@@ -92,12 +92,16 @@ def select_authorization_server(metadata, *, issuer=None, client_id=None,
 
     An explicit ``issuer`` settles it: known, and it comes from the table with
     any overrides applied; unknown, and the overrides have to supply the whole
-    registration, since a ``client_id`` cannot be guessed. Otherwise the site's
-    own list decides, in the order it published — the first issuer this client
-    knows wins. ``None`` means nothing here can start a flow, and the client
-    turns that into the refusal that fits how it got here.
+    registration, since a ``client_id`` cannot be guessed. Either way it has to
+    be an absolute ``https`` URL — see :func:`is_https_url` — or nothing is
+    selected. Otherwise the site's own list decides, in the order it
+    published — the first issuer this client knows wins. ``None`` means
+    nothing here can start a flow, and the client turns that into the refusal
+    that fits how it got here.
     """
     if issuer:
+        if not is_https_url(issuer):
+            return None
         normalized = normalize_issuer(issuer)
         known = KNOWN_AUTHORIZATION_SERVERS.get(normalized)
         if known:

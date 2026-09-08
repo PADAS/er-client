@@ -96,7 +96,7 @@ except ERClientException as e:
     print(e)                # see below for the shapes this takes
 ```
 
-Unlike the password grant, a zero-argument `login()` **raises on failure on both clients** rather than returning `False`. It refuses before sending anything, with `ERClientBadCredentials`, in four cases: the site serves no usable discovery document, it lists no Auth0 tenant this release knows, `device_code_issuer=` names a tenant this release does not know without `device_code_client_id=` and `device_code_audience=`, or `discovery=False` was passed with no `device_code_issuer=`. Each of those sets `last_auth_error` to the code `interactive_sign_in_unavailable`.
+Unlike the password grant, a zero-argument `login()` **raises on failure on both clients** rather than returning `False`. It refuses before sending anything, with `ERClientBadCredentials`, in five cases: the site serves no usable discovery document, it lists no Auth0 tenant this release knows, `device_code_issuer=` is not an absolute `https` URL, it names a tenant this release does not know without `device_code_client_id=` and `device_code_audience=`, or `discovery=False` was passed with no `device_code_issuer=`. Each of those sets `last_auth_error` to the code `interactive_sign_in_unavailable`.
 
 An authorization server that cannot be read raises `ERClientServiceUnreachable` — a document that does not parse or does not name the issuer we asked about, a device-authorization response missing anything the flow needs, and a verification URI that is not absolute `https` all count. Nothing was refused on those paths, so `last_auth_error` is left as it was rather than describing them.
 

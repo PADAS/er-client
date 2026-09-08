@@ -179,6 +179,21 @@ class TestSelectFromAnIssuerOverride:
             issuer=DEV_ISSUER, client_id="other-client",
             audience="https://other.example.org/api")
 
+    @pytest.mark.parametrize(
+        "issuer",
+        ["http://auth-dev.pamdas.org", "http://someone-elses-tenant.us.auth0.com",
+         "someone-elses-tenant.us.auth0.com", "https://[broken"],
+        ids=["known_tenant_over_http", "new_tenant_over_http", "no_scheme",
+             "malformed"],
+    )
+    def test_an_issuer_that_is_not_an_https_url_selects_nothing(self, issuer):
+        """The metadata document names where credentials go, so it is fetched
+        over https or not at all — even for a tenant the table knows, and even
+        with the full registration supplied."""
+        assert select_authorization_server(
+            None, issuer=issuer, client_id="new-client",
+            audience="https://new.example.org/api") is None
+
 
 class TestIsHttpsUrl:
     """The bar for every URL the flow touches."""
