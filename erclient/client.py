@@ -378,7 +378,10 @@ class _AuthSupport:
         if self._device_code_issuer:
             raise self._device_code_refusal(_INCOMPLETE_ISSUER_OVERRIDE)
         metadata = self._protected_resource_metadata
-        if metadata is None:
+        # A document listing no authorization servers at all is valid
+        # metadata, but for this purpose it says the same as no document:
+        # the site named nothing to sign in against.
+        if metadata is None or not metadata.authorization_servers:
             raise self._device_code_refusal(
                 _NO_AUTHORIZATION_SERVERS.format(site=self.service_root))
         raise self._device_code_refusal(_NO_KNOWN_TENANT.format(

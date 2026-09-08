@@ -627,6 +627,19 @@ class TestThereIsNoTenantToSignInAgainst:
             await self.assert_refused(
                 client, no_authorization_servers_message(service_root))
 
+    async def test_a_site_that_publishes_an_empty_list(
+        self, flow, service_root, make_discovery_document,
+    ):
+        """Valid metadata, but it names nothing: the same refusal as no document."""
+        async with respx.mock as respx_mock:
+            client = flow(
+                respx_mock,
+                discovery=httpx.Response(200, json=make_discovery_document()),
+                metadata=None, authorization=None, token_responses=None)
+
+            await self.assert_refused(
+                client, no_authorization_servers_message(service_root))
+
     async def test_a_site_that_names_only_its_own_issuer(
         self, flow, service_root, make_discovery_document, das_issuer,
     ):

@@ -679,6 +679,19 @@ class TestThereIsNoTenantToSignInAgainst:
                             no_authorization_servers_message(service_root),
                             server)
 
+    def test_a_site_that_publishes_an_empty_list(
+        self, service_root, fake_device_server, make_requests_response,
+        make_discovery_document,
+    ):
+        """Valid metadata, but it names nothing: the same refusal as no document."""
+        server = fake_device_server(
+            discovery=make_requests_response(
+                200, json_data=make_discovery_document()))
+
+        self.assert_refused(ERClient(service_root=service_root),
+                            no_authorization_servers_message(service_root),
+                            server)
+
     def test_a_site_that_names_only_its_own_issuer(
         self, service_root, fake_device_server, make_requests_response,
         make_discovery_document, das_issuer,
