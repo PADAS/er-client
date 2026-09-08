@@ -19,6 +19,7 @@ from erclient.device_code import (DEFAULT_POLL_INTERVAL_SECONDS, DEFAULT_SCOPE,
                                   DEVICE_CODE_GRANT,
                                   authorization_server_metadata_url,
                                   default_prompt_text, is_https_url,
+                                  is_issuer_url,
                                   parse_authorization_server_metadata,
                                   parse_device_authorization,
                                   parse_token_response,
@@ -183,17 +184,45 @@ class TestSelectFromAnIssuerOverride:
     @pytest.mark.parametrize(
         "issuer",
         ["http://auth-dev.pamdas.org", "http://someone-elses-tenant.us.auth0.com",
-         "someone-elses-tenant.us.auth0.com", "https://[broken"],
+         "someone-elses-tenant.us.auth0.com", "https://[broken",
+         f"{DEV_ISSUER}?tenant=x", f"{OTHER_ISSUER}?tenant=x",
+         f"{OTHER_ISSUER}#fragment"],
         ids=["known_tenant_over_http", "new_tenant_over_http", "no_scheme",
-             "malformed"],
+             "malformed", "known_tenant_with_query", "new_tenant_with_query",
+             "new_tenant_with_fragment"],
     )
-    def test_an_issuer_that_is_not_an_https_url_selects_nothing(self, issuer):
+    def test_an_issuer_that_is_not_an_issuer_url_selects_nothing(self, issuer):
         """The metadata document names where credentials go, so it is fetched
-        over https or not at all — even for a tenant the table knows, and even
-        with the full registration supplied."""
+        over https from a URL the well-known path can be appended to, or not at
+        all — even for a tenant the table knows, and even with the full
+        registration supplied."""
         assert select_authorization_server(
             None, issuer=issuer, client_id="new-client",
             audience="https://new.example.org/api") is None
+
+
+class TestIsIssuerUrl:
+    """RFC 8414 section 2: https, and nothing after the path."""
+
+    @pytest.mark.parametrize(
+        "value", [DEV_ISSUER, f"{DEV_ISSUER}/", "HTTPS://AUTH-DEV.PAMDAS.ORG",
+                  f"{DEV_ISSUER}:8443/tenant"],
+        ids=["bare", "trailing_slash", "upper_case", "with_port_and_path"],
+    )
+    def test_issuer_identifiers(self, value):
+        assert is_issuer_url(value) is True
+
+    @pytest.mark.parametrize(
+        "value",
+        ["http://auth-dev.pamdas.org", f"{DEV_ISSUER}?tenant=x",
+         f"{DEV_ISSUER}?", f"{DEV_ISSUER}#fragment", f"{DEV_ISSUER}/#",
+         "auth-dev.pamdas.org", "", None, "https://[broken"],
+        ids=["plain_http", "query", "empty_query_marker", "fragment",
+             "empty_fragment_marker", "no_scheme", "empty", "none",
+             "malformed"],
+    )
+    def test_everything_else(self, value):
+        assert is_issuer_url(value) is False
 
 
 class TestIsHttpsUrl:

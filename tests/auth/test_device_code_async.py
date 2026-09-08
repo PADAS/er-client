@@ -24,7 +24,7 @@ import respx
 from tests.auth.conftest import (CODE_EXPIRED_MESSAGE,
                                  DISCOVERY_DISABLED_MESSAGE,
                                  INCOMPLETE_OVERRIDE_MESSAGE,
-                                 OVERRIDE_NOT_HTTPS_MESSAGE,
+                                 INVALID_OVERRIDE_MESSAGE,
                                  SIGN_IN_DECLINED_MESSAGE,
                                  device_authorization_unreadable_message,
                                  expired_session_message,
@@ -708,19 +708,26 @@ class TestThereIsNoTenantToSignInAgainst:
         async with respx.mock:
             await self.assert_refused(client, INCOMPLETE_OVERRIDE_MESSAGE)
 
-    async def test_an_issuer_override_that_is_not_https(
-        self, service_root, async_client_factory,
+    @pytest.mark.parametrize(
+        "issuer",
+        ["http://someone-elses-tenant.us.auth0.com",
+         f"{OTHER_ISSUER}?tenant=x", f"{OTHER_ISSUER}#fragment"],
+        ids=["plain_http", "query", "fragment"],
+    )
+    async def test_an_issuer_override_that_is_not_an_issuer_url(
+        self, service_root, async_client_factory, issuer,
     ):
         """Its metadata names where credentials go, so it is never fetched in
-        the clear — not even with the whole registration supplied."""
+        the clear, nor from a URL the well-known path cannot be appended to —
+        not even with the whole registration supplied."""
         client = async_client_factory(
             service_root=service_root,
-            device_code_issuer="http://someone-elses-tenant.us.auth0.com",
+            device_code_issuer=issuer,
             device_code_client_id="new-client",
             device_code_audience="https://new.example.org/api")
 
         async with respx.mock as respx_mock:
-            await self.assert_refused(client, OVERRIDE_NOT_HTTPS_MESSAGE)
+            await self.assert_refused(client, INVALID_OVERRIDE_MESSAGE)
             assert not respx_mock.calls
 
 

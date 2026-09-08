@@ -93,14 +93,14 @@ def select_authorization_server(metadata, *, issuer=None, client_id=None,
     An explicit ``issuer`` settles it: known, and it comes from the table with
     any overrides applied; unknown, and the overrides have to supply the whole
     registration, since a ``client_id`` cannot be guessed. Either way it has to
-    be an absolute ``https`` URL — see :func:`is_https_url` — or nothing is
+    be an issuer identifier — see :func:`is_issuer_url` — or nothing is
     selected. Otherwise the site's own list decides, in the order it
     published — the first issuer this client knows wins. ``None`` means
     nothing here can start a flow, and the client turns that into the refusal
     that fits how it got here.
     """
     if issuer:
-        if not is_https_url(issuer):
+        if not is_issuer_url(issuer):
             return None
         normalized = normalize_issuer(issuer)
         known = KNOWN_AUTHORIZATION_SERVERS.get(normalized)
@@ -142,6 +142,23 @@ def is_https_url(value):
     """
     parsed = parse_absolute_url(value)
     return parsed is not None and parsed.scheme.lower() == 'https'
+
+
+def is_issuer_url(value):
+    """Whether ``value`` can be an authorization server's issuer identifier.
+
+    RFC 8414 section 2: an ``https`` URL with no query or fragment. The
+    second half matters here because :func:`authorization_server_metadata_url`
+    appends the well-known path to the issuer as text, so a query would
+    swallow the path and a fragment would hide it, and the metadata request
+    would go somewhere else entirely. The check is on the characters rather
+    than the parsed components, because ``urlparse`` cannot tell a bare ``?``
+    or ``#`` from their absence and either one would still break the append.
+    Never raises.
+    """
+    parsed = parse_absolute_url(value)
+    return (parsed is not None and parsed.scheme.lower() == 'https'
+            and '?' not in value and '#' not in value)
 
 
 def _https_endpoint(value):

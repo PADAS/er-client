@@ -71,10 +71,11 @@ DISCOVERY_DISABLED_MESSAGE = (
     "authorization server, but discovery=False was passed. Enable discovery, "
     "or pass device_code_issuer=."
 )
-OVERRIDE_NOT_HTTPS_MESSAGE = (
+INVALID_OVERRIDE_MESSAGE = (
     "The issuer passed with device_code_issuer= must be an absolute https URL "
-    "such as https://auth.pamdas.org: the client fetches the authorization "
-    "server's metadata from it, and would not do so over plain http."
+    "with no query or fragment, such as https://auth.pamdas.org: the client "
+    "fetches the authorization server's metadata from it, and would not do so "
+    "over plain http or from a URL the well-known path cannot be appended to."
 )
 INCOMPLETE_OVERRIDE_MESSAGE = (
     "The issuer passed with device_code_issuer= is not an EarthRanger Auth0 "
