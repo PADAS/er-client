@@ -146,6 +146,26 @@ class TestTheHappyPath:
                               device_token_response["expires_in"])
         assert client.last_auth_error is None
 
+    async def test_a_refresh_token_the_tenant_sent_anyway_is_dropped(
+        self, flow, no_async_sleep, captured_prompt, device_token_response,
+        default_token_url,
+    ):
+        """This flow does not refresh. A tenant granting offline_access anyway
+        must not leave a token the shared refresh path would post to the
+        site's legacy token endpoint with no client id."""
+        async with respx.mock as respx_mock:
+            client = flow(respx_mock,
+                          device_code_prompt=captured_prompt.append,
+                          token_responses=[httpx.Response(
+                              200, json={**device_token_response,
+                                         "refresh_token": "refresh-1"})])
+
+            assert await client.login() is True
+            assert "refresh_token" not in client.auth
+            assert await client.refresh_token() is False
+            assert default_token_url not in [
+                url for _, url in traffic(respx_mock)]
+
     async def test_the_order_of_the_conversation(
         self, flow, no_async_sleep, captured_prompt, discovery_url,
         device_token_response,

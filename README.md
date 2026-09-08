@@ -117,7 +117,7 @@ The arguments that shape the interactive sign-in, all optional:
 | `device_code_prompt` | writes to stderr | Callable taking the prompt text. |
 | `open_browser` | `False` | Also open the verification URL with `webbrowser.open()`. |
 
-The token carries **no refresh token** — the registration does not ask for `offline_access` — so it simply expires, after roughly two days. An explicit `login()` always proceeds, including in a notebook, which reports no terminal on stdin. An *implicit* one does not: when a request method finds no token, or an expired one, and stdin is not a terminal, it raises `ERClientBadCredentials` telling you to call `login()` where you can see the prompt or to pass `token=`. Printing a code into a log nobody is reading and then polling until it expires helps no one.
+The token carries **no refresh token** — the registration does not ask for `offline_access`, and one a tenant sends anyway is discarded, so adding the scope through `device_code_scope` does not make this a refreshing flow — so it simply expires, after roughly two days. An explicit `login()` always proceeds, including in a notebook, which reports no terminal on stdin. An *implicit* one does not: when a request method finds no token, or an expired one, and stdin is not a terminal, it raises `ERClientBadCredentials` telling you to call `login()` where you can see the prompt or to pass `token=`. Printing a code into a log nobody is reading and then polling until it expires helps no one.
 
 ### What the site tells the client
 

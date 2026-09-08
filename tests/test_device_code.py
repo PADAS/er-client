@@ -473,6 +473,15 @@ class TestParseTokenResponse:
             "scope": "openid profile email",
         }
 
+    def test_a_refresh_token_is_dropped(self):
+        """This flow does not refresh; a tenant granting offline_access anyway
+        must not leave a credential for the legacy refresh path to post."""
+        parsed = parse_token_response(
+            token_response(refresh_token="refresh-1"))
+
+        assert "refresh_token" not in parsed
+        assert parsed["access_token"] == "access-token-1"
+
     @pytest.mark.parametrize(
         "overrides",
         [{"access_token": None}, {"access_token": ""},

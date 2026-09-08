@@ -269,6 +269,11 @@ def parse_token_response(text):
     and a lifetime to schedule the next sign-in by. A 204, an HTML page, or a
     JSON object missing any of those is not a token, and the caller must not
     be left half signed in by it.
+
+    A ``refresh_token`` is dropped if one arrives. This flow does not refresh,
+    by decision: the registration asks for no ``offline_access``, and a tenant
+    that grants it anyway must not leave behind a credential the clients'
+    shared refresh path would post to the site's legacy token endpoint.
     """
     body = _parsed_object(text)
     if body is None:
@@ -279,7 +284,7 @@ def parse_token_response(text):
         return None
     if _positive_whole_number(body.get('expires_in')) is None:
         return None
-    return body
+    return {key: value for key, value in body.items() if key != 'refresh_token'}
 
 
 def default_prompt_text(*, service_root, authorization):
