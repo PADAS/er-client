@@ -134,6 +134,7 @@ class TestParseProtectedResourceMetadata:
         [
             make_document(resource="https://other-site.erdomain.org"),
             make_document(resource=f"{SERVICE_ROOT}/some/path"),
+            make_document(resource=f"{SERVICE_ROOT}//"),
             make_document(resource=f"{SERVICE_ROOT}?tenant=other"),
             make_document(resource=f"{SERVICE_ROOT}#fragment"),
             json.dumps({"authorization_servers": [DAS_ISSUER]}),
@@ -155,6 +156,7 @@ class TestParseProtectedResourceMetadata:
         ids=[
             "resource_is_another_host",
             "resource_has_extra_path",
+            "resource_has_two_trailing_slashes",
             "resource_has_query",
             "resource_has_fragment",
             "resource_missing",
@@ -335,6 +337,10 @@ class TestNormalizeIssuer:
 
     def test_strips_one_trailing_slash(self):
         assert normalize_issuer(f"{AUTH0_ISSUER}/") == AUTH0_ISSUER
+
+    def test_strips_only_one_trailing_slash(self):
+        """Two slashes are a different path, not a cosmetic difference."""
+        assert normalize_issuer(f"{AUTH0_ISSUER}//") == f"{AUTH0_ISSUER}/"
 
     def test_lowercases_scheme_and_host(self):
         assert normalize_issuer(

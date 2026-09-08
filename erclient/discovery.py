@@ -58,6 +58,16 @@ def parse_absolute_url(value):
     return parsed
 
 
+def _without_trailing_slash(path):
+    """``path`` less one trailing slash, the only one RFC 3986 lets us forgive.
+
+    Not ``rstrip``: ``/foo///`` and ``/foo`` are different paths, and a
+    comparison that made them equal would let a document for one stand in for
+    the other.
+    """
+    return path[:-1] if path.endswith("/") else path
+
+
 def _same_resource(resource, expected_resource):
     """Compare two resource identifiers, ignoring cosmetic differences.
 
@@ -73,7 +83,8 @@ def _same_resource(resource, expected_resource):
         return False
     return (actual.scheme.lower() == expected.scheme.lower()
             and actual.netloc.lower() == expected.netloc.lower()
-            and actual.path.rstrip("/") == expected.path.rstrip("/")
+            and (_without_trailing_slash(actual.path)
+                 == _without_trailing_slash(expected.path))
             and actual.params == expected.params
             and actual.query == expected.query
             and actual.fragment == expected.fragment)
@@ -189,7 +200,7 @@ def normalize_issuer(issuer):
         netloc = f"[{netloc}]"
     if parsed.port:
         netloc = f"{netloc}:{parsed.port}"
-    path = parsed.path[:-1] if parsed.path.endswith("/") else parsed.path
+    path = _without_trailing_slash(parsed.path)
     return urlunparse((parsed.scheme.lower(), netloc, path,
                        parsed.params, parsed.query, parsed.fragment))
 
