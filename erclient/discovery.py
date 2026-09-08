@@ -63,8 +63,9 @@ def _same_resource(resource, expected_resource):
 
     RFC 9728 section 3.3 requires the document to name the resource we asked
     about. Scheme and host are case-insensitive per RFC 3986, and a trailing
-    slash carries no meaning here. A resource that is not a URL matches
-    nothing.
+    slash carries no meaning here; every other component has to match, so a
+    document for the site with a query string appended is a document for
+    something else. A resource that is not a URL matches nothing.
     """
     actual = parse_absolute_url(resource)
     expected = parse_absolute_url(expected_resource)
@@ -72,7 +73,10 @@ def _same_resource(resource, expected_resource):
         return False
     return (actual.scheme.lower() == expected.scheme.lower()
             and actual.netloc.lower() == expected.netloc.lower()
-            and actual.path.rstrip("/") == expected.path.rstrip("/"))
+            and actual.path.rstrip("/") == expected.path.rstrip("/")
+            and actual.params == expected.params
+            and actual.query == expected.query
+            and actual.fragment == expected.fragment)
 
 
 def parse_protected_resource_metadata(text, expected_resource):

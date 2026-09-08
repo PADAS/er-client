@@ -134,6 +134,8 @@ class TestParseProtectedResourceMetadata:
         [
             make_document(resource="https://other-site.erdomain.org"),
             make_document(resource=f"{SERVICE_ROOT}/some/path"),
+            make_document(resource=f"{SERVICE_ROOT}?tenant=other"),
+            make_document(resource=f"{SERVICE_ROOT}#fragment"),
             json.dumps({"authorization_servers": [DAS_ISSUER]}),
             json.dumps({"resource": SERVICE_ROOT}),
             json.dumps({"resource": 42, "authorization_servers": []}),
@@ -153,6 +155,8 @@ class TestParseProtectedResourceMetadata:
         ids=[
             "resource_is_another_host",
             "resource_has_extra_path",
+            "resource_has_query",
+            "resource_has_fragment",
             "resource_missing",
             "authorization_servers_missing",
             "resource_not_a_string",
