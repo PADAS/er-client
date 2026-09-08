@@ -141,6 +141,9 @@ class TestParseProtectedResourceMetadata:
                         "authorization_servers": DAS_ISSUER}),
             json.dumps({"resource": SERVICE_ROOT,
                         "authorization_servers": [DAS_ISSUER, 7]}),
+            make_document(authorization_servers=[DAS_ISSUER, ""]),
+            make_document(authorization_servers=["not a URL"]),
+            make_document(authorization_servers=["https://[broken"]),
             make_document(resource="https://[broken"),
             make_document(resource="https://fake-site.erdomain.org:notaport"),
             "<html><body>Not Found</body></html>",
@@ -155,6 +158,9 @@ class TestParseProtectedResourceMetadata:
             "resource_not_a_string",
             "authorization_servers_not_a_list",
             "authorization_servers_entry_not_a_string",
+            "authorization_servers_entry_empty",
+            "authorization_servers_entry_not_a_url",
+            "authorization_servers_entry_malformed",
             "resource_malformed",
             "resource_port_not_a_number",
             "not_json",
@@ -165,7 +171,8 @@ class TestParseProtectedResourceMetadata:
     def test_unusable_documents_yield_none(self, text):
         """Any failure means "no metadata"; discovery never raises.
 
-        The malformed resource cases matter: ``urlparse`` raises on them.
+        The malformed cases matter: ``urlparse`` raises on them, and an
+        issuer with no host would otherwise read as an external server.
         """
         assert parse_protected_resource_metadata(text, SERVICE_ROOT) is None
 

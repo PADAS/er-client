@@ -80,7 +80,10 @@ def parse_protected_resource_metadata(text, expected_resource):
 
     A 404 page, an HTML error, a document for a different resource, and a
     document missing the fields we need are all the same answer: no metadata.
-    Never raises.
+    So is a document whose issuer list holds anything but absolute URLs: an
+    issuer with no host would read as an external authorization server and
+    could turn a working legacy login into a refusal, so a document that lists
+    one is not a document to act on. Never raises.
     """
     try:
         body = json.loads(text)
@@ -96,7 +99,7 @@ def parse_protected_resource_metadata(text, expected_resource):
     authorization_servers = body.get('authorization_servers')
     if not isinstance(authorization_servers, list):
         return None
-    if not all(isinstance(issuer, str) for issuer in authorization_servers):
+    if not all(parse_absolute_url(issuer) for issuer in authorization_servers):
         return None
 
     return ProtectedResourceMetadata(
