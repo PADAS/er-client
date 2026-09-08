@@ -7,6 +7,8 @@ raises out of it directly rather than returning a bool.
 A caller who brought their own token never calls ``login()``, so for those the
 refusal happens in ``auth_headers()``, which every API call goes through.
 """
+import asyncio
+
 import httpx
 import pytest
 import respx
@@ -285,6 +287,50 @@ class TestOpaqueTokenAtAMigratedSite:
             with pytest.raises(ERClientBadCredentials):
                 await client.get_me()
 
+            assert not api_route.called
+
+    @pytest.mark.asyncio
+    async def test_two_first_callers_at_once_both_run_the_check(
+        self, token_kwargs, async_client_factory, discovery_url,
+        external_only_document, service_root,
+    ):
+        """Neither caller may skip the check because the other is mid-fetch.
+
+        The discovery response is held until both callers have asked for it,
+        so the second arrives while the first is still awaiting discovery. If
+        the check were marked done before the fetch, the second would skip it
+        and send the token to the API; instead both fetch and both refuse.
+        """
+        client = async_client_factory(**token_kwargs)
+        both_arrived = asyncio.Event()
+        arrivals = 0
+
+        async def hold_until_both_arrive(request):
+            nonlocal arrivals
+            arrivals += 1
+            if arrivals < 2:
+                await both_arrived.wait()
+            else:
+                both_arrived.set()
+            return httpx.Response(200, json=external_only_document)
+
+        async with respx.mock as respx_mock:
+            route = respx_mock.get(discovery_url).mock(
+                side_effect=hold_until_both_arrive)
+            api_route = respx_mock.get(f"{service_root}/api/v1.0/user/me").mock(
+                return_value=httpx.Response(200, json={"username": "x"}))
+
+            # The timeout is only a guard against the old ordering, where the
+            # first caller would wait forever for a second arrival that skipped
+            # discovery.
+            outcomes = await asyncio.wait_for(
+                asyncio.gather(client.get_me(), client.get_me(),
+                               return_exceptions=True),
+                timeout=5)
+
+            assert all(isinstance(outcome, ERClientBadCredentials)
+                       for outcome in outcomes)
+            assert route.call_count == 2
             assert not api_route.called
 
     @pytest.mark.asyncio

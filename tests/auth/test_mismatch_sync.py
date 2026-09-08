@@ -235,6 +235,33 @@ class TestOpaqueTokenAtAMigratedSite:
 
         assert not client._http_session.get.called
 
+    def test_the_check_is_not_marked_done_until_discovery_has_run(
+        self, token_kwargs, serving, external_only_document,
+    ):
+        """A second caller arriving mid-fetch must repeat it, not skip the check.
+
+        The client is not thread-safe, but this ordering is what keeps two
+        first callers on one client from sending a token the site would
+        reject: whichever arrives while discovery is in flight still sees the
+        check as not yet done. The async twin tests the race for real.
+        """
+        serving(external_only_document)
+        client = ERClient(**token_kwargs)
+        flag_when_fetching = []
+        real_discover = client.discover
+
+        def discover():
+            flag_when_fetching.append(client._discovery_done_for_token_mode)
+            return real_discover()
+
+        client.discover = discover
+
+        with pytest.raises(ERClientBadCredentials):
+            client.auth_headers()
+
+        assert flag_when_fetching == [False]
+        assert client._discovery_done_for_token_mode is True
+
     def test_the_reason_names_no_request_because_there_was_none(
         self, token_kwargs, serving, external_only_document,
         opaque_token_mismatch_message,

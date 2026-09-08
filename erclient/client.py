@@ -775,8 +775,11 @@ class ERClient(_AuthSupport):
                 or not self.token):
             return
 
-        self._discovery_done_for_token_mode = True
+        # Marked done after the fetch, not before: a second caller arriving
+        # while the first is still waiting on discovery then repeats the
+        # fetch rather than skipping the check and sending the token anyway.
         self.discover()
+        self._discovery_done_for_token_mode = True
         mode = 'jwt_token' if looks_like_jwt(self.token) else 'opaque_token'
         self._refuse_token(mode)
         self._warn_if_legacy_auth(mode, stacklevel=4)
@@ -2325,8 +2328,11 @@ class AsyncERClient(_AuthSupport):
                 or not self.token):
             return
 
-        self._discovery_done_for_token_mode = True
+        # Marked done after the fetch, not before: a second caller arriving
+        # while the first is still awaiting discovery then repeats the fetch
+        # rather than skipping the check and sending the token anyway.
         await self.discover()
+        self._discovery_done_for_token_mode = True
         mode = 'jwt_token' if looks_like_jwt(self.token) else 'opaque_token'
         self._refuse_token(mode)
         self._warn_if_legacy_auth(mode, stacklevel=4)
