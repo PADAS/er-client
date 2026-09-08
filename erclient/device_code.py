@@ -243,6 +243,28 @@ def parse_device_authorization(text):
     )
 
 
+def parse_token_response(text):
+    """An approved token response as a dict, or None if we could not use it.
+
+    A 2xx from the token endpoint is the flow succeeding, but the body still
+    has to carry what the client will read from it: the token, the type that
+    goes in front of it in an Authorization header (RFC 6749 section 5.1),
+    and a lifetime to schedule the next sign-in by. A 204, an HTML page, or a
+    JSON object missing any of those is not a token, and the caller must not
+    be left half signed in by it.
+    """
+    body = _parsed_object(text)
+    if body is None:
+        return None
+    if not _non_empty_string(body.get('access_token')):
+        return None
+    if not _non_empty_string(body.get('token_type')):
+        return None
+    if _positive_whole_number(body.get('expires_in')) is None:
+        return None
+    return body
+
+
 def default_prompt_text(*, service_root, authorization):
     """What the user reads before going off to approve the code.
 

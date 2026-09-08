@@ -29,7 +29,7 @@ from .device_code import (DEFAULT_SCOPE, DEVICE_CODE_GRANT,
                           authorization_server_metadata_url,
                           default_prompt_text, is_https_url,
                           parse_authorization_server_metadata,
-                          parse_device_authorization,
+                          parse_device_authorization, parse_token_response,
                           select_authorization_server)
 from .discovery import (classify_authorization_servers,
                         credential_site_mismatch, discovery_url, jwt_issuer,
@@ -90,6 +90,11 @@ _DEVICE_AUTHORIZATION_UNREADABLE = (
     "The authorization server at {url} returned a device-authorization "
     "response the client could not read. Try again, or pass an Auth0-issued "
     "access token with token=."
+)
+_TOKEN_RESPONSE_UNREADABLE = (
+    "The authorization server at {url} approved the sign-in but returned a "
+    "token response the client could not use. Try again, or pass an "
+    "Auth0-issued access token with token=."
 )
 _CODE_EXPIRED = (
     "The sign-in code expired before it was approved. Call client.login() "
@@ -435,10 +440,21 @@ class _AuthSupport:
                 'device_code': authorization.device_code,
                 'client_id': server.client_id}
 
-    def _store_device_code_token(self, response):
-        """Keep an approved token, with the same expiry margin as any other."""
-        self.auth = json.loads(response.text)
-        expires_in = int(self.auth['expires_in']) - 5 * 60
+    def _store_device_code_token(self, response, token_endpoint):
+        """Keep an approved token, with the same expiry margin as any other.
+
+        The body is checked before anything is assigned: a 2xx the parser
+        cannot use must leave the client exactly as it was, not half signed
+        in with a token it cannot put in a header.
+        """
+        token = parse_token_response(response.text)
+        if token is None:
+            raise ERClientServiceUnreachable(
+                _TOKEN_RESPONSE_UNREADABLE.format(url=token_endpoint),
+                status_code=response.status_code,
+                response_body=response.text)
+        self.auth = token
+        expires_in = token['expires_in'] - 5 * 60
         self.auth_expires = datetime.now(
             tz=timezone.utc) + timedelta(seconds=expires_in)
         self._last_auth_error = None
@@ -703,7 +719,7 @@ class ERClient(_AuthSupport):
                 token_endpoint, data=payload,
                 timeout=DEVICE_CODE_TIMEOUT_SECONDS)
             if self._is_success(response):
-                return self._store_device_code_token(response)
+                return self._store_device_code_token(response, token_endpoint)
             interval = self._device_code_poll_interval(
                 response, token_endpoint, interval)
 
@@ -2378,7 +2394,7 @@ class AsyncERClient(_AuthSupport):
                 token_endpoint, data=payload,
                 timeout=httpx.Timeout(DEVICE_CODE_TIMEOUT_SECONDS))
             if self._is_success(response):
-                return self._store_device_code_token(response)
+                return self._store_device_code_token(response, token_endpoint)
             interval = self._device_code_poll_interval(
                 response, token_endpoint, interval)
 

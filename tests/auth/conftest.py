@@ -151,6 +151,15 @@ def device_authorization_unreadable_message(url):
     )
 
 
+def token_response_unreadable_message(url):
+    """The user approved, and the token endpoint answered with nonsense."""
+    return (
+        f"The authorization server at {url} approved the sign-in but returned "
+        "a token response the client could not use. Try again, or pass an "
+        "Auth0-issued access token with token=."
+    )
+
+
 def auth_warnings(recorded):
     """Only this client's auth warnings, ignoring anything else the run emits."""
     return [w for w in recorded if issubclass(w.category, ERClientAuthWarning)]

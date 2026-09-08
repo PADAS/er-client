@@ -30,7 +30,8 @@ from tests.auth.conftest import (CODE_EXPIRED_MESSAGE,
                                  expired_session_message,
                                  metadata_unreadable_message,
                                  no_authorization_servers_message,
-                                 no_known_tenant_message, no_terminal_message)
+                                 no_known_tenant_message, no_terminal_message,
+                                 token_response_unreadable_message)
 from tests.auth.respx_helpers import (KNOWN_ISSUER, device_code_endpoint,
                                       device_token_endpoint, flat_timeout,
                                       metadata_endpoint, mock_device_flow,
@@ -499,6 +500,35 @@ class TestTheTenantRefusesToStart:
         assert str(exc_info.value).startswith(
             device_authorization_unreadable_message(
                 device_code_endpoint(KNOWN_ISSUER)))
+
+    @pytest.mark.parametrize(
+        "response",
+        [httpx.Response(200, json={"token_type": "Bearer",
+                                   "expires_in": 172800}),
+         httpx.Response(200, json={"access_token": "access-token-1",
+                                   "token_type": "Bearer"}),
+         httpx.Response(200, text="<html>Approved</html>"),
+         httpx.Response(204)],
+        ids=["no_token", "no_lifetime", "html", "no_content"],
+    )
+    async def test_an_approval_the_client_cannot_use(
+        self, flow, no_async_sleep, captured_prompt, response,
+    ):
+        """A 2xx with no usable token must not leave the client half signed in."""
+        async with respx.mock as respx_mock:
+            client = flow(
+                respx_mock, device_code_prompt=captured_prompt.append,
+                token_responses=[response])
+
+            with pytest.raises(ERClientServiceUnreachable) as exc_info:
+                await client.login()
+
+        assert str(exc_info.value).startswith(
+            token_response_unreadable_message(
+                device_token_endpoint(KNOWN_ISSUER)))
+        assert exc_info.value.status_code == response.status_code
+        assert client.auth is None
+        assert client.last_auth_error is None
 
     async def test_the_message_names_the_endpoint_that_actually_failed(
         self, flow, no_async_sleep, captured_prompt,

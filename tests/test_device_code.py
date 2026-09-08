@@ -21,6 +21,7 @@ from erclient.device_code import (DEFAULT_POLL_INTERVAL_SECONDS, DEFAULT_SCOPE,
                                   default_prompt_text, is_https_url,
                                   parse_authorization_server_metadata,
                                   parse_device_authorization,
+                                  parse_token_response,
                                   select_authorization_server)
 from erclient.discovery import ProtectedResourceMetadata
 
@@ -418,6 +419,55 @@ class TestParseDeviceAuthorization:
 
         assert authorization.verification_uri_complete is None
         assert authorization.verification_uri == f"{DEV_ISSUER}/activate"
+
+
+def token_response(**overrides):
+    """What the token endpoint returns once the user approves."""
+    document = {
+        "access_token": "access-token-1",
+        "token_type": "Bearer",
+        "expires_in": 172800,
+        "scope": "openid profile email",
+    }
+    document.update(overrides)
+    return json.dumps({k: v for k, v in document.items() if v is not None})
+
+
+class TestParseTokenResponse:
+    """A 2xx is the flow succeeding; the body still has to be a token."""
+
+    def test_a_usable_response_comes_back_whole(self):
+        assert parse_token_response(token_response()) == {
+            "access_token": "access-token-1",
+            "token_type": "Bearer",
+            "expires_in": 172800,
+            "scope": "openid profile email",
+        }
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [{"access_token": None}, {"access_token": ""},
+         {"token_type": None}, {"token_type": ""},
+         {"expires_in": None}, {"expires_in": "3600"},
+         {"expires_in": 0}, {"expires_in": -1}, {"expires_in": True}],
+        ids=["no_token", "empty_token", "no_type", "empty_type",
+             "no_lifetime", "lifetime_as_string", "zero_lifetime",
+             "negative_lifetime", "boolean_lifetime"],
+    )
+    def test_a_response_missing_what_the_client_reads(self, overrides):
+        """Each of these would have raised, or scheduled nonsense, later."""
+        assert parse_token_response(token_response(**overrides)) is None
+
+    @pytest.mark.parametrize(
+        "text",
+        ["", "not json at all", "[]", '"a bare string"',
+         "<html>Approved</html>", None],
+        ids=["empty", "plain_text", "json_array", "json_string", "html",
+             "nothing"],
+    )
+    def test_a_body_that_is_not_a_token(self, text):
+        """A 204, or a 200 that is a web page, is not a sign-in."""
+        assert parse_token_response(text) is None
 
 
 class TestDefaultPromptText:

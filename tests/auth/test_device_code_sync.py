@@ -30,7 +30,8 @@ from tests.auth.conftest import (CODE_EXPIRED_MESSAGE,
                                  expired_session_message,
                                  metadata_unreadable_message,
                                  no_authorization_servers_message,
-                                 no_known_tenant_message, no_terminal_message)
+                                 no_known_tenant_message, no_terminal_message,
+                                 token_response_unreadable_message)
 
 from erclient.client import ERClient
 from erclient.device_code import (DEFAULT_SCOPE, DEVICE_CODE_GRANT,
@@ -507,6 +508,35 @@ class TestTheTenantRefusesToStart:
             device_authorization_unreadable_message(
                 device_code_endpoint(known_issuer)))
         assert device_token_endpoint(known_issuer) not in urls(server.traffic)
+
+    @pytest.mark.parametrize(
+        "body",
+        [{"token_type": "Bearer", "expires_in": 172800},
+         {"access_token": "access-token-1", "token_type": "Bearer"},
+         "<html>Approved</html>", ""],
+        ids=["no_token", "no_lifetime", "html", "empty_204_style"],
+    )
+    def test_an_approval_the_client_cannot_use(
+        self, service_root, fake_device_server, no_sleep, captured_prompt,
+        make_requests_response, known_issuer, body,
+    ):
+        """A 2xx with no usable token must not leave the client half signed in."""
+        client = ERClient(service_root=service_root,
+                          device_code_prompt=captured_prompt.append)
+        response = (make_requests_response(200, json_data=body)
+                    if isinstance(body, dict)
+                    else make_requests_response(200, text=body))
+        fake_device_server(token_responses=[response])
+
+        with pytest.raises(ERClientServiceUnreachable) as exc_info:
+            client.login()
+
+        assert str(exc_info.value).startswith(
+            token_response_unreadable_message(
+                device_token_endpoint(known_issuer)))
+        assert exc_info.value.status_code == 200
+        assert client.auth is None
+        assert client.last_auth_error is None
 
     def test_the_message_names_the_endpoint_that_actually_failed(
         self, service_root, fake_device_server, no_sleep, captured_prompt,
