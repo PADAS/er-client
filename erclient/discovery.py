@@ -35,15 +35,41 @@ def discovery_url(service_root):
     return f"{service_root.rstrip('/')}{DISCOVERY_PATH}"
 
 
+def parse_absolute_url(value):
+    """``value`` split into parts if it is an absolute URL, else None.
+
+    The one place a URL from outside is taken apart. ``urlparse`` raises on a
+    malformed IPv6 host and reading ``.port`` raises on a non-numeric one, and
+    the values that reach here — a discovery document, an authorization
+    server's metadata, a token's ``iss`` claim — are exactly the ones the
+    functions around this promise to absorb rather than propagate. An absolute
+    URL here means a scheme and a host; anything less is not a URL we can
+    compare.
+    """
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = urlparse(value)
+        parsed.port  # a property; this is where a bad port raises
+    except ValueError:
+        return None
+    if not parsed.scheme or not parsed.hostname:
+        return None
+    return parsed
+
+
 def _same_resource(resource, expected_resource):
     """Compare two resource identifiers, ignoring cosmetic differences.
 
     RFC 9728 section 3.3 requires the document to name the resource we asked
     about. Scheme and host are case-insensitive per RFC 3986, and a trailing
-    slash carries no meaning here.
+    slash carries no meaning here. A resource that is not a URL matches
+    nothing.
     """
-    actual = urlparse(resource)
-    expected = urlparse(expected_resource)
+    actual = parse_absolute_url(resource)
+    expected = parse_absolute_url(expected_resource)
+    if actual is None or expected is None:
+        return False
     return (actual.scheme.lower() == expected.scheme.lower()
             and actual.netloc.lower() == expected.netloc.lower()
             and actual.path.rstrip("/") == expected.path.rstrip("/"))
@@ -80,6 +106,12 @@ def parse_protected_resource_metadata(text, expected_resource):
     )
 
 
+def _hostname(url):
+    """The lowercased host of ``url``, or ``""`` if it has none to compare."""
+    parsed = parse_absolute_url(url)
+    return parsed.hostname.lower() if parsed else ""
+
+
 def classify_authorization_servers(metadata, service_root):
     """Return ``(has_das, has_external)`` for the metadata's issuer list.
 
@@ -88,11 +120,11 @@ def classify_authorization_servers(metadata, service_root):
     server — in practice the EarthRanger Auth0 tenant. Which one it is does not
     matter yet; that it is not the site is the whole signal.
     """
-    site_host = (urlparse(service_root).hostname or "").lower()
+    site_host = _hostname(service_root)
     has_das = False
     has_external = False
     for issuer in metadata.authorization_servers:
-        if (urlparse(issuer).hostname or "").lower() == site_host:
+        if _hostname(issuer) == site_host:
             has_das = True
         else:
             has_external = True
@@ -130,12 +162,12 @@ def normalize_issuer(issuer):
     DAS validates a JWT's ``iss`` against exactly the string the discovery
     document advertises, so the only differences to forgive are the ones RFC
     3986 calls insignificant: the case of scheme and host, and a trailing
-    slash. Anything that does not parse as a URL with a scheme and a host comes
-    back untouched — there is nothing to normalize, and the comparison should
-    then simply fail.
+    slash. Anything that does not parse as a URL with a scheme and a host —
+    including one ``urlparse`` chokes on — comes back untouched: there is
+    nothing to normalize, and the comparison should then simply fail.
     """
-    parsed = urlparse(issuer or "")
-    if not parsed.scheme or not parsed.hostname:
+    parsed = parse_absolute_url(issuer)
+    if parsed is None:
         return issuer
 
     netloc = parsed.hostname.lower()

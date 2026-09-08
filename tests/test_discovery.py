@@ -14,6 +14,7 @@ from erclient.discovery import (DISCOVERY_PATH, ProtectedResourceMetadata,
                                 credential_site_mismatch, discovery_url,
                                 jwt_issuer, legacy_auth_warning,
                                 looks_like_jwt, normalize_issuer,
+                                parse_absolute_url,
                                 parse_protected_resource_metadata)
 
 SERVICE_ROOT = "https://fake-site.erdomain.org"
@@ -48,6 +49,29 @@ def make_jwt(header=None, payload=None):
                 else "DUMMY-PAYLOAD",
                 "DUMMY-SIGNATURE"]
     return ".".join(segments)
+
+
+class TestParseAbsoluteUrl:
+    """The one place a URL from outside is taken apart, so it must not raise."""
+
+    def test_an_absolute_url(self):
+        parsed = parse_absolute_url(
+            "https://Fake-Site.erdomain.org:8443/oauth2")
+
+        assert parsed.scheme == "https"
+        assert parsed.hostname == "fake-site.erdomain.org"
+        assert parsed.port == 8443
+
+    @pytest.mark.parametrize(
+        "value",
+        ["https://[broken", "https://fake-site.erdomain.org:notaport/oauth2",
+         "not a url at all", "fake-site.erdomain.org", "https://", "", None, 42],
+        ids=["malformed_ipv6", "non_numeric_port", "prose", "no_scheme",
+             "no_host", "empty", "none", "not_a_string"],
+    )
+    def test_anything_else_is_none(self, value):
+        """The first two make urlparse itself raise; none of them may."""
+        assert parse_absolute_url(value) is None
 
 
 class TestDiscoveryUrl:
@@ -117,6 +141,8 @@ class TestParseProtectedResourceMetadata:
                         "authorization_servers": DAS_ISSUER}),
             json.dumps({"resource": SERVICE_ROOT,
                         "authorization_servers": [DAS_ISSUER, 7]}),
+            make_document(resource="https://[broken"),
+            make_document(resource="https://fake-site.erdomain.org:notaport"),
             "<html><body>Not Found</body></html>",
             "",
             json.dumps([{"resource": SERVICE_ROOT}]),
@@ -129,13 +155,18 @@ class TestParseProtectedResourceMetadata:
             "resource_not_a_string",
             "authorization_servers_not_a_list",
             "authorization_servers_entry_not_a_string",
+            "resource_malformed",
+            "resource_port_not_a_number",
             "not_json",
             "empty_body",
             "json_but_not_an_object",
         ],
     )
     def test_unusable_documents_yield_none(self, text):
-        """Any failure means "no metadata"; discovery never raises."""
+        """Any failure means "no metadata"; discovery never raises.
+
+        The malformed resource cases matter: ``urlparse`` raises on them.
+        """
         assert parse_protected_resource_metadata(text, SERVICE_ROOT) is None
 
 
@@ -172,6 +203,12 @@ class TestClassifyAuthorizationServers:
         assert classify_authorization_servers(
             self._metadata(f"{SERVICE_ROOT}/oauth2"), SERVICE_ROOT
         ) == (True, False)
+
+    def test_an_issuer_urlparse_chokes_on_is_not_the_site(self):
+        """Parsing never rejects; an issuer with no readable host is external."""
+        assert classify_authorization_servers(
+            self._metadata(DAS_ISSUER, "https://[broken"), SERVICE_ROOT
+        ) == (True, True)
 
 
 class TestLooksLikeJwt:
@@ -304,11 +341,17 @@ class TestNormalizeIssuer:
 
     @pytest.mark.parametrize(
         "issuer",
-        ["not a url at all", "fake-tenant.us.auth0.com", "https://", ""],
-        ids=["prose", "no_scheme", "no_host", "empty"],
+        ["not a url at all", "fake-tenant.us.auth0.com", "https://", "",
+         "https://[broken", "https://fake-tenant.us.auth0.com:notaport"],
+        ids=["prose", "no_scheme", "no_host", "empty", "malformed_ipv6",
+             "non_numeric_port"],
     )
     def test_something_that_is_not_a_url_comes_back_unchanged(self, issuer):
-        """Nothing to normalize means nothing to invent; comparison then fails honestly."""
+        """Nothing to normalize means nothing to invent; comparison then fails honestly.
+
+        The last two make ``urlparse`` raise; a token's ``iss`` claim is
+        untrusted input, so that must not reach the caller.
+        """
         assert normalize_issuer(issuer) == issuer
 
 
@@ -473,3 +516,16 @@ class TestCredentialSiteMismatchForJwts:
     def test_a_jwt_with_no_issuer_claim_is_not_second_guessed(self):
         """Unreadable is not the same as wrong; the server can still judge it."""
         assert mismatch(EXTERNAL_ONLY, "jwt_token", token_issuer=None) is None
+
+    @pytest.mark.parametrize(
+        "token_issuer",
+        ["https://[broken", "https://other.us.auth0.com:notaport"],
+        ids=["malformed_ipv6", "non_numeric_port"],
+    )
+    def test_an_issuer_claim_urlparse_chokes_on_is_a_mismatch(self, token_issuer):
+        """A forged or garbled iss is refused like any unlisted one, not raised."""
+        assert mismatch(BOTH_LISTED, "jwt_token", token_issuer=token_issuer) == (
+            f"The token passed with token= was issued by {token_issuer}, which "
+            f"site {SERVICE_ROOT} does not accept. Accepted issuers: "
+            f"{DAS_ISSUER}, {AUTH0_ISSUER}."
+        )

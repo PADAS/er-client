@@ -18,7 +18,7 @@ from erclient import (KNOWN_AUTHORIZATION_SERVERS, AuthorizationServer,
 from erclient.device_code import (DEFAULT_POLL_INTERVAL_SECONDS, DEFAULT_SCOPE,
                                   DEVICE_CODE_GRANT,
                                   authorization_server_metadata_url,
-                                  default_prompt_text,
+                                  default_prompt_text, is_https_url,
                                   parse_authorization_server_metadata,
                                   parse_device_authorization,
                                   select_authorization_server)
@@ -180,6 +180,30 @@ class TestSelectFromAnIssuerOverride:
             audience="https://other.example.org/api")
 
 
+class TestIsHttpsUrl:
+    """The bar for every URL the flow touches."""
+
+    @pytest.mark.parametrize(
+        "value", [DEV_ISSUER, f"{DEV_ISSUER}/", "HTTPS://AUTH-DEV.PAMDAS.ORG",
+                  f"{DEV_ISSUER}:8443/oauth/token"],
+        ids=["bare", "trailing_slash", "upper_case", "with_port_and_path"],
+    )
+    def test_absolute_https_urls(self, value):
+        assert is_https_url(value) is True
+
+    @pytest.mark.parametrize(
+        "value",
+        ["http://auth-dev.pamdas.org", "auth-dev.pamdas.org", "/oauth/token",
+         "https://", "", None, "https://[broken",
+         "https://auth-dev.pamdas.org:notaport"],
+        ids=["plain_http", "no_scheme", "path_only", "no_host", "empty",
+             "none", "malformed_ipv6", "non_numeric_port"],
+    )
+    def test_everything_else(self, value):
+        """The last two make urlparse raise; this must not."""
+        assert is_https_url(value) is False
+
+
 class TestAuthorizationServerMetadataUrl:
     """Where the authorization server describes itself."""
 
@@ -243,10 +267,14 @@ class TestParseAuthorizationServerMetadata:
         "endpoint",
         ["http://auth-dev.pamdas.org/oauth/token",
          "/oauth/token",
-         "auth-dev.pamdas.org/oauth/token"],
-        ids=["plain_http", "path_only", "no_scheme"],
+         "auth-dev.pamdas.org/oauth/token",
+         "https://[broken",
+         "https://auth-dev.pamdas.org:notaport/oauth/token"],
+        ids=["plain_http", "path_only", "no_scheme", "malformed_ipv6",
+             "non_numeric_port"],
     )
     def test_an_endpoint_we_would_not_post_credentials_to(self, endpoint):
+        """The last two make urlparse raise; the parser answers None instead."""
         assert parse_authorization_server_metadata(
             as_metadata(token_endpoint=endpoint),
             expected_issuer=DEV_ISSUER) is None

@@ -20,9 +20,8 @@ the caller decides what a broken authorization server deserves.
 import json
 from dataclasses import dataclass, replace
 from typing import Optional
-from urllib.parse import urlparse
 
-from .discovery import normalize_issuer
+from .discovery import normalize_issuer, parse_absolute_url
 
 DEVICE_CODE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
 
@@ -128,12 +127,22 @@ def authorization_server_metadata_url(issuer):
     return f"{normalize_issuer(issuer)}{AUTHORIZATION_SERVER_METADATA_PATH}"
 
 
+def is_https_url(value):
+    """Whether ``value`` is an absolute ``https`` URL.
+
+    The bar for every URL the flow fetches from, posts to, or sends the user
+    to. It applies to the issuer override as much as to what an authorization
+    server sends: its metadata document names the device and token endpoints,
+    so fetching it in cleartext would let anyone on the path choose where a
+    device code and, in time, an access token are posted. Never raises.
+    """
+    parsed = parse_absolute_url(value)
+    return parsed is not None and parsed.scheme.lower() == 'https'
+
+
 def _https_endpoint(value):
     """The value if it is an absolute https URL, else None."""
-    if not isinstance(value, str) or not value:
-        return None
-    parsed = urlparse(value)
-    return value if parsed.scheme == 'https' and parsed.hostname else None
+    return value if is_https_url(value) else None
 
 
 def _parsed_object(text):
