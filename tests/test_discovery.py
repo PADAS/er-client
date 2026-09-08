@@ -350,6 +350,12 @@ class TestNormalizeIssuer:
             "https://Fake-Site.erdomain.org:8443/oauth2/"
         ) == "https://fake-site.erdomain.org:8443/oauth2"
 
+    def test_keeps_the_brackets_around_an_ipv6_literal(self):
+        """``hostname`` strips them; without them the port is ambiguous."""
+        assert normalize_issuer(
+            "https://[2001:DB8::1]:8443/oauth2/"
+        ) == "https://[2001:db8::1]:8443/oauth2"
+
     @pytest.mark.parametrize(
         "issuer",
         ["not a url at all", "fake-tenant.us.auth0.com", "https://", "",

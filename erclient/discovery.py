@@ -178,6 +178,10 @@ def normalize_issuer(issuer):
         return issuer
 
     netloc = parsed.hostname.lower()
+    if ':' in netloc:
+        # ``hostname`` strips the brackets an IPv6 literal is written with;
+        # a URL needs them back to tell the address from a port.
+        netloc = f"[{netloc}]"
     if parsed.port:
         netloc = f"{netloc}:{parsed.port}"
     path = parsed.path[:-1] if parsed.path.endswith("/") else parsed.path
