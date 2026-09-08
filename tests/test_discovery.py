@@ -159,6 +159,8 @@ class TestParseProtectedResourceMetadata:
                           "javascript://issuer.example"]),
             make_document(authorization_servers=[
                           DAS_ISSUER, "ftp://issuer.example"]),
+            make_document(authorization_servers=[f"{AUTH0_ISSUER}?tenant=x"]),
+            make_document(authorization_servers=[f"{AUTH0_ISSUER}#fragment"]),
             make_document(resource="https://[broken"),
             make_document(resource="https://fake-site.erdomain.org:notaport"),
             "<html><body>Not Found</body></html>",
@@ -181,6 +183,8 @@ class TestParseProtectedResourceMetadata:
             "authorization_servers_entry_malformed",
             "authorization_servers_entry_javascript_scheme",
             "authorization_servers_entry_ftp_scheme",
+            "authorization_servers_entry_with_query",
+            "authorization_servers_entry_with_fragment",
             "resource_malformed",
             "resource_port_not_a_number",
             "not_json",

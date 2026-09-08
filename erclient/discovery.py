@@ -58,15 +58,20 @@ def parse_absolute_url(value):
     return parsed
 
 
-def _is_web_url(value):
-    """Whether ``value`` is an absolute URL on http or https.
+def _is_issuer_identifier(value):
+    """Whether ``value`` can be an issuer a site lists.
 
-    The bar for an issuer a site lists: it has to be somewhere a token could
-    have come from. ``javascript://issuer.example`` parses with a host, and
-    would otherwise count as an external authorization server.
+    RFC 9728 makes these RFC 8414 issuer identifiers: a URL with no query or
+    fragment. The scheme has to be http or https, since the issuer has to be
+    somewhere a token could have come from — ``javascript://issuer.example``
+    parses with a host, and would otherwise count as an external authorization
+    server. Plain http stays allowed for a local development site. The
+    query and fragment check is on the characters, as ``urlparse`` cannot
+    tell a bare ``?`` or ``#`` from their absence.
     """
     parsed = parse_absolute_url(value)
-    return parsed is not None and parsed.scheme.lower() in ('http', 'https')
+    return (parsed is not None and parsed.scheme.lower() in ('http', 'https')
+            and '?' not in value and '#' not in value)
 
 
 def _without_trailing_slash(path):
@@ -106,12 +111,13 @@ def parse_protected_resource_metadata(text, expected_resource):
 
     A 404 page, an HTML error, a document for a different resource, and a
     document missing the fields we need are all the same answer: no metadata.
-    So is a document whose issuer list holds anything but absolute http or
-    https URLs: an issuer with no host, or one on some other scheme, would
-    read as an external authorization server and could turn a working legacy
-    login into a refusal, so a document that lists one is not a document to
-    act on. Plain http stays allowed because a local development site lists
-    its own http issuer. Never raises.
+    So is a document whose issuer list holds anything but issuer identifiers —
+    absolute http or https URLs with no query or fragment. An issuer with no
+    host, or on some other scheme, or with a query string, would read as an
+    external authorization server and could turn a working legacy login into
+    a refusal, so a document that lists one is not a document to act on.
+    Plain http stays allowed because a local development site lists its own
+    http issuer. Never raises.
     """
     try:
         body = json.loads(text)
@@ -127,7 +133,7 @@ def parse_protected_resource_metadata(text, expected_resource):
     authorization_servers = body.get('authorization_servers')
     if not isinstance(authorization_servers, list):
         return None
-    if not all(_is_web_url(issuer) for issuer in authorization_servers):
+    if not all(_is_issuer_identifier(issuer) for issuer in authorization_servers):
         return None
 
     return ProtectedResourceMetadata(
