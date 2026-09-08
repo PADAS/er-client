@@ -189,15 +189,18 @@ class TestWrappersRaiseTheClassifiedError:
 
         async with respx.mock(assert_all_called=False) as respx_mock:
             mock_discovery(respx_mock, client.service_root)
+            # The body is quoted verbatim in the message, so the test sends
+            # the exact bytes rather than a json= argument: how httpx
+            # serializes one changed between the floor we declare and the
+            # current release (a space after the colon, or none).
             respx_mock.post(default_token_url).return_value = httpx.Response(
-                400, json={"error": "invalid_grant"}
+                400, content=b'{"error":"invalid_grant"}',
+                headers={"content-type": "application/json"},
             )
 
             with pytest.raises(ERClientBadCredentials) as exc_info:
                 await client.get_me()
 
-        # The body is quoted exactly as the endpoint sent it, hence the
-        # compact JSON httpx writes here.
         assert str(exc_info.value) == (
             'Login failed. (status_code=400) '
             '(response_body={"error":"invalid_grant"})'
