@@ -58,6 +58,17 @@ def parse_absolute_url(value):
     return parsed
 
 
+def _is_web_url(value):
+    """Whether ``value`` is an absolute URL on http or https.
+
+    The bar for an issuer a site lists: it has to be somewhere a token could
+    have come from. ``javascript://issuer.example`` parses with a host, and
+    would otherwise count as an external authorization server.
+    """
+    parsed = parse_absolute_url(value)
+    return parsed is not None and parsed.scheme.lower() in ('http', 'https')
+
+
 def _without_trailing_slash(path):
     """``path`` less one trailing slash, the only one RFC 3986 lets us forgive.
 
@@ -95,10 +106,12 @@ def parse_protected_resource_metadata(text, expected_resource):
 
     A 404 page, an HTML error, a document for a different resource, and a
     document missing the fields we need are all the same answer: no metadata.
-    So is a document whose issuer list holds anything but absolute URLs: an
-    issuer with no host would read as an external authorization server and
-    could turn a working legacy login into a refusal, so a document that lists
-    one is not a document to act on. Never raises.
+    So is a document whose issuer list holds anything but absolute http or
+    https URLs: an issuer with no host, or one on some other scheme, would
+    read as an external authorization server and could turn a working legacy
+    login into a refusal, so a document that lists one is not a document to
+    act on. Plain http stays allowed because a local development site lists
+    its own http issuer. Never raises.
     """
     try:
         body = json.loads(text)
@@ -114,7 +127,7 @@ def parse_protected_resource_metadata(text, expected_resource):
     authorization_servers = body.get('authorization_servers')
     if not isinstance(authorization_servers, list):
         return None
-    if not all(parse_absolute_url(issuer) for issuer in authorization_servers):
+    if not all(_is_web_url(issuer) for issuer in authorization_servers):
         return None
 
     return ProtectedResourceMetadata(

@@ -122,6 +122,14 @@ class TestParseProtectedResourceMetadata:
 
         assert metadata is not None
 
+    def test_a_plain_http_issuer_is_still_metadata(self):
+        """A local development site lists its own http issuer; that is not a defect."""
+        metadata = parse_protected_resource_metadata(
+            make_document(authorization_servers=["http://localhost:8000"]),
+            SERVICE_ROOT)
+
+        assert metadata.authorization_servers == ("http://localhost:8000",)
+
     def test_empty_authorization_servers_is_still_metadata(self):
         """A site that lists no issuers is a valid document, just uninformative."""
         metadata = parse_protected_resource_metadata(
@@ -147,6 +155,10 @@ class TestParseProtectedResourceMetadata:
             make_document(authorization_servers=[DAS_ISSUER, ""]),
             make_document(authorization_servers=["not a URL"]),
             make_document(authorization_servers=["https://[broken"]),
+            make_document(authorization_servers=[
+                          "javascript://issuer.example"]),
+            make_document(authorization_servers=[
+                          DAS_ISSUER, "ftp://issuer.example"]),
             make_document(resource="https://[broken"),
             make_document(resource="https://fake-site.erdomain.org:notaport"),
             "<html><body>Not Found</body></html>",
@@ -167,6 +179,8 @@ class TestParseProtectedResourceMetadata:
             "authorization_servers_entry_empty",
             "authorization_servers_entry_not_a_url",
             "authorization_servers_entry_malformed",
+            "authorization_servers_entry_javascript_scheme",
+            "authorization_servers_entry_ftp_scheme",
             "resource_malformed",
             "resource_port_not_a_number",
             "not_json",
