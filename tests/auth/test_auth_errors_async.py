@@ -173,8 +173,8 @@ class TestWrappersRaiseTheClassifiedError:
 
             assert not api_route.called
 
-        # Today this is ERClientBadRequest, mapped from the 400 by the handler
-        # built for API responses.
+        # The exact class, not a subclass: invalid_grant is a refused login,
+        # not the ERClientBadRequest a 400 from the API would be.
         assert type(exc_info.value) is ERClientBadCredentials
         assert exc_info.value.status_code == 400
         assert json.loads(exc_info.value.response_body) == body
