@@ -446,14 +446,16 @@ class _AuthSupport:
 
         The body is checked before anything is assigned: a 2xx the parser
         cannot use must leave the client exactly as it was, not half signed
-        in with a token it cannot put in a header.
+        in with a token it cannot put in a header. Unlike the other unreadable
+        documents, the body is not attached to the exception: a response the
+        parser rejects for a missing lifetime may still hold a valid access
+        token, and an exception is printed.
         """
         token = parse_token_response(response.text)
         if token is None:
             raise ERClientServiceUnreachable(
                 _TOKEN_RESPONSE_UNREADABLE.format(url=token_endpoint),
-                status_code=response.status_code,
-                response_body=response.text)
+                status_code=response.status_code)
         self.auth = token
         expires_in = token['expires_in'] - 5 * 60
         self.auth_expires = datetime.now(

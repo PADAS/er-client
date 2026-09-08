@@ -543,6 +543,10 @@ class TestTheTenantRefusesToStart:
             token_response_unreadable_message(
                 device_token_endpoint(known_issuer)))
         assert exc_info.value.status_code == 200
+        # The body may hold a valid token even when the parser rejects it, and
+        # exceptions get printed; so it is not attached and never in the text.
+        assert exc_info.value.response_body is None
+        assert "access-token-1" not in str(exc_info.value)
         assert client.auth is None
         assert client.last_auth_error is None
 
