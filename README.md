@@ -82,7 +82,7 @@ client = ERClient(
 
 ### Signing in interactively
 
-A client constructed with no `token`, `username`, `password` or `client_id` signs the user in with the device-authorization grant ([RFC 8628](https://www.rfc-editor.org/rfc/rfc8628.html)) instead of posting a password grant. Any one of those four keywords, even on its own, keeps the old path. `token=""` counts as no token.
+A client constructed with no `token`, `username`, `password` or `client_id` signs the user in with the device-authorization grant ([RFC 8628](https://www.rfc-editor.org/rfc/rfc8628.html)) instead of posting a password grant. Any one of those four keywords with a non-empty value, even on its own, keeps the old path. An empty string or `None` for any of them counts as absent, so a client built from unset environment variables signs in interactively rather than posting a password grant of nothing.
 
 Which authorization server it signs in against comes from the site's own discovery document: the client takes the first issuer the site lists that it holds a registration for, and the registrations are keyed by the **custom domain** a site advertises (`https://auth.pamdas.org`, `https://auth-dev.pamdas.org`), never the canonical Auth0 hostname behind it — EarthRanger validates a token's `iss` against exactly the advertised string. It then reads the tenant's own `/.well-known/openid-configuration` for the endpoints rather than assuming them. `KNOWN_AUTHORIZATION_SERVERS` is importable from `erclient` if you want to see what a release knows; a tenant it does not know needs `device_code_issuer`, `device_code_client_id` and `device_code_audience` together.
 

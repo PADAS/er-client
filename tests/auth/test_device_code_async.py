@@ -92,13 +92,15 @@ class TestWhichFlowIsSelected:
         [
             ({}, True),
             ({"token": ""}, True),
+            ({"username": "", "password": "", "client_id": ""}, True),
+            ({"username": None, "password": None, "client_id": None}, True),
             ({"token": "a-token"}, False),
             ({"username": "u"}, False),
             ({"client_id": "das_web_client"}, False),
             ({"token": "", "username": "u"}, False),
         ],
-        ids=["nothing", "empty_token", "token", "username", "client_id",
-             "empty_token_with_username"],
+        ids=["nothing", "empty_token", "empty_ropc", "none_ropc", "token",
+             "username", "client_id", "empty_token_with_username"],
     )
     async def test_the_truth_table(
         self, service_root, async_client_factory, kwargs, expected

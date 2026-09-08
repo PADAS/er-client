@@ -60,6 +60,8 @@ class TestWhichFlowIsSelected:
             ({}, True),
             ({"token": ""}, True),
             ({"token": None}, True),
+            ({"username": "", "password": "", "client_id": ""}, True),
+            ({"username": None, "password": None, "client_id": None}, True),
             ({"token": "a-token"}, False),
             ({"username": "u"}, False),
             ({"password": "p"}, False),
@@ -68,11 +70,17 @@ class TestWhichFlowIsSelected:
               "client_id": "das_web_client"}, False),
             ({"token": "", "username": "u"}, False),
         ],
-        ids=["nothing", "empty_token", "explicit_none", "token", "username",
-             "password", "client_id", "full_ropc", "empty_token_with_username"],
+        ids=["nothing", "empty_token", "explicit_none", "empty_ropc",
+             "none_ropc", "token", "username", "password", "client_id",
+             "full_ropc", "empty_token_with_username"],
     )
     def test_the_truth_table(self, service_root, kwargs, expected):
-        """Any legacy kwarg at all keeps the password grant, even incomplete."""
+        """Any non-empty legacy kwarg keeps the password grant, even incomplete.
+
+        Empty and None count as absent for all four keywords, as the README
+        says: a client built from unset environment variables must not post a
+        password grant of nothing.
+        """
         client = ERClient(service_root=service_root, **kwargs)
 
         assert client._uses_device_code() is expected
