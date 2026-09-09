@@ -65,12 +65,22 @@ class TestParseAbsoluteUrl:
     @pytest.mark.parametrize(
         "value",
         ["https://[broken", "https://fake-site.erdomain.org:notaport/oauth2",
-         "not a url at all", "fake-site.erdomain.org", "https://", "", None, 42],
+         "not a url at all", "fake-site.erdomain.org", "https://", "", None, 42,
+         "https://not a URL", "https://fake-site.erdomain.org/oauth2 ",
+         " https://fake-site.erdomain.org", "https://fake-site.erdo\nmain.org",
+         "https://fake-site.erdomain.org\t/oauth2"],
         ids=["malformed_ipv6", "non_numeric_port", "prose", "no_scheme",
-             "no_host", "empty", "none", "not_a_string"],
+             "no_host", "empty", "none", "not_a_string", "space_in_host",
+             "trailing_space", "leading_space", "embedded_newline",
+             "embedded_tab"],
     )
     def test_anything_else_is_none(self, value):
-        """The first two make urlparse itself raise; none of them may."""
+        """The first two make urlparse itself raise; none of them may.
+
+        The whitespace cases are ones urlparse accepts: it reads ``not a URL``
+        as a host and silently strips a newline or tab. A URL with whitespace
+        in it is not a URL we compare or fetch from.
+        """
         assert parse_absolute_url(value) is None
 
 

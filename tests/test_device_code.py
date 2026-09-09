@@ -316,9 +316,12 @@ class TestParseAuthorizationServerMetadata:
          "https://[broken",
          "https://auth-dev.pamdas.org:notaport/oauth/token",
          "https://auth-dev.pamdas.org/oauth/token#alternate",
-         "https://auth-dev.pamdas.org/oauth/token#"],
+         "https://auth-dev.pamdas.org/oauth/token#",
+         "https://auth-dev.pamdas.org/oauth/token ",
+         "https://auth-dev.pamdas.org/oauth/to\nken"],
         ids=["plain_http", "path_only", "no_scheme", "malformed_ipv6",
-             "non_numeric_port", "fragment", "empty_fragment_marker"],
+             "non_numeric_port", "fragment", "empty_fragment_marker",
+             "trailing_space", "embedded_newline"],
     )
     def test_an_endpoint_we_would_not_post_credentials_to(self, endpoint):
         """Malformed ones make urlparse raise; the parser answers None instead.

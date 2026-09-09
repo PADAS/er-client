@@ -43,10 +43,12 @@ def parse_absolute_url(value):
     the values that reach here — a discovery document, an authorization
     server's metadata, a token's ``iss`` claim — are exactly the ones the
     functions around this promise to absorb rather than propagate. An absolute
-    URL here means a scheme and a host; anything less is not a URL we can
-    compare.
+    URL here means a scheme and a host, and no whitespace anywhere: ``urlparse``
+    reads ``https://not a URL`` as having the host ``not a url`` and silently
+    strips an embedded newline or tab, and neither is a URL we should compare
+    or fetch from. Anything less is not a URL we can compare.
     """
-    if not isinstance(value, str):
+    if not isinstance(value, str) or any(ch.isspace() for ch in value):
         return None
     try:
         parsed = urlparse(value)
