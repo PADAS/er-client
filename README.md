@@ -87,14 +87,18 @@ A client constructed with no `token`, `username`, `password` or `client_id` sign
 Which authorization server it signs in against comes from the site's own discovery document: the client takes the first issuer the site lists that it holds a registration for, and the registrations are keyed by the **custom domain** a site advertises (`https://auth.pamdas.org`, `https://auth-dev.pamdas.org`), never the canonical Auth0 hostname behind it — EarthRanger validates a token's `iss` against exactly the advertised string. It then reads the tenant's own `/.well-known/openid-configuration` for the endpoints rather than assuming them. `KNOWN_AUTHORIZATION_SERVERS` is importable from `erclient` if you want to see what a release knows; a tenant it does not know needs `device_code_issuer`, `device_code_client_id` and `device_code_audience` together.
 
 ```python
+import requests
+
 from erclient import ERClient, ERClientException
 
 client = ERClient(service_root="https://sandbox.pamdas.org")
 try:
     client.login()          # prints the URL and code, blocks until approved
-except ERClientException as e:
+except (ERClientException, requests.RequestException) as e:
     print(e)                # see below for the shapes this takes
 ```
+
+The second exception type is the sync client's; for `AsyncERClient` catch `httpx.RequestError` instead. It covers a network failure on the device-authorization request or the token poll, which propagates as the HTTP library's own exception — see "Signing in interactively" below for exactly which requests are wrapped and which are not.
 
 Unlike the password grant, a zero-argument `login()` **raises on failure on both clients** rather than returning `False`. It refuses before sending anything, with `ERClientBadCredentials`, in five cases: the site serves no usable discovery document, it lists no Auth0 tenant this release knows, `device_code_issuer=` is not an absolute `https` URL free of query and fragment, it names a tenant this release does not know without `device_code_client_id=` and `device_code_audience=`, or `discovery=False` was passed with no `device_code_issuer=`. Each of those sets `last_auth_error` to the code `interactive_sign_in_unavailable`.
 

@@ -11,6 +11,8 @@ client that has to sign in on its own, from inside a request, refuses to do
 so when there is no terminal to show the prompt on.
 """
 
+import requests
+
 from erclient import ERClient, ERClientException
 
 if __name__ == '__main__':
@@ -22,12 +24,14 @@ if __name__ == '__main__':
     print("Example 1 - Sign in\n########")
     try:
         er_client.login()
-    except ERClientException as e:
+    except (ERClientException, requests.RequestException) as e:
         # ERClientBadCredentials when the code expired, the sign-in was
         # declined, or the site offers no Auth0 tenant this release knows how
         # to sign in against; ERClientServiceUnreachable when the
         # authorization server would not describe itself; and other subclasses
-        # for the rest, so catch the base class as the README does.
+        # for the rest, so catch the base class as the README does. A network
+        # failure on the device-authorization request or the token poll is
+        # not wrapped, so it arrives as requests' own exception.
         print(f"Sign-in failed: {e}")
         raise SystemExit(1)
 
