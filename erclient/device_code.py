@@ -161,9 +161,25 @@ def is_issuer_url(value):
             and '?' not in value and '#' not in value)
 
 
-def _https_endpoint(value):
-    """The value if it is an absolute https URL, else None."""
+def _https_url(value):
+    """The value if it is an absolute https URL, else None.
+
+    The bar for a URL the user is sent to: a fragment is fine in a browser.
+    """
     return value if is_https_url(value) else None
+
+
+def _https_endpoint(value):
+    """The value if it is an absolute https URL with no fragment, else None.
+
+    The bar for a URL the client posts to. RFC 6749 section 3.2 rules a
+    fragment out of the token endpoint, and both HTTP libraries strip one
+    before sending, so a document naming ``.../oauth/token#alternate`` would
+    have the client post somewhere other than where the document says. A
+    query is allowed, as the same section allows it. The check is on the
+    character, since ``urlparse`` cannot tell a bare ``#`` from its absence.
+    """
+    return value if is_https_url(value) and '#' not in value else None
 
 
 def _parsed_object(text):
@@ -232,10 +248,11 @@ def parse_device_authorization(text):
     for. The optional two are conveniences, so a malformed one falls back to
     its default rather than failing a flow that would otherwise work.
 
-    Both verification URIs go through the same ``https`` check the endpoints
-    do: they are printed to the user and, with ``open_browser=True``, handed
-    to ``webbrowser.open()``, which is no place for whatever scheme an
-    authorization server happened to send.
+    Both verification URIs have to be absolute ``https`` URLs, as the
+    endpoints do: they are printed to the user and, with ``open_browser=True``,
+    handed to ``webbrowser.open()``, which is no place for whatever scheme an
+    authorization server happened to send. Unlike the endpoints they may carry
+    a fragment, which means something to a browser.
     """
     body = _parsed_object(text)
     if body is None:
@@ -243,7 +260,7 @@ def parse_device_authorization(text):
 
     device_code = _non_empty_string(body.get('device_code'))
     user_code = _non_empty_string(body.get('user_code'))
-    verification_uri = _https_endpoint(body.get('verification_uri'))
+    verification_uri = _https_url(body.get('verification_uri'))
     expires_in = _positive_whole_number(body.get('expires_in'))
     if not (device_code and user_code and verification_uri) or expires_in is None:
         return None
@@ -253,7 +270,7 @@ def parse_device_authorization(text):
         device_code=device_code,
         user_code=user_code,
         verification_uri=verification_uri,
-        verification_uri_complete=_https_endpoint(
+        verification_uri_complete=_https_url(
             body.get('verification_uri_complete')),
         expires_in=expires_in,
         interval=DEFAULT_POLL_INTERVAL_SECONDS if interval is None else interval,

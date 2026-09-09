@@ -314,15 +314,32 @@ class TestParseAuthorizationServerMetadata:
          "/oauth/token",
          "auth-dev.pamdas.org/oauth/token",
          "https://[broken",
-         "https://auth-dev.pamdas.org:notaport/oauth/token"],
+         "https://auth-dev.pamdas.org:notaport/oauth/token",
+         "https://auth-dev.pamdas.org/oauth/token#alternate",
+         "https://auth-dev.pamdas.org/oauth/token#"],
         ids=["plain_http", "path_only", "no_scheme", "malformed_ipv6",
-             "non_numeric_port"],
+             "non_numeric_port", "fragment", "empty_fragment_marker"],
     )
     def test_an_endpoint_we_would_not_post_credentials_to(self, endpoint):
-        """The last two make urlparse raise; the parser answers None instead."""
+        """Malformed ones make urlparse raise; the parser answers None instead.
+
+        A fragment is rejected because the HTTP libraries strip it, so the
+        client would post to a different URI than the document names.
+        """
         assert parse_authorization_server_metadata(
             as_metadata(token_endpoint=endpoint),
             expected_issuer=DEV_ISSUER) is None
+        assert parse_authorization_server_metadata(
+            as_metadata(device_authorization_endpoint=endpoint),
+            expected_issuer=DEV_ISSUER) is None
+
+    def test_an_endpoint_may_carry_a_query(self):
+        """RFC 6749 section 3.2 allows one; only the fragment is ruled out."""
+        endpoints = parse_authorization_server_metadata(
+            as_metadata(token_endpoint=f"{DEV_ISSUER}/oauth/token?tenant=x"),
+            expected_issuer=DEV_ISSUER)
+
+        assert endpoints[1] == f"{DEV_ISSUER}/oauth/token?tenant=x"
 
     @pytest.mark.parametrize(
         "text",
@@ -440,6 +457,17 @@ class TestParseDeviceAuthorization:
         """This one is opened in a browser, so it gets the endpoint check too."""
         assert parse_device_authorization(
             device_authorization(verification_uri=verification_uri)) is None
+
+    def test_a_verification_uri_may_carry_a_fragment(self):
+        """Unlike the endpoints: this one is opened in a browser, where a
+        fragment means something and is kept."""
+        authorization = parse_device_authorization(device_authorization(
+            verification_uri=f"{DEV_ISSUER}/activate#top",
+            verification_uri_complete=f"{DEV_ISSUER}/activate?user_code=X#top"))
+
+        assert authorization.verification_uri == f"{DEV_ISSUER}/activate#top"
+        assert authorization.verification_uri_complete == (
+            f"{DEV_ISSUER}/activate?user_code=X#top")
 
     def test_an_unusable_complete_uri_is_dropped(self):
         """The optional one is a convenience: without it the user types the code."""
