@@ -549,6 +549,10 @@ class TestTheTenantRefusesToStart:
         assert str(exc_info.value).startswith(
             device_authorization_unreadable_message(
                 device_code_endpoint(known_issuer)))
+        # The body still holds a device_code, which is a credential; it is not
+        # attached and never in the text.
+        assert exc_info.value.response_body is None
+        assert "device-code-1" not in str(exc_info.value)
         assert device_token_endpoint(known_issuer) not in urls(server.traffic)
 
     @pytest.mark.parametrize(

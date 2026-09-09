@@ -423,7 +423,10 @@ class _AuthSupport:
 
         A 200 the parser cannot use is its own failure, not the metadata
         one: the document that named this endpoint was read fine, so saying
-        "metadata" here would point at the one thing that worked.
+        "metadata" here would point at the one thing that worked. Its body is
+        not attached to the exception: a response rejected for a missing
+        ``user_code`` may still carry a valid ``device_code``, and exceptions
+        are printed and logged.
         """
         if not self._is_success(response):
             raise self._device_code_refused(response, device_endpoint)
@@ -432,8 +435,7 @@ class _AuthSupport:
         if authorization is None:
             raise ERClientServiceUnreachable(
                 _DEVICE_AUTHORIZATION_UNREADABLE.format(url=device_endpoint),
-                status_code=response.status_code,
-                response_body=response.text)
+                status_code=response.status_code)
         return authorization
 
     def _device_code_token_form(self, server, authorization):
