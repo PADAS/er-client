@@ -271,6 +271,28 @@ class TestLoginDiscovers:
 
             assert not discovery_route.called
 
+    @pytest.mark.asyncio
+    async def test_an_issuer_override_does_not_keep_login_offline(
+        self, ropc_kwargs, async_client_factory, discovery_url,
+        discovery_document, default_token_url, token_response,
+    ):
+        """device_code_issuer= skips discovery for the interactive sign-in only.
+
+        A password client is asking a different question — whether the site
+        still accepts its credentials — and the override does not answer it.
+        """
+        client = async_client_factory(
+            **ropc_kwargs, device_code_issuer="https://auth-dev.pamdas.org")
+        async with respx.mock as respx_mock:
+            discovery_route = respx_mock.get(discovery_url).mock(
+                return_value=httpx.Response(200, json=discovery_document))
+            respx_mock.post(default_token_url).return_value = httpx.Response(
+                200, json=token_response)
+
+            await client.login()
+
+            assert discovery_route.call_count == 1
+
 
 class TestDiscoveryFailuresLeaveLoginAlone:
     """Whatever goes wrong with discovery, the login is unaffected.
@@ -382,6 +404,23 @@ class TestTokenModeDiscovers:
             await client.auth_headers()
 
             assert not route.called
+
+    @pytest.mark.asyncio
+    async def test_an_issuer_override_does_not_keep_token_mode_offline(
+        self, token_kwargs, async_client_factory, discovery_url, discovery_document,
+    ):
+        """device_code_issuer= skips discovery for the interactive sign-in only;
+        a client that brought a token still has to learn whether the site
+        accepts it."""
+        client = async_client_factory(
+            **token_kwargs, device_code_issuer="https://auth-dev.pamdas.org")
+        async with respx.mock as respx_mock:
+            route = respx_mock.get(discovery_url).mock(
+                return_value=httpx.Response(200, json=discovery_document))
+
+            await client.auth_headers()
+
+            assert route.call_count == 1
 
 
 class TestWarnsAboutLegacyCredentials:

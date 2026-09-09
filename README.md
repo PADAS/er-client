@@ -121,7 +121,7 @@ The token carries **no refresh token** — the registration does not ask for `of
 
 ### What the site tells the client
 
-EarthRanger sites publish the authorization servers they accept at `{service_root}/.well-known/oauth-protected-resource` ([RFC 9728](https://www.rfc-editor.org/rfc/rfc9728.html)). Both clients fetch it on every `login()`, and once on the first `auth_headers()` when you passed `token=` — never during construction, and never on a refresh. Two things skip the fetch: `discovery=False`, and `device_code_issuer=`, which has already answered the question discovery exists to answer. What the site says decides whether you get a warning:
+EarthRanger sites publish the authorization servers they accept at `{service_root}/.well-known/oauth-protected-resource` ([RFC 9728](https://www.rfc-editor.org/rfc/rfc9728.html)). Both clients fetch it on every `login()`, and once on the first `auth_headers()` when you passed `token=` — never during construction, and never on a refresh. Two things skip the fetch: `discovery=False`, on every path; and `device_code_issuer=`, on the interactive sign-in only, since there it has already answered the question discovery exists to answer. A client that brought a token or a password still discovers on its first use whatever `device_code_issuer=` says, because for those credentials the question is a different one: whether the site still accepts them. What the site says decides whether you get a warning:
 
 | The site accepts | With `username`/`password` | With a site-issued (legacy) `token=` | With an Auth0-issued `token=` |
 |---|---|---|---|

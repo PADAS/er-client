@@ -234,6 +234,22 @@ class TestLoginDiscovers:
 
         assert not patched_get.called
 
+    def test_an_issuer_override_does_not_keep_login_offline(
+        self, ropc_kwargs, patched_get, patched_post, serving, discovery_document,
+    ):
+        """device_code_issuer= skips discovery for the interactive sign-in only.
+
+        A password client is asking a different question — whether the site
+        still accepts its credentials — and the override does not answer it.
+        """
+        serving(discovery_document)
+        client = ERClient(**ropc_kwargs,
+                          device_code_issuer="https://auth-dev.pamdas.org")
+
+        client.login()
+
+        assert patched_get.call_count == 1
+
 
 class TestDiscoveryFailuresLeaveLoginAlone:
     """Whatever goes wrong with discovery, the login is unaffected.
@@ -326,6 +342,20 @@ class TestTokenModeDiscovers:
         client.auth_headers()
 
         assert not patched_get.called
+
+    def test_an_issuer_override_does_not_keep_token_mode_offline(
+        self, token_kwargs, patched_get, serving, discovery_document,
+    ):
+        """device_code_issuer= skips discovery for the interactive sign-in only;
+        a client that brought a token still has to learn whether the site
+        accepts it."""
+        serving(discovery_document)
+        client = ERClient(**token_kwargs,
+                          device_code_issuer="https://auth-dev.pamdas.org")
+
+        client.auth_headers()
+
+        assert patched_get.call_count == 1
 
 
 class TestWarnsAboutLegacyCredentials:
