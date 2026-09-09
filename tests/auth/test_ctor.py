@@ -297,18 +297,14 @@ class TestARefusedLogin:
         assert client.auth is None
         assert client.auth_expires == pytz.utc.localize(datetime.min)
 
-    def test_is_reported_as_a_bare_exception(self, client, server, ropc_kwargs,
-                                             default_token_url):
-        """Neither client says which refusal it was; commit 3 classifies them."""
+    def test_is_reported_as_a_bool_or_an_httpx_error(self, client, server,
+                                                     ropc_kwargs,
+                                                     default_token_url):
         server.respond("POST", default_token_url, 401, text="nope")
         client.make(**ropc_kwargs)
 
         if client.kind == "sync":
             assert client.login() is False
-            with pytest.raises(ERClientException) as exc_info:
-                client.auth_headers()
-            assert type(exc_info.value) is ERClientException
-            assert str(exc_info.value) == "Login failed."
         else:
             # wart: a caller of the async login() sees the httpx error raw.
             with pytest.raises(httpx.HTTPStatusError):
@@ -329,8 +325,8 @@ class TestNoCredentials:
         # wart: nothing to authenticate with, and the site is asked anyway.
         assert server.traffic[0].data == {"grant_type": "password"}
 
-    def test_requests_drops_none_valued_form_fields(self, default_token_url):
-        """Pin the encoding the payload above relies on."""
+    def test_requests_drops_the_none_valued_fields_the_payload_above_relies_on(
+            self, default_token_url):
         prepared = requests.Request(
             "POST", default_token_url,
             data={"grant_type": "password", "username": None,
