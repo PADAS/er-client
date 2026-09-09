@@ -97,6 +97,10 @@ class FakeServer:
         """Answer such requests with these responses in turn, then fail."""
         self._routes[(method, url)] = _Route(replies, repeating=False)
 
+    def fail(self, method, url, error):
+        """Answer every such request by raising, as an unreachable host does."""
+        self._routes[(method, url)] = _Route([error], repeating=True)
+
     @property
     def calls(self):
         return [(call.method, call.url) for call in self.traffic]
@@ -131,6 +135,8 @@ class _SyncBackend:
         def _request(url, **kwargs):
             reply = self._server.reply_to(
                 method, url, _form(kwargs.get("data")))
+            if isinstance(reply, Exception):
+                raise reply
             return reply.as_requests()
 
         return _request
@@ -154,6 +160,8 @@ class _AsyncBackend:
         data = _form(dict(parse_qsl(request.content.decode())))
         reply = self._server.reply_to(
             request.method, str(request.url), data)
+        if isinstance(reply, Exception):
+            raise reply
         return reply.as_httpx()
 
 
@@ -166,6 +174,9 @@ class ClientUnderTest:
 
     def __init__(self, kind, loop):
         self.kind = kind
+        # What this client's HTTP library raises when the host is unreachable.
+        self.transport_error = (requests.ConnectionError if kind == "sync"
+                                else httpx.ConnectError)
         self._loop = loop
         self._client = None
 
