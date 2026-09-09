@@ -136,7 +136,7 @@ class ERClient(object):
 
         if self.auth:
             if not self._auth_is_valid():
-                if not self.refresh_token():
+                if not self.auth.get('refresh_token') or not self.refresh_token():
                     if not self.login():
                         raise ERClientException('Login failed.')
         else:
@@ -148,8 +148,12 @@ class ERClient(object):
                 'Accept-Type': 'application/json'}
 
     def refresh_token(self):
+        refresh_token = (self.auth or {}).get('refresh_token')
+        if not refresh_token:
+            return False
+
         payload = {'grant_type': 'refresh_token',
-                   'refresh_token': self.auth['refresh_token'],
+                   'refresh_token': refresh_token,
                    'client_id': self.client_id
                    }
         return self._token_request(payload)
@@ -1513,7 +1517,7 @@ class AsyncERClient(object):
     async def auth_headers(self):
         if self.auth:
             if not self._auth_is_valid():
-                if not await self.refresh_token():
+                if not self.auth.get('refresh_token') or not await self.refresh_token():
                     await self.login()
         else:
             await self.login()
@@ -1524,10 +1528,14 @@ class AsyncERClient(object):
         }
 
     async def refresh_token(self):
+        refresh_token = (self.auth or {}).get('refresh_token')
+        if not refresh_token:
+            return False
+
         return await self._token_request(
             payload={
                 'grant_type': 'refresh_token',
-                'refresh_token': self.auth['refresh_token'],
+                'refresh_token': refresh_token,
                 'client_id': self.client_id
             }
         )
