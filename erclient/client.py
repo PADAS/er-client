@@ -97,6 +97,13 @@ _TOKEN_RESPONSE_UNREADABLE = (
     "token response the client could not use. Try again, or pass an "
     "Auth0-issued access token with token=."
 )
+_TOKEN_FOR_ANOTHER_ISSUER = (
+    "The authorization server at {url} issued a token whose issuer is "
+    "{issuer}, not {expected}. EarthRanger checks the issuer exactly, so "
+    "every request with this token would be rejected: the tenant is "
+    "misconfigured. Pass an Auth0-issued access token with token=, or "
+    "report the tenant."
+)
 _CODE_EXPIRED = (
     "The sign-in code expired before it was approved. Call client.login() "
     "again for a new one."
@@ -443,7 +450,7 @@ class _AuthSupport:
                 'device_code': authorization.device_code,
                 'client_id': server.client_id}
 
-    def _store_device_code_token(self, response, token_endpoint):
+    def _store_device_code_token(self, response, server, token_endpoint):
         """Keep an approved token, with the same expiry margin as any other.
 
         The body is checked before anything is assigned: a 2xx the parser
@@ -452,11 +459,27 @@ class _AuthSupport:
         documents, the body is not attached to the exception: a response the
         parser rejects for a missing lifetime may still hold a valid access
         token, and an exception is printed.
+
+        A readable ``iss`` has to be the issuer the flow ran against, the same
+        check a caller-supplied token gets before its first request. The
+        metadata document already had to name that issuer, so a token minted
+        for another one — the tenant's canonical domain, say — means the
+        tenant is misconfigured, and every request would fail with a 401 that
+        reads as a bad token. An opaque token has no issuer to read; the
+        server still judges it.
         """
         token = parse_token_response(response.text)
         if token is None:
             raise ERClientServiceUnreachable(
                 _TOKEN_RESPONSE_UNREADABLE.format(url=token_endpoint),
+                status_code=response.status_code)
+        issuer = jwt_issuer(token['access_token'])
+        if (issuer is not None
+                and normalize_issuer(issuer) != normalize_issuer(server.issuer)):
+            raise ERClientServiceUnreachable(
+                _TOKEN_FOR_ANOTHER_ISSUER.format(
+                    url=token_endpoint, issuer=normalize_issuer(issuer),
+                    expected=normalize_issuer(server.issuer)),
                 status_code=response.status_code)
         self.auth = token
         # The same five-minute margin as any other token, but never more than
@@ -734,7 +757,8 @@ class ERClient(_AuthSupport):
                 timeout=DEVICE_CODE_TIMEOUT_SECONDS,
                 allow_redirects=False)
             if self._is_success(response):
-                return self._store_device_code_token(response, token_endpoint)
+                return self._store_device_code_token(
+                    response, server, token_endpoint)
             interval = self._device_code_poll_interval(
                 response, token_endpoint, interval)
 
@@ -2421,7 +2445,8 @@ class AsyncERClient(_AuthSupport):
                 timeout=httpx.Timeout(DEVICE_CODE_TIMEOUT_SECONDS),
                 follow_redirects=False)
             if self._is_success(response):
-                return self._store_device_code_token(response, token_endpoint)
+                return self._store_device_code_token(
+                    response, server, token_endpoint)
             interval = self._device_code_poll_interval(
                 response, token_endpoint, interval)
 

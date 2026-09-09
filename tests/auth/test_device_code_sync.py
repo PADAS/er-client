@@ -27,10 +27,11 @@ from tests.auth.conftest import (CODE_EXPIRED_MESSAGE,
                                  SIGN_IN_DECLINED_MESSAGE,
                                  device_authorization_unreadable_message,
                                  device_code_endpoint, device_token_endpoint,
-                                 expired_session_message,
+                                 expired_session_message, jwt_with_issuer,
                                  metadata_unreadable_message,
                                  no_authorization_servers_message,
                                  no_known_tenant_message, no_terminal_message,
+                                 token_for_another_issuer_message,
                                  token_response_unreadable_message)
 
 from erclient.client import ERClient
@@ -662,6 +663,45 @@ class TestTheTenantRefusesToStart:
         assert "access-token-1" not in str(exc_info.value)
         assert client.auth is None
         assert client.last_auth_error is None
+
+    def test_a_token_for_another_issuer_is_refused(
+        self, service_root, fake_device_server, no_sleep, captured_prompt,
+        make_requests_response, known_issuer, device_token_response,
+    ):
+        """EarthRanger checks iss against the advertised custom domain exactly,
+        so a tenant minting for its canonical domain, or any other, has handed
+        over a token every request would fail with. Say so now, not at the
+        first 401, and keep nothing."""
+        client = ERClient(service_root=service_root,
+                          device_code_prompt=captured_prompt.append)
+        wrong = "https://fake-tenant.us.auth0.com/"
+        fake_device_server(token_responses=[make_requests_response(
+            200, json_data={**device_token_response,
+                            "access_token": jwt_with_issuer(wrong)})])
+
+        with pytest.raises(ERClientServiceUnreachable) as exc_info:
+            client.login()
+
+        assert str(exc_info.value).startswith(token_for_another_issuer_message(
+            device_token_endpoint(known_issuer),
+            "https://fake-tenant.us.auth0.com", "https://auth-dev.pamdas.org"))
+        assert exc_info.value.response_body is None
+        assert jwt_with_issuer(wrong) not in str(exc_info.value)
+        assert client.auth is None
+
+    def test_an_opaque_token_is_kept_since_its_issuer_cannot_be_read(
+        self, service_root, fake_device_server, no_sleep, captured_prompt,
+        make_requests_response, device_token_response,
+    ):
+        """The check is on a readable iss only; the server can still judge it."""
+        client = ERClient(service_root=service_root,
+                          device_code_prompt=captured_prompt.append)
+        fake_device_server(token_responses=[make_requests_response(
+            200, json_data={**device_token_response,
+                            "access_token": "opaque-token-1"})])
+
+        assert client.login() is True
+        assert client.auth["access_token"] == "opaque-token-1"
 
     def test_the_message_names_the_endpoint_that_actually_failed(
         self, service_root, fake_device_server, no_sleep, captured_prompt,

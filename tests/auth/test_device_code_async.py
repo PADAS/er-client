@@ -27,10 +27,11 @@ from tests.auth.conftest import (CODE_EXPIRED_MESSAGE,
                                  INVALID_OVERRIDE_MESSAGE,
                                  SIGN_IN_DECLINED_MESSAGE,
                                  device_authorization_unreadable_message,
-                                 expired_session_message,
+                                 expired_session_message, jwt_with_issuer,
                                  metadata_unreadable_message,
                                  no_authorization_servers_message,
                                  no_known_tenant_message, no_terminal_message,
+                                 token_for_another_issuer_message,
                                  token_response_unreadable_message)
 from tests.auth.respx_helpers import (KNOWN_ISSUER, device_code_endpoint,
                                       device_token_endpoint, flat_timeout,
@@ -74,7 +75,10 @@ def flow(async_client_factory, service_root, dev_discovery_document,
             authorization = httpx.Response(
                 200, json=device_authorization_document())
         if token_responses is ...:
-            token_responses = [httpx.Response(200, json=device_token_response)]
+            # Minted for whichever issuer this tenant is standing in for.
+            token_responses = [httpx.Response(200, json={
+                **device_token_response,
+                "access_token": jwt_with_issuer(issuer)})]
         mock_device_flow(respx_mock, service_root, issuer=issuer,
                          discovery=discovery, metadata=metadata,
                          authorization=authorization,
@@ -656,6 +660,46 @@ class TestTheTenantRefusesToStart:
         assert client.auth is None
         assert client.last_auth_error is None
 
+    async def test_a_token_for_another_issuer_is_refused(
+        self, flow, no_async_sleep, captured_prompt, device_token_response,
+    ):
+        """EarthRanger checks iss against the advertised custom domain exactly,
+        so a tenant minting for its canonical domain, or any other, has handed
+        over a token every request would fail with. Say so now, not at the
+        first 401, and keep nothing."""
+        wrong = "https://fake-tenant.us.auth0.com/"
+        async with respx.mock as respx_mock:
+            client = flow(respx_mock,
+                          device_code_prompt=captured_prompt.append,
+                          token_responses=[httpx.Response(
+                              200, json={**device_token_response,
+                                         "access_token": jwt_with_issuer(wrong)})])
+
+            with pytest.raises(ERClientServiceUnreachable) as exc_info:
+                await client.login()
+
+        assert str(exc_info.value).startswith(token_for_another_issuer_message(
+            device_token_endpoint(KNOWN_ISSUER),
+            "https://fake-tenant.us.auth0.com", "https://auth-dev.pamdas.org"))
+        assert exc_info.value.response_body is None
+        assert jwt_with_issuer(wrong) not in str(exc_info.value)
+        assert client.auth is None
+
+    async def test_an_opaque_token_is_kept_since_its_issuer_cannot_be_read(
+        self, flow, no_async_sleep, captured_prompt, device_token_response,
+    ):
+        """The check is on a readable iss only; the server can still judge it."""
+        async with respx.mock as respx_mock:
+            client = flow(respx_mock,
+                          device_code_prompt=captured_prompt.append,
+                          token_responses=[httpx.Response(
+                              200, json={**device_token_response,
+                                         "access_token": "opaque-token-1"})])
+
+            assert await client.login() is True
+
+        assert client.auth["access_token"] == "opaque-token-1"
+
     async def test_the_message_names_the_endpoint_that_actually_failed(
         self, flow, no_async_sleep, captured_prompt,
     ):
@@ -880,8 +924,9 @@ class TestOverrides:
                     200, json=as_metadata_document(OTHER_ISSUER)),
                 authorization=httpx.Response(
                     200, json=device_authorization_document()),
-                token_responses=[
-                    httpx.Response(200, json=device_token_response)])
+                token_responses=[httpx.Response(200, json={
+                    **device_token_response,
+                    "access_token": jwt_with_issuer(OTHER_ISSUER)})])
 
             assert await client.login() is True
 

@@ -161,6 +161,17 @@ def token_response_unreadable_message(url):
     )
 
 
+def token_for_another_issuer_message(url, issuer, expected):
+    """The user approved, and the token names an issuer the site would reject."""
+    return (
+        f"The authorization server at {url} issued a token whose issuer is "
+        f"{issuer}, not {expected}. EarthRanger checks the issuer exactly, so "
+        "every request with this token would be rejected: the tenant is "
+        "misconfigured. Pass an Auth0-issued access token with token=, or "
+        "report the tenant."
+    )
+
+
 def auth_warnings(recorded):
     """Only this client's auth warnings, ignoring anything else the run emits."""
     return [w for w in recorded if issubclass(w.category, ERClientAuthWarning)]
@@ -389,8 +400,12 @@ def fake_device_server(
             else make_requests_response(
                 200, json_data=device_authorization_document()),
         })
+        # The default token is minted for whichever issuer this server is
+        # standing in for, as a real tenant's would be.
         server.token_responses = list(token_responses) if token_responses else [
-            make_requests_response(200, json_data=device_token_response)]
+            make_requests_response(200, json_data={
+                **device_token_response,
+                "access_token": jwt_with_issuer(issuer)})]
         patched_get.side_effect = server.get
         patched_post.side_effect = server.post
         return server
@@ -478,14 +493,17 @@ def device_authorization_document():
 
 
 @pytest.fixture
-def device_token_response():
+def device_token_response(known_issuer):
     """What the token endpoint returns once the user approves.
 
     No ``refresh_token``: the registration does not ask for ``offline_access``,
     so expiry sends the client back through the whole flow.
     """
     return {
-        "access_token": JWT_WITH_ISSUER,
+        # Minted for the issuer the flow actually ran against: EarthRanger
+        # compares iss to the advertised custom domain exactly, and so does
+        # the client before it keeps the token.
+        "access_token": jwt_with_issuer(known_issuer),
         "token_type": "Bearer",
         "expires_in": 172800,
         "scope": "openid profile email",
