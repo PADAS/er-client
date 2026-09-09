@@ -13,6 +13,7 @@ import requests
 import respx
 
 from erclient.client import AsyncERClient, ERClient
+from erclient.discovery import DISCOVERY_PATH
 
 # Both clients, unless a module names fewer in its own CLIENT_KINDS.
 CLIENT_KINDS = ("sync", "async")
@@ -237,6 +238,12 @@ def default_token_url(service_root):
 @pytest.fixture
 def custom_token_url():
     return "https://fake-auth.erdomain.org/oauth2/token"
+
+
+@pytest.fixture
+def discovery_url(service_root):
+    """Where the site serves its protected-resource metadata."""
+    return f"{service_root}{DISCOVERY_PATH}"
 
 
 @pytest.fixture
