@@ -244,6 +244,36 @@ class TestPasswordGrant:
             with pytest.raises(httpx.HTTPStatusError):
                 client.auth_headers()
 
+    def test_a_token_without_a_refresh_token_expires_into_a_password_grant(
+            self, client, server, ropc_kwargs, default_token_url,
+            token_response_factory):
+        server.script(
+            "POST", default_token_url,
+            Reply(json_body=token_response_factory(refresh_token=None)),
+            Reply(json_body=token_response_factory(
+                access_token="access-token-2", refresh_token=None)))
+        client.make(**ropc_kwargs)
+
+        client.auth_headers()
+        client._client.auth_expires = pytz.utc.localize(datetime.min)
+        headers = client.auth_headers()
+
+        assert [call.data["grant_type"] for call in server.traffic] == [
+            "password", "password"]
+        assert headers["Authorization"] == "Bearer access-token-2"
+
+    def test_refresh_token_with_none_to_send_reports_that_and_asks_nothing(
+            self, client, server, ropc_kwargs, default_token_url,
+            token_response_factory):
+        body = token_response_factory(refresh_token=None)
+        server.respond("POST", default_token_url, json_body=body)
+        client.make(**ropc_kwargs)
+        client.login()
+
+        assert client.call(client.refresh_token) is False
+        assert len(server.traffic) == 1
+        assert client.auth == body
+
     def test_auth_is_valid_tracks_the_recorded_expiry(self, client,
                                                       token_kwargs):
         client.make(**token_kwargs)
