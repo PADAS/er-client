@@ -14,7 +14,7 @@ and says so when there isn't one.
 import json
 import logging
 import webbrowser
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -116,6 +116,22 @@ class TestTheHappyPath:
         assert_expiry_matches(client.auth_expires,
                               device_token_response["expires_in"])
         assert client.last_auth_error is None
+
+    def test_a_short_lived_token_is_still_usable(
+        self, service_root, fake_device_server, no_sleep, captured_prompt,
+        device_token_response, make_requests_response,
+    ):
+        """The expiry margin is capped at half the lifetime, so a tenant issuing
+        one-minute tokens does not have every one recorded as already expired."""
+        client = ERClient(service_root=service_root,
+                          device_code_prompt=captured_prompt.append)
+        fake_device_server(token_responses=[make_requests_response(
+            200, json_data={**device_token_response, "expires_in": 60})])
+
+        assert client.login() is True
+        assert client._auth_is_valid()
+        expected = datetime.now(pytz.utc) + timedelta(seconds=30)
+        assert abs((client.auth_expires - expected).total_seconds()) < 5
 
     def test_a_refresh_token_the_tenant_sent_anyway_is_dropped(
         self, service_root, fake_device_server, no_sleep, captured_prompt,

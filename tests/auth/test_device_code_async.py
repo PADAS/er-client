@@ -14,7 +14,7 @@ own ``login()`` call.
 import json
 import logging
 import webbrowser
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import httpx
@@ -145,6 +145,24 @@ class TestTheHappyPath:
         assert_expiry_matches(client.auth_expires,
                               device_token_response["expires_in"])
         assert client.last_auth_error is None
+
+    async def test_a_short_lived_token_is_still_usable(
+        self, flow, no_async_sleep, captured_prompt, device_token_response,
+    ):
+        """The expiry margin is capped at half the lifetime, so a tenant issuing
+        one-minute tokens does not have every one recorded as already expired."""
+        async with respx.mock as respx_mock:
+            client = flow(respx_mock,
+                          device_code_prompt=captured_prompt.append,
+                          token_responses=[httpx.Response(
+                              200, json={**device_token_response,
+                                         "expires_in": 60})])
+
+            assert await client.login() is True
+
+        assert client._auth_is_valid()
+        expected = datetime.now(pytz.utc) + timedelta(seconds=30)
+        assert abs((client.auth_expires - expected).total_seconds()) < 5
 
     async def test_a_refresh_token_the_tenant_sent_anyway_is_dropped(
         self, flow, no_async_sleep, captured_prompt, device_token_response,

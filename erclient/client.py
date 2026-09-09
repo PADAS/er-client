@@ -457,9 +457,13 @@ class _AuthSupport:
                 _TOKEN_RESPONSE_UNREADABLE.format(url=token_endpoint),
                 status_code=response.status_code)
         self.auth = token
-        expires_in = token['expires_in'] - 5 * 60
-        self.auth_expires = datetime.now(
-            tz=timezone.utc) + timedelta(seconds=expires_in)
+        # The same five-minute margin as any other token, but never more than
+        # half the lifetime: a tenant issuing five-minute tokens would
+        # otherwise have every one of them recorded as already expired, and
+        # every request would start another sign-in.
+        margin = min(5 * 60, token['expires_in'] // 2)
+        self.auth_expires = datetime.now(tz=timezone.utc) + timedelta(
+            seconds=token['expires_in'] - margin)
         self._last_auth_error = None
         return True
 
