@@ -349,6 +349,50 @@ class TestWhatIsAskedOfTheTenant:
         }
 
 
+class TestRedirectsAreNotFollowed:
+    """A hop to plain http would let anyone on the path forge the document
+    that names where a device code and a token are posted, or take delivery
+    of the form a 307 resends. None of the authorization server's endpoints
+    redirects, so refusing to follow costs nothing. The site's own discovery
+    document is the exception: sites do redirect well-known paths, and that
+    document names no endpoint a credential is sent to."""
+
+    def test_every_request_to_the_authorization_server_opts_out(
+        self, service_root, fake_device_server, no_sleep, captured_prompt,
+        patched_get, patched_post, discovery_url,
+    ):
+        client = ERClient(service_root=service_root,
+                          device_code_prompt=captured_prompt.append)
+        fake_device_server()
+
+        client.login()
+
+        discovery, metadata = patched_get.call_args_list
+        assert discovery.args[0] == discovery_url
+        assert "allow_redirects" not in discovery.kwargs
+        assert metadata.kwargs["allow_redirects"] is False
+        assert len(patched_post.call_args_list) == 2  # device code, token
+        assert all(call.kwargs["allow_redirects"] is False
+                   for call in patched_post.call_args_list)
+
+    def test_a_redirecting_metadata_document_is_unreadable(
+        self, service_root, fake_device_server, make_requests_response,
+        patched_post, known_issuer,
+    ):
+        """What a 3xx becomes once it is not followed."""
+        client = ERClient(service_root=service_root)
+        fake_device_server(metadata=make_requests_response(
+            302, text="", headers={"Location": "http://elsewhere.example/"}))
+
+        with pytest.raises(ERClientServiceUnreachable) as exc_info:
+            client.login()
+
+        assert str(exc_info.value).startswith(metadata_unreadable_message(
+            f"{known_issuer.rstrip('/')}/.well-known/openid-configuration"))
+        assert exc_info.value.status_code == 302
+        assert not patched_post.called
+
+
 class TestPolling:
     """RFC 8628 section 3.5: wait, ask again, and back off when told to."""
 

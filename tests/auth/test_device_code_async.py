@@ -43,7 +43,7 @@ from erclient.device_code import (DEFAULT_SCOPE, DEVICE_CODE_GRANT,
                                   KNOWN_AUTHORIZATION_SERVERS)
 from erclient.er_errors import (INTERACTIVE_SIGN_IN_UNAVAILABLE,
                                 ERClientBadCredentials, ERClientBadRequest,
-                                ERClientServiceUnreachable)
+                                ERClientException, ERClientServiceUnreachable)
 
 PROD_ISSUER = "https://auth.pamdas.org/"
 OTHER_ISSUER = "https://someone-elses-tenant.us.auth0.com/"
@@ -328,6 +328,53 @@ class TestTheFlowHasItsOwnDeadlines:
             assert timeout_of(
                 respx_mock, device_token_endpoint(KNOWN_ISSUER),
                 "POST") == device_code
+
+
+class TestRedirectsAreNotFollowed:
+    """A hop to plain http would let anyone on the path forge the document
+    that names where a device code and a token are posted, or take delivery
+    of the form a 307 resends. None of these endpoints redirects, so refusing
+    to follow costs nothing."""
+
+    async def test_a_redirecting_metadata_document_is_unreadable(
+        self, flow, captured_prompt,
+    ):
+        target = "http://elsewhere.example/openid-configuration"
+        async with respx.mock as respx_mock:
+            client = flow(respx_mock, device_code_prompt=captured_prompt.append,
+                          metadata=httpx.Response(
+                              302, headers={"Location": target}),
+                          authorization=None, token_responses=None)
+            target_route = respx_mock.get(target)
+
+            with pytest.raises(ERClientServiceUnreachable) as exc_info:
+                await client.login()
+
+            assert not target_route.called
+
+        assert str(exc_info.value).startswith(metadata_unreadable_message(
+            metadata_endpoint(KNOWN_ISSUER)))
+        assert exc_info.value.status_code == 302
+
+    async def test_a_redirecting_device_endpoint_is_a_refusal(
+        self, flow, captured_prompt,
+    ):
+        """Pinned rather than fixed: the async POSTs never followed redirects."""
+        target = "http://elsewhere.example/device"
+        async with respx.mock as respx_mock:
+            client = flow(respx_mock, device_code_prompt=captured_prompt.append,
+                          authorization=httpx.Response(
+                              307, headers={"Location": target}),
+                          token_responses=None)
+            target_route = respx_mock.post(target)
+
+            with pytest.raises(ERClientException) as exc_info:
+                await client.login()
+
+            assert not target_route.called
+
+        assert exc_info.value.status_code == 307
+        assert captured_prompt == []
 
 
 class TestPolling:

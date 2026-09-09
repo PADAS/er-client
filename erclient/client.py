@@ -692,6 +692,7 @@ class ERClient(_AuthSupport):
                 headers={'User-Agent': self.user_agent,
                          'Accept': 'application/json'},
                 timeout=DISCOVERY_TIMEOUT_SECONDS,
+                allow_redirects=False,
             )
         except requests.RequestException as e:
             self.logger.debug(
@@ -706,6 +707,7 @@ class ERClient(_AuthSupport):
             device_endpoint,
             data=self._device_authorization_form(server),
             timeout=DEVICE_CODE_TIMEOUT_SECONDS,
+            allow_redirects=False,
         )
         return self._device_authorization_from(response, device_endpoint)
 
@@ -729,7 +731,8 @@ class ERClient(_AuthSupport):
 
             response = requests.post(
                 token_endpoint, data=payload,
-                timeout=DEVICE_CODE_TIMEOUT_SECONDS)
+                timeout=DEVICE_CODE_TIMEOUT_SECONDS,
+                allow_redirects=False)
             if self._is_success(response):
                 return self._store_device_code_token(response, token_endpoint)
             interval = self._device_code_poll_interval(
@@ -2372,7 +2375,7 @@ class AsyncERClient(_AuthSupport):
                 url,
                 headers={'User-Agent': self.user_agent,
                          'Accept': 'application/json'},
-                follow_redirects=True,
+                follow_redirects=False,
                 timeout=httpx.Timeout(DISCOVERY_TIMEOUT_SECONDS),
             )
         except httpx.HTTPError as e:
@@ -2389,7 +2392,8 @@ class AsyncERClient(_AuthSupport):
         """
         response = await self._http_session.post(
             device_endpoint, data=self._device_authorization_form(server),
-            timeout=httpx.Timeout(DEVICE_CODE_TIMEOUT_SECONDS))
+            timeout=httpx.Timeout(DEVICE_CODE_TIMEOUT_SECONDS),
+            follow_redirects=False)
         return self._device_authorization_from(response, device_endpoint)
 
     async def _poll_for_device_code_token(self, server, token_endpoint,
@@ -2414,7 +2418,8 @@ class AsyncERClient(_AuthSupport):
 
             response = await self._http_session.post(
                 token_endpoint, data=payload,
-                timeout=httpx.Timeout(DEVICE_CODE_TIMEOUT_SECONDS))
+                timeout=httpx.Timeout(DEVICE_CODE_TIMEOUT_SECONDS),
+                follow_redirects=False)
             if self._is_success(response):
                 return self._store_device_code_token(response, token_endpoint)
             interval = self._device_code_poll_interval(
