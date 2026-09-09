@@ -472,6 +472,37 @@ class TestPolling:
         assert str(exc_info.value) == CODE_EXPIRED_MESSAGE
         assert polls() == 1
 
+    def test_no_wait_outlasts_the_code(
+        self, service_root, fake_device_server, no_sleep, captured_prompt,
+        make_requests_response, device_authorization_document, known_issuer,
+    ):
+        """An interval longer than the code's lifetime is clamped to what is
+        left, so a one-minute code with an hour's interval expires in a minute
+        rather than being waited on for an hour."""
+        client = ERClient(service_root=service_root,
+                          device_code_prompt=captured_prompt.append)
+        server = fake_device_server(
+            authorization=make_requests_response(
+                200, json_data=device_authorization_document(
+                    expires_in=60, interval=3600)),
+            token_responses=[
+                make_requests_response(
+                    400, json_data={"error": "authorization_pending"}),
+            ])
+
+        def polls():
+            return urls(server.traffic, "POST").count(
+                device_token_endpoint(known_issuer))
+
+        with patch("erclient.client.time.monotonic",
+                   side_effect=lambda: 0 if not polls() else 100):
+            with pytest.raises(ERClientBadCredentials) as exc_info:
+                client.login()
+
+        assert str(exc_info.value) == CODE_EXPIRED_MESSAGE
+        assert no_sleep[0] == 60
+        assert max(no_sleep) <= 60
+
     def test_the_user_saying_no(
         self, service_root, fake_device_server, no_sleep, captured_prompt,
         make_requests_response,

@@ -461,6 +461,37 @@ class TestPolling:
         assert str(exc_info.value) == CODE_EXPIRED_MESSAGE
         assert polled == 1
 
+    async def test_no_wait_outlasts_the_code(
+        self, flow, no_async_sleep, captured_prompt,
+        device_authorization_document, monkeypatch,
+    ):
+        """An interval longer than the code's lifetime is clamped to what is
+        left, so a one-minute code with an hour's interval expires in a minute
+        rather than being waited on for an hour."""
+        async with respx.mock as respx_mock:
+            client = flow(
+                respx_mock, device_code_prompt=captured_prompt.append,
+                authorization=httpx.Response(
+                    200, json=device_authorization_document(
+                        expires_in=60, interval=3600)),
+                token_responses=[
+                    httpx.Response(400,
+                                   json={"error": "authorization_pending"})])
+
+            def polls():
+                return len([url for _, url in traffic(respx_mock)
+                            if url == device_token_endpoint(KNOWN_ISSUER)])
+
+            monkeypatch.setattr("erclient.client.time.monotonic",
+                                lambda: 0 if not polls() else 100)
+
+            with pytest.raises(ERClientBadCredentials) as exc_info:
+                await client.login()
+
+        assert str(exc_info.value) == CODE_EXPIRED_MESSAGE
+        assert no_async_sleep[0] == 60
+        assert max(no_async_sleep) <= 60
+
     async def test_the_user_saying_no(
         self, flow, no_async_sleep, captured_prompt,
     ):

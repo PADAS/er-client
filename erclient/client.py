@@ -713,14 +713,17 @@ class ERClient(_AuthSupport):
         """Poll until the user approves, declines, or runs out of time.
 
         The deadline is ours as well as the server's: a tenant that answers
-        ``authorization_pending`` forever would otherwise be polled forever.
+        ``authorization_pending`` forever would otherwise be polled forever,
+        and one that asks for an interval longer than the code's lifetime
+        would otherwise be waited on past it, so no single wait outlasts
+        what is left of the code.
         """
         deadline = time.monotonic() + authorization.expires_in
         interval = authorization.interval
         payload = self._device_code_token_form(server, authorization)
 
         while True:
-            time.sleep(interval)
+            time.sleep(min(interval, max(0, deadline - time.monotonic())))
             if time.monotonic() >= deadline:
                 raise self._device_code_expiry(token_endpoint)
 
@@ -2394,14 +2397,18 @@ class AsyncERClient(_AuthSupport):
         """Poll until the user approves, declines, or runs out of time.
 
         The deadline is ours as well as the server's: a tenant that answers
-        ``authorization_pending`` forever would otherwise be polled forever.
+        ``authorization_pending`` forever would otherwise be polled forever,
+        and one that asks for an interval longer than the code's lifetime
+        would otherwise be waited on past it, so no single wait outlasts
+        what is left of the code.
         """
         deadline = time.monotonic() + authorization.expires_in
         interval = authorization.interval
         payload = self._device_code_token_form(server, authorization)
 
         while True:
-            await asyncio.sleep(interval)
+            await asyncio.sleep(
+                min(interval, max(0, deadline - time.monotonic())))
             if time.monotonic() >= deadline:
                 raise self._device_code_expiry(token_endpoint)
 
