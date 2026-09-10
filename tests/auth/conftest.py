@@ -110,7 +110,11 @@ class FakeServer:
         return [(call.method, call.url) for call in self.traffic]
 
     def reply_to(self, method, url, data=None, headers=None, timeout=None):
-        self.traffic.append(Call(method, url, data, headers or {}, timeout))
+        # Lowercased, since httpx hands header names back that way and
+        # requests hands back what the client passed.
+        recorded = {key.lower(): value for key,
+                    value in (headers or {}).items()}
+        self.traffic.append(Call(method, url, data, recorded, timeout))
         route = self._routes.get((method, url))
         if route is None:
             raise AssertionError(f"unscripted {method} {url}")

@@ -12,8 +12,6 @@ from erclient.er_errors import (ERClientBadCredentials, ERClientBadRequest,
                                 ERClientException, ERClientRateLimitExceeded,
                                 ERClientServiceUnreachable)
 
-CLIENT_KINDS = ("sync",)
-
 ISSUER = "https://auth-dev.pamdas.org"
 TENANT = KNOWN_AUTHORIZATION_SERVERS[ISSUER]
 METADATA_URL = f"{ISSUER}/.well-known/openid-configuration"
@@ -97,7 +95,7 @@ def flow(server, discovery_url, site_document):
 
 
 @pytest.fixture
-def clock(monkeypatch):
+def clock(client, monkeypatch):
     """A monotonic clock the poller's own waits advance, so nothing sleeps."""
     now = [1000.0]
     slept = []
@@ -106,8 +104,14 @@ def clock(monkeypatch):
         slept.append(seconds)
         now[0] += seconds
 
+    async def _async_sleep(seconds):
+        _sleep(seconds)
+
     monkeypatch.setattr("erclient.client.time.monotonic", lambda: now[0])
-    monkeypatch.setattr("erclient.client.time.sleep", _sleep)
+    if client.kind == "sync":
+        monkeypatch.setattr("erclient.client.time.sleep", _sleep)
+    else:
+        monkeypatch.setattr("erclient.client.asyncio.sleep", _async_sleep)
     return slept
 
 
@@ -242,7 +246,7 @@ class TestWhatIsAskedOfTheTenant:
 
         client.login()
 
-        assert server.traffic[1].headers["User-Agent"] == client.user_agent
+        assert server.traffic[1].headers["user-agent"] == client.user_agent
 
     def test_the_prod_tenant_gets_its_own_registration(
             self, client, server, service_root, discovery_url, flow, clock):

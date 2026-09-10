@@ -313,18 +313,14 @@ class TestARefusedLogin:
 
 class TestNoCredentials:
 
-    def test_the_site_is_no_longer_asked_to_authenticate_nobody(
+    def test_neither_client_asks_the_site_to_authenticate_nobody(
             self, client, server, service_root, default_token_url):
+        # Both sign the user in instead (test_device_code.py). There is no
+        # terminal here, so both refuse before making a request.
         server.respond("POST", default_token_url, 401, text="nope")
         client.make(service_root=service_root)
 
-        with pytest.raises((ERClientException, httpx.HTTPStatusError)):
+        with pytest.raises(ERClientException):
             client.auth_headers()
 
-        if client.kind == "sync":
-            # The sync client signs the user in instead; see
-            # test_device_code.py. Here there is no terminal, so it says so.
-            assert server.traffic == []
-        else:
-            # wart until the async client joins it.
-            assert server.traffic[0].data == {"grant_type": "password"}
+        assert server.traffic == []

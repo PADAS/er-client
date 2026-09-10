@@ -1,3 +1,4 @@
+import asyncio
 import concurrent.futures
 import csv
 import json
@@ -2071,7 +2072,96 @@ class AsyncERClient(_AuthSupport):
     def _auth_is_valid(self):
         return self.auth_expires > datetime.now(tz=timezone.utc)
 
+    async def _device_code_server(self):
+        """The authorization server to sign in against, or raise a refusal."""
+        if not self._discovery_enabled:
+            raise self._device_code_refusal(_DISCOVERY_DISABLED)
+        await self.discover()
+        return self._select_device_code_server()
+
+    async def _device_code_endpoints(self, server):
+        """Ask the authorization server to describe itself."""
+        url = authorization_server_metadata_url(server.issuer)
+        try:
+            response = await self._http_session.get(
+                url,
+                headers={'User-Agent': self.user_agent,
+                         'Accept': 'application/json'},
+                follow_redirects=False,
+                timeout=httpx.Timeout(DISCOVERY_TIMEOUT_SECONDS),
+            )
+        except httpx.HTTPError as e:
+            self.logger.debug(
+                'Authorization server metadata fetch failed for %s: %s', url, e)
+            raise ERClientServiceUnreachable(
+                _METADATA_UNREADABLE.format(metadata_url=url))
+        return self._device_code_endpoints_from(response, server, url)
+
+    async def _request_device_authorization(self, server, device_endpoint):
+        """Ask for a code to show the user."""
+        response = await self._http_session.post(
+            device_endpoint, data=self._device_authorization_form(server),
+            timeout=httpx.Timeout(DEVICE_CODE_TIMEOUT_SECONDS),
+            follow_redirects=False)
+        return self._device_authorization_from(response, device_endpoint)
+
+    async def _poll_for_device_code_token(self, server, token_endpoint,
+                                          authorization):
+        """Poll until the user approves, declines, or runs out of time.
+
+        The deadline is ours as well as the server's, and no single wait
+        outlasts what is left of the code, as in the sync client.
+        """
+        deadline = time.monotonic() + authorization.expires_in
+        interval = authorization.interval
+        payload = self._device_code_token_form(server, authorization)
+
+        while True:
+            await asyncio.sleep(
+                min(interval, max(0, deadline - time.monotonic())))
+            if time.monotonic() >= deadline:
+                raise self._device_code_expiry(token_endpoint)
+
+            response = await self._http_session.post(
+                token_endpoint, data=payload,
+                timeout=httpx.Timeout(DEVICE_CODE_TIMEOUT_SECONDS),
+                follow_redirects=False)
+            if self._is_success(response):
+                return self._store_device_code_token(
+                    response, server, token_endpoint)
+            interval = self._device_code_poll_interval(
+                response, token_endpoint, interval)
+
+    async def _device_code_login(self):
+        """Sign the user in with RFC 8628 device authorization.
+
+        Unlike the password grant, no httpx.HTTPStatusError escapes here for a
+        request wrapper to classify: there is no wrapper between a caller and
+        their own login(), so this raises the EarthRanger exception itself.
+        """
+        server = await self._device_code_server()
+        device_endpoint, token_endpoint = await self._device_code_endpoints(
+            server)
+        authorization = await self._request_device_authorization(
+            server, device_endpoint)
+        self._show_device_code_prompt(authorization)
+        return await self._poll_for_device_code_token(
+            server, token_endpoint, authorization)
+
     async def auth_headers(self):
+        # An implicit sign-in needs someone to read the prompt. Without a
+        # terminal, say so before any request rather than printing a code into
+        # a log and polling until it expires.
+        if self._uses_device_code() and not _stdin_is_tty():
+            if self.auth and not self._auth_is_valid():
+                raise self._device_code_refusal(
+                    _NO_TERMINAL_FOR_EXPIRED_SESSION.format(
+                        site=self.service_root))
+            elif not self.auth:
+                raise self._device_code_refusal(
+                    _NO_TERMINAL_FOR_FIRST_LOGIN.format(
+                        site=self.service_root))
+
         if self.auth:
             if not self._auth_is_valid():
                 if not self.auth.get('refresh_token') or not await self.refresh_token():
@@ -2098,6 +2188,9 @@ class AsyncERClient(_AuthSupport):
         )
 
     async def login(self):
+        if self._uses_device_code():
+            return await self._device_code_login()
+
         return await self._token_request(
             payload={
                 'grant_type': 'password',
