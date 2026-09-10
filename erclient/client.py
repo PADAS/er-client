@@ -399,14 +399,18 @@ class ERClient(_AuthSupport):
 
         :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org). The client assembles the API root as {service_root}/api/{version} (default version v1.0). For backward compatibility, a full API root (Ex. https://sandbox.pamdas.org/api/v1.0) is accepted and normalized to the base.
 
+        :param token: authorization token, ideally Auth0-issued. Nothing is fetched from the token endpoint. Takes precedence over username/password: when both are supplied the token is used and the credentials are ignored.
+
+        or, the legacy password grant:
+
+        :param client_id: Auth client ID (Ex. 'example_client_id'). Its presence selects the password grant.
         :param username: username
         :param password: password
-        :param client_id: Auth client ID (Ex. 'example_client_id')
         :param token_url: Optional. Auth token URL; if omitted, defaults to {service_root}/oauth2/token.
 
-        or
+        or nothing at all: with no token, username, password or client_id, login() signs the user in interactively (RFC 8628 device authorization) against the Auth0 tenant the site's discovery document names. That token carries no refresh token, so an expired session means signing in again.
 
-        :param token: authorization token
+        :param open_browser: Optional. Also open the verification URL in a browser. Interactive sign-in only. Default False.
 
         :param discovery: Optional. Whether the client may fetch the site's RFC 9728 protected-resource metadata. Default True. Pass False to keep it off the network except for the calls you make yourself; discover() still works.
 
@@ -1662,14 +1666,18 @@ class AsyncERClient(_AuthSupport):
 
         :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org). The client assembles the API root as {service_root}/api/{version} (default version v1.0). For backward compatibility, a full API root (Ex. https://sandbox.pamdas.org/api/v1.0) is accepted and normalized to the base.
 
+        :param token: authorization token, ideally Auth0-issued. Nothing is fetched from the token endpoint. Takes precedence over username/password: when both are supplied the token is used and the credentials are ignored.
+
+        or, the legacy password grant:
+
+        :param client_id: Auth client ID (Ex. 'example_client_id'). Its presence selects the password grant.
         :param username: username
         :param password: password
-        :param client_id: Auth client ID (Ex. 'example_client_id')
         :param token_url: Optional. Auth token URL; if omitted, defaults to {service_root}/oauth2/token.
 
-        or
+        or nothing at all: with no token, username, password or client_id, login() signs the user in interactively (RFC 8628 device authorization) against the Auth0 tenant the site's discovery document names. That token carries no refresh token, so an expired session means signing in again.
 
-        :param token: authorization token
+        :param open_browser: Optional. Also open the verification URL in a browser. Interactive sign-in only. Default False.
 
         :param discovery: Optional. Whether the client may fetch the site's RFC 9728 protected-resource metadata. Default True. Pass False to keep it off the network except for the calls you make yourself; discover() still works.
 
