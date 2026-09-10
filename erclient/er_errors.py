@@ -20,6 +20,22 @@ class AuthError:
     retry_after: Optional[int] = None
 
     @classmethod
+    def client_refusal(cls, message, error, url, grant_type):
+        """Build from our own refusal, where no server was consulted.
+
+        The server fields stay None: there is no status and no body, because
+        nothing was sent.
+        """
+        return cls(
+            status_code=None,
+            error=error,
+            error_description=message,
+            response_body=None,
+            url=url,
+            grant_type=grant_type,
+        )
+
+    @classmethod
     def from_token_response(cls, status_code, response_body, url, grant_type,
                             retry_after=None):
         """Build from a refused token response, taking its OAuth fields if present.
@@ -95,6 +111,11 @@ class ERClientNotFound(ERClientException):
     pass
 
 
+# A client-side pseudo error code, not an RFC 6749 one: there were no
+# credentials, and the interactive sign-in that would have got some cannot run.
+# Never sent to a server and never received from one.
+INTERACTIVE_SIGN_IN_UNAVAILABLE = "interactive_sign_in_unavailable"
+
 # RFC 6749 section 5.2 error codes, plus access_denied and expired_token from
 # the device-code and authorization-code flows.
 _OAUTH_ERROR_TO_EXCEPTION = {
@@ -106,6 +127,8 @@ _OAUTH_ERROR_TO_EXCEPTION = {
     'invalid_request': ERClientBadRequest,
     'unsupported_grant_type': ERClientBadRequest,
     'invalid_scope': ERClientBadRequest,
+    # Ours, not the wire's.
+    INTERACTIVE_SIGN_IN_UNAVAILABLE: ERClientBadCredentials,
 }
 
 # Only consulted when the body carries no OAuth error code.

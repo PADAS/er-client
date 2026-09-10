@@ -3,6 +3,8 @@
 Pure functions only -- the clients own the HTTP. An EarthRanger site serves
 ``/.well-known/oauth-protected-resource`` unauthenticated.
 """
+import base64
+import binascii
 import json
 from dataclasses import dataclass
 from urllib.parse import urlparse, urlunparse
@@ -135,3 +137,46 @@ def normalize_issuer(issuer):
     return urlunparse((parsed.scheme.lower(), netloc,
                        _without_trailing_slash(parsed.path),
                        parsed.params, parsed.query, parsed.fragment))
+
+
+def looks_like_jwt(token):
+    """Whether ``token`` is shaped like a JWT: three segments whose header
+    decodes to a JSON object with an ``alg``. Never raises."""
+    if not isinstance(token, str):
+        return False
+    segments = token.split('.') if token else []
+    if len(segments) != 3 or not all(segments):
+        return False
+
+    try:
+        header = json.loads(_decode_segment(segments[0]))
+    except (ValueError, binascii.Error):
+        return False
+
+    return isinstance(header, dict) and 'alg' in header
+
+
+def _decode_segment(segment):
+    """One base64url JWT segment, with the padding a JWT strips put back."""
+    return base64.urlsafe_b64decode(segment + '=' * (-len(segment) % 4))
+
+
+def jwt_issuer(token):
+    """The token's ``iss`` claim, or None if there is not a usable one.
+
+    Read, not trusted: nothing verifies the signature. A forged ``iss`` can
+    only make this client decline to send a token it was handed, so reading it
+    unverified costs nothing. Never raises.
+    """
+    if not looks_like_jwt(token):
+        return None
+
+    try:
+        payload = json.loads(_decode_segment(token.split('.')[1]))
+    except (ValueError, binascii.Error):
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+    issuer = payload.get('iss')
+    return issuer if isinstance(issuer, str) and issuer else None
