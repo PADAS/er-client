@@ -109,6 +109,11 @@ class FakeServer:
     def calls(self):
         return [(call.method, call.url) for call in self.traffic]
 
+    @property
+    def posts(self):
+        """Every POST, in order: the auth traffic without the discovery GETs."""
+        return [call for call in self.traffic if call.method == "POST"]
+
     def reply_to(self, method, url, data=None, headers=None, timeout=None):
         # Lowercased, since httpx hands header names back that way and
         # requests hands back what the client passed.
@@ -238,6 +243,17 @@ def client(request, server):
             loop.run_until_complete(adapter._client.close())
         loop.close()
     backend.stop()
+
+
+@pytest.fixture(autouse=True)
+def discovery_not_served(server, discovery_url):
+    """Default every test here to a site that serves no discovery document.
+
+    A password grant now discovers before it posts, and a 404 is the answer
+    that leaves the grant exactly as it was. A test about discovery registers
+    its own route over this one.
+    """
+    server.respond("GET", discovery_url, 404, text="")
 
 
 @pytest.fixture

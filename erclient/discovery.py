@@ -180,3 +180,28 @@ def jwt_issuer(token):
         return None
     issuer = payload.get('iss')
     return issuer if isinstance(issuer, str) and issuer else None
+
+
+def credential_site_mismatch(*, metadata, service_root):
+    """Why a username/password grant cannot work at this site, or None.
+
+    Only a site that has dropped its own issuer is refused: while it still
+    lists one, legacy credentials can work, and a refusal here would break a
+    caller the site still serves. No metadata means no opinion.
+    """
+    if metadata is None or not metadata.authorization_servers:
+        return None
+
+    has_das, has_external = classify_authorization_servers(
+        metadata, service_root)
+    if not has_external or has_das:
+        return None
+
+    return (
+        f"Site {service_root} accepts only Auth0-issued tokens, so "
+        "username/password login against its legacy token endpoint cannot "
+        "work: the token endpoint may still issue a token, but every API "
+        "request would be rejected. Pass an Auth0-issued access token with "
+        "token=, or construct the client with no credentials and call login() "
+        "to sign in interactively."
+    )

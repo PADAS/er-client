@@ -31,9 +31,10 @@ from .device_code import (DEFAULT_SCOPE, DEVICE_CODE_GRANT,
                           parse_authorization_server_metadata,
                           parse_device_authorization, parse_token_response,
                           select_authorization_server)
-from .discovery import (discovery_url, jwt_issuer, normalize_issuer,
-                        parse_protected_resource_metadata)
-from .er_errors import (INTERACTIVE_SIGN_IN_UNAVAILABLE, AuthError,
+from .discovery import (credential_site_mismatch, discovery_url, jwt_issuer,
+                        normalize_issuer, parse_protected_resource_metadata)
+from .er_errors import (CREDENTIAL_SITE_MISMATCH,
+                        INTERACTIVE_SIGN_IN_UNAVAILABLE, AuthError,
                         ERClientBadCredentials, ERClientBadRequest,
                         ERClientException, ERClientInternalError,
                         ERClientNotFound, ERClientPermissionDenied,
@@ -605,11 +606,38 @@ class ERClient(_AuthSupport):
                                                 self.auth['access_token']),
                 'Accept-Type': 'application/json'}
 
+    def _refuse_password_grant(self):
+        """Whether to refuse the password grant outright, and record why.
+
+        login() only returns a bool, so the reason goes on the recorded auth
+        error for _raise_login_failed() to turn into the exception.
+        """
+        message = credential_site_mismatch(
+            metadata=self._protected_resource_metadata,
+            service_root=self.service_root)
+        if not message:
+            return False
+
+        self._last_auth_error = AuthError.client_refusal(
+            message, error=CREDENTIAL_SITE_MISMATCH, url=self.token_url,
+            grant_type='password')
+        self._clear_auth()
+        return True
+
     def _raise_login_failed(self):
-        """Raise the exception class the token endpoint's last refusal implies."""
+        """Raise the exception class the last refusal implies.
+
+        A refusal we made ourselves already carries the whole explanation, so
+        it becomes the message; a server's refusal is summarized as a login
+        failure, with its status and body attached for the detail.
+        """
         auth_error = self._last_auth_error
+        message = 'Login failed.'
+        if auth_error and auth_error.error in (CREDENTIAL_SITE_MISMATCH,
+                                               INTERACTIVE_SIGN_IN_UNAVAILABLE):
+            message = auth_error.error_description
         raise classify_token_error(auth_error)(
-            message='Login failed.',
+            message=message,
             status_code=auth_error.status_code if auth_error else None,
             response_body=auth_error.response_body if auth_error else None,
             retry_after=auth_error.retry_after if auth_error else None,
@@ -629,6 +657,14 @@ class ERClient(_AuthSupport):
     def login(self):
         if self._uses_device_code():
             return self._device_code_login()
+
+        # Refetched on every login rather than cached: a login is rare enough
+        # that one extra GET is cheap, and a site that migrates mid-process is
+        # then noticed at the next one.
+        if self._discovery_enabled:
+            self.discover()
+            if self._refuse_password_grant():
+                return False
 
         payload = {'grant_type': 'password',
                    'username': self.username,
@@ -2187,9 +2223,33 @@ class AsyncERClient(_AuthSupport):
             }
         )
 
+    def _refuse_password_grant(self):
+        """Raise if the password grant cannot work at this site, recording why.
+
+        Unlike the sync client's bool-returning login(), this one already
+        raises on failure, so the refusal raises straight out of it. The
+        request wrappers catch httpx.HTTPStatusError, not this.
+        """
+        message = credential_site_mismatch(
+            metadata=self._protected_resource_metadata,
+            service_root=self.service_root)
+        if not message:
+            return
+
+        self._last_auth_error = AuthError.client_refusal(
+            message, error=CREDENTIAL_SITE_MISMATCH, url=self.token_url,
+            grant_type='password')
+        self._clear_auth()
+        raise ERClientBadCredentials(message)
+
     async def login(self):
         if self._uses_device_code():
             return await self._device_code_login()
+
+        # Refetched on every login, as in the sync client.
+        if self._discovery_enabled:
+            await self.discover()
+            self._refuse_password_grant()
 
         return await self._token_request(
             payload={

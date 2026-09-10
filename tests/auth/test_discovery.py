@@ -91,17 +91,7 @@ class TestWhatItForgives:
 
 
 class TestNothingElseAsksForIt:
-    """Discovery is available, not wired in: no existing path fetches it."""
-
-    def test_a_password_grant_login_does_not_discover(
-            self, client, server, ropc_kwargs, default_token_url,
-            token_response):
-        server.respond("POST", default_token_url, json_body=token_response)
-        client.make(**ropc_kwargs)
-
-        client.auth_headers()
-
-        assert server.calls == [("POST", default_token_url)]
+    """A caller who brought their own token never discovers."""
 
     def test_a_supplied_token_does_not_discover(self, client, server,
                                                 token_kwargs):
