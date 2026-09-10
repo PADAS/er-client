@@ -15,7 +15,7 @@ The earthranger-client (er-client) is a Python library for accessing the EarthRa
 
 ## Quick Start
 
-See `docs/examples/simple-example.py` for a full sync example (pulse, subjects, tracks, create event, attach file, query events).
+See `docs/examples/simple-example.py` for a full sync example (pulse, subjects, tracks, create event, attach file, query events). See `docs/examples/interactive-example.py` for signing in as yourself from a terminal or notebook, with no credentials in the script.
 
 ## Installation
 
@@ -34,23 +34,90 @@ pip install earthranger-client
 
 Both clients take the same constructor arguments, apart from two async-only timeouts (see "Constructor arguments" below). The async client supports a subset of the sync client's endpoints (see "Async client scope" below).
 
-## Sync client (ERClient)
+## Authentication
 
-Import and construct with `service_root` and either username/password (+ `client_id`) or a bearer `token`:
+EarthRanger sites are moving from their own token endpoint to Auth0. There are three ways to authenticate, and how far a site has got decides which of them it still accepts.
+
+| You are | Use | Notes |
+|---|---|---|
+| a person at a keyboard, notebook, or shell | no credentials, then `login()` | Signs you in through your browser. The token lasts about two days and is not refreshed; call `login()` again when it expires. |
+| automation holding an Auth0-issued token | `token=` | Used as it is; nothing is fetched from the token endpoint. |
+| an existing integration with a username and password | `username`, `password`, `client_id` | The legacy password grant. Refused once the site accepts only Auth0-issued tokens. |
+
+Sign in as yourself:
 
 ```python
 from erclient import ERClient
 
-# Username/password (client_id required)
+client = ERClient(service_root="https://sandbox.pamdas.org")
+client.login()
+```
+
+```
+You are about to authorize the EarthRanger Python Client to access https://sandbox.pamdas.org as your user.
+Open https://auth.pamdas.org/activate?user_code=WDJB-MJHT in a browser and confirm that it shows the code WDJB-MJHT.
+Waiting for approval...
+```
+
+Approve it in the browser and `login()` returns; the client holds the token from then on.
+
+Use an Auth0-issued token you already hold:
+
+```python
+client = ERClient(service_root="https://sandbox.pamdas.org", token="your_bearer_token")
+```
+
+Use a username and password, the legacy path:
+
+```python
 client = ERClient(
     service_root="https://sandbox.pamdas.org",
     client_id="example_client_id",
     username="your_username",
     password="your_password",
+)
+```
+
+`AsyncERClient` takes the same arguments and behaves the same way in all three cases; with no credentials, `await client.login()`.
+
+### Signing in interactively
+
+A client built with no `token`, `username`, `password` or `client_id` signs the user in with the device-authorization grant ([RFC 8628](https://www.rfc-editor.org/rfc/rfc8628.html)) instead of posting a password grant. Any one of those four with a non-empty value keeps the old path; an empty string or `None` counts as absent, so a client built from unset environment variables signs in interactively rather than posting a password grant of nothing.
+
+Which authorization server it signs in against comes from the site: `{service_root}/.well-known/oauth-protected-resource` ([RFC 9728](https://www.rfc-editor.org/rfc/rfc9728.html)) lists the servers it accepts, and the client takes the first one it holds a registration for, then reads that tenant's own `/.well-known/openid-configuration` for the endpoints. Pass `open_browser=True` to have the verification URL opened for you as well as printed; the prompt itself goes to stderr, so a script whose stdout is piped stays clean.
+
+The token carries **no refresh token**, so it simply expires after roughly two days — call `login()` again. An explicit `login()` always proceeds, including in a notebook, which reports no terminal on stdin. An *implicit* one does not: when a request method finds no token, or an expired one, and stdin is not a terminal, it raises `ERClientBadCredentials` telling you to call `login()` where you can see the prompt or to pass `token=`. Printing a code into a log nobody is reading and then polling until it expires helps no one.
+
+`discovery=False` switches off the metadata fetch. A client with credentials then behaves exactly as it did before this release; a client with none cannot sign in at all, having nowhere to sign in against. `client.discover()` still works either way.
+
+### When sign-in fails
+
+Unlike the password grant, a zero-argument `login()` raises on both clients rather than returning `False`.
+
+| What happened | Exception |
+|---|---|
+| the code expired before it was approved, or the sign-in was declined | `ERClientBadCredentials` |
+| the site serves no usable discovery document, or lists no Auth0 tenant this release knows | `ERClientBadCredentials` |
+| an implicit sign-in, with no terminal to show the prompt on | `ERClientBadCredentials` |
+| the site accepts only Auth0-issued tokens and you supplied a username and password | `ERClientBadCredentials` — except sync `login()`, which returns `False`; `auth_headers()` then raises it |
+| the authorization server would not describe itself, or answered with something the client could not use | `ERClientServiceUnreachable` |
+
+Any other refusal from a token endpoint is classified by the OAuth `error` code in the body rather than by HTTP status, which token endpoints use inconsistently: `invalid_grant`, `invalid_client`, `unauthorized_client`, `access_denied` and `expired_token` give `ERClientBadCredentials`; `invalid_request`, `unsupported_grant_type` and `invalid_scope` give `ERClientBadRequest`; a body carrying no OAuth error falls back to the status (401, 400, 429, 500, 502/503/504 in that order of specificity); anything else is `ERClientException`. Those carry the message `Login failed.` with `exc.status_code` and `exc.response_body` set, plus `exc.retry_after` in seconds when the endpoint sent a `Retry-After` header.
+
+A network failure while talking to the authorization server propagates as the HTTP library's own exception (`requests.RequestException`, or `httpx.RequestError` on the async client), except on the metadata fetch, which arrives as `ERClientServiceUnreachable`.
+
+## Sync client (ERClient)
+
+Import and construct with `service_root` and one of the three ways to authenticate above; the examples here use a token:
+
+```python
+from erclient import ERClient
+
+client = ERClient(
+    service_root="https://sandbox.pamdas.org",
+    token="your_bearer_token",
     provider_key="your_provider_key",  # only needed for sensor / camera-trap posts
 )
-# Or with a bearer token
-client = ERClient(service_root="https://sandbox.pamdas.org", token="your_bearer_token")
 ```
 
 Common patterns:
@@ -104,9 +171,7 @@ from erclient import AsyncERClient
 async def main():
     async with AsyncERClient(
         service_root="https://sandbox.pamdas.org",
-        client_id="example_client_id",
-        username="your_username",
-        password="your_password",
+        token="your_bearer_token",
         provider_key="your_provider_key",  # only needed for sensor / camera-trap posts
     ) as client:
         # Single-item calls: await
@@ -133,7 +198,7 @@ Without a context manager, create the client and call `await client.close()` whe
 
 ```python
 async def main():
-    client = AsyncERClient(service_root="...", client_id="...", username="...", password="...")
+    client = AsyncERClient(service_root="...", token="...")
     try:
         await client.post_report(report)
         async for obs in client.get_observations(start="2023-11-10T00:00:00-06:00"):
@@ -166,17 +231,20 @@ Unrecognised keywords are silently ignored rather than rejected, so a typo such 
 | Argument | Default | Notes |
 |---|---|---|
 | `service_root` | `None` | Base URL, e.g. `https://sandbox.pamdas.org`. A full API root is also accepted: any `/api/...` suffix is stripped, so passing `.../api/v2.0` does **not** select v2.0. |
-| `client_id` | `None` | Required for username/password auth. |
-| `username`, `password` | `None` | Use together with `client_id`, or pass `token` instead. |
-| `token` | `None` | Bearer token. Skips the OAuth2 password grant entirely. |
+| `token` | `None` | Bearer token, ideally Auth0-issued. Nothing is fetched from the token endpoint. Takes precedence over username/password. |
+| `client_id` | `None` | Required for the legacy username/password grant. Its presence selects that grant even without a username or password. |
+| `username`, `password` | `None` | The legacy password grant; use together with `client_id`. |
+| `token_url` | `{service_root}/oauth2/token` | Override only if the site's token endpoint differs. Password grant only. |
+| `discovery` | `True` | Whether the client may fetch the site's protected-resource metadata. See "Signing in interactively" under Authentication. |
+| `open_browser` | `False` | Also open the verification URL with `webbrowser.open()`. Interactive sign-in only; a browser that will not open is logged at DEBUG and ignored, since the URL was printed either way. |
 | `provider_key` | `None` | Required for sensor and camera-trap posts; it becomes a path segment. |
-| `token_url` | `{service_root}/oauth2/token` | Override only if the auth endpoint differs. |
 | `max_http_retries` | `5` | Connection-level retries. **Effective on async only** — the sync client accepts and stores it but never uses it; sync retry behavior is fixed (5 session-level retries on 502, plus per-request retries in GETs). |
 | `realtime_url` | `None` | Accepted and stored, but unused by this library. |
 | `connect_timeout` | `3.1` | Seconds. **Async only.** |
 | `data_timeout` | `20` | Seconds. **Async only.** |
 
-Use either `token`, or `client_id` + `username` + `password`.
+Use either `token`, or `client_id` + `username` + `password`, or nothing at all and
+`login()`; see "Authentication" above. `open_browser` applies only to that last case.
 
 ## API versions
 
@@ -235,7 +303,7 @@ Behaviors that are **not** shared, despite the common signatures above:
 | `get_observations` `page_size` default | 10000 | 100 |
 | HTTP 409 / 429 | plain `ERClientException` | `ERClientRateLimitExceeded`, with `retry_after` |
 | HTTP error → exception subclass | only 403 / 404 are consistent; other codes often raise plain `ERClientException`, and 401 / 502 / 504 vary by method | common statuses (400, 401, 403, 404, 409, 429, 500, 502, 503, 504) mapped to subclasses; others raise plain `ERClientException` |
-| `exc.status_code` / `exc.response_body` / `exc.retry_after` | never set (always `None`); the status is recoverable only from the exception type, or from the message text for unmapped codes | populated on every HTTP error |
+| `exc.status_code` / `exc.response_body` / `exc.retry_after` | never set (always `None`) for API errors; the status is recoverable only from the exception type, or from the message text for unmapped codes. Login failures are the exception: `status_code` and `response_body` are set, and `retry_after` when the token endpoint sent the header | populated on every HTTP error |
 | Helpers only on one client | `get_subject`, `get_source_by_id`, `get_sources`, `get_subjects`, `pulse` | `get_feature_group`, `get_source_subjects`, `get_source_assignments` |
 
 ## Best practices
