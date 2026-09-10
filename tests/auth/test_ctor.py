@@ -137,8 +137,8 @@ class TestPasswordGrant:
 
         client.auth_headers()
 
-        assert server.calls == [("POST", default_token_url)]
-        assert server.traffic[0].data == {
+        assert [call.url for call in server.posts] == [default_token_url]
+        assert server.posts[0].data == {
             "grant_type": "password",
             "username": ropc_kwargs["username"],
             "password": ropc_kwargs["password"],
@@ -154,7 +154,7 @@ class TestPasswordGrant:
 
         client.auth_headers()
 
-        assert server.calls == [("POST", custom_token_url)]
+        assert [call.url for call in server.posts] == [custom_token_url]
 
     @pytest.mark.parametrize("expires_in", [3600, "3600"])
     def test_the_whole_response_is_stored_with_a_derived_expiry(
@@ -194,7 +194,7 @@ class TestPasswordGrant:
         client.auth_headers()
         client.auth_headers()
 
-        assert len(server.traffic) == 1
+        assert len(server.posts) == 1
 
     def test_an_expired_token_is_refreshed_without_a_password_grant(
             self, client, server, ropc_kwargs, default_token_url,
@@ -210,7 +210,7 @@ class TestPasswordGrant:
         client._client.auth_expires = pytz.utc.localize(datetime.min)
         headers = client.auth_headers()
 
-        assert server.traffic[1].data == {
+        assert server.posts[1].data == {
             "grant_type": "refresh_token",
             "refresh_token": "refresh-token-1",
             "client_id": ropc_kwargs["client_id"],
@@ -234,7 +234,7 @@ class TestPasswordGrant:
         if client.kind == "sync":
             headers = client.auth_headers()
 
-            assert [call.data["grant_type"] for call in server.traffic] == [
+            assert [call.data["grant_type"] for call in server.posts] == [
                 "password", "refresh_token", "password"]
             assert headers["Authorization"] == "Bearer access-token-3"
         else:
@@ -258,7 +258,7 @@ class TestPasswordGrant:
         client._client.auth_expires = pytz.utc.localize(datetime.min)
         headers = client.auth_headers()
 
-        assert [call.data["grant_type"] for call in server.traffic] == [
+        assert [call.data["grant_type"] for call in server.posts] == [
             "password", "password"]
         assert headers["Authorization"] == "Bearer access-token-2"
 
@@ -271,7 +271,7 @@ class TestPasswordGrant:
         client.login()
 
         assert client.call(client.refresh_token) is False
-        assert len(server.traffic) == 1
+        assert len(server.posts) == 1
         assert client.auth == body
 
     def test_auth_is_valid_tracks_the_recorded_expiry(self, client,

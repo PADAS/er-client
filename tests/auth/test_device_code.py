@@ -139,7 +139,7 @@ class TestWhichFlowIsSelected:
         client.make(service_root=service_root, client_id="das_web_client")
 
         assert client.login() is True
-        assert server.traffic[0].data["grant_type"] == "password"
+        assert server.posts[0].data["grant_type"] == "password"
 
 
 class TestTheHappyPath:

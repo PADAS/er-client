@@ -111,9 +111,13 @@ class ERClientNotFound(ERClientException):
     pass
 
 
-# A client-side pseudo error code, not an RFC 6749 one: there were no
-# credentials, and the interactive sign-in that would have got some cannot run.
-# Never sent to a server and never received from one.
+# A client-side pseudo error code, not an RFC 6749 one: the client refused the
+# credentials itself, because the site's discovery document says they cannot
+# work. Never sent to a server and never received from one.
+CREDENTIAL_SITE_MISMATCH = "credential_site_mismatch"
+
+# The other client-side pseudo code: there were no credentials, and the
+# interactive sign-in that would have got some cannot run.
 INTERACTIVE_SIGN_IN_UNAVAILABLE = "interactive_sign_in_unavailable"
 
 # RFC 6749 section 5.2 error codes, plus access_denied and expired_token from
@@ -128,6 +132,7 @@ _OAUTH_ERROR_TO_EXCEPTION = {
     'unsupported_grant_type': ERClientBadRequest,
     'invalid_scope': ERClientBadRequest,
     # Ours, not the wire's.
+    CREDENTIAL_SITE_MISMATCH: ERClientBadCredentials,
     INTERACTIVE_SIGN_IN_UNAVAILABLE: ERClientBadCredentials,
 }
 
