@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 import pytz
-import requests
 from tests.auth.conftest import Reply
 
 from erclient.er_errors import ERClientException
@@ -48,6 +47,7 @@ class TestConstruction:
         assert client.username is None
         assert client.password is None
         assert client.client_id is None
+        assert client.token is None
         assert client.auth is None
 
 
@@ -312,9 +312,8 @@ class TestARefusedLogin:
 
 
 class TestNoCredentials:
-    """Nothing was supplied, so a password grant of nothing is posted."""
 
-    def test_posts_a_password_grant_with_no_credentials_in_it(
+    def test_the_site_is_no_longer_asked_to_authenticate_nobody(
             self, client, server, service_root, default_token_url):
         server.respond("POST", default_token_url, 401, text="nope")
         client.make(service_root=service_root)
@@ -322,14 +321,10 @@ class TestNoCredentials:
         with pytest.raises((ERClientException, httpx.HTTPStatusError)):
             client.auth_headers()
 
-        # wart: nothing to authenticate with, and the site is asked anyway.
-        assert server.traffic[0].data == {"grant_type": "password"}
-
-    def test_requests_drops_the_none_valued_fields_the_payload_above_relies_on(
-            self, default_token_url):
-        prepared = requests.Request(
-            "POST", default_token_url,
-            data={"grant_type": "password", "username": None,
-                  "password": None, "client_id": None}).prepare()
-
-        assert prepared.body == "grant_type=password"
+        if client.kind == "sync":
+            # The sync client signs the user in instead; see
+            # test_device_code.py. Here there is no terminal, so it says so.
+            assert server.traffic == []
+        else:
+            # wart until the async client joins it.
+            assert server.traffic[0].data == {"grant_type": "password"}
