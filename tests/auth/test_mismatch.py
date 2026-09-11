@@ -6,7 +6,7 @@ from datetime import datetime
 
 import pytest
 import pytz
-from tests.auth.conftest import Reply
+from tests.auth.conftest import Reply, auth_warnings
 
 from erclient.er_errors import ERClientBadCredentials
 
@@ -97,19 +97,21 @@ class TestASiteThatOnlyAcceptsAuth0Tokens:
 
 class TestASiteThatCanStillHonourIt:
 
-    @pytest.mark.parametrize("published", [
-        ("https://fake-site.erdomain.org/oauth2",),
-        ("https://fake-site.erdomain.org/oauth2", AUTH0_ISSUER),
-        (),
+    @pytest.mark.parametrize("published,deprecated", [
+        (("https://fake-site.erdomain.org/oauth2",), False),
+        (("https://fake-site.erdomain.org/oauth2", AUTH0_ISSUER), True),
+        ((), False),
     ])
     def test_the_grant_is_posted_as_before(self, client, server, ropc_kwargs,
                                            publishes, default_token_url,
-                                           token_response, published):
+                                           token_response, recwarn, published,
+                                           deprecated):
         publishes(*published)
         server.respond("POST", default_token_url, json_body=token_response)
         client.make(**ropc_kwargs)
 
         assert client.login() is True
+        assert bool(auth_warnings(recwarn.list)) is deprecated
 
     def test_a_site_serving_no_document_is_no_evidence(self, client, server,
                                                        ropc_kwargs,

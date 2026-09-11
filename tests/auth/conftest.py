@@ -14,6 +14,7 @@ import respx
 
 from erclient.client import AsyncERClient, ERClient
 from erclient.discovery import DISCOVERY_PATH
+from erclient.er_errors import ERClientAuthWarning
 
 # Both clients, unless a module names fewer in its own CLIENT_KINDS.
 CLIENT_KINDS = ("sync", "async")
@@ -54,6 +55,11 @@ class Reply:
 
 
 Call = namedtuple("Call", "method url data headers timeout")
+
+
+def auth_warnings(recorded):
+    """Only this client's auth warnings, ignoring anything else the run emits."""
+    return [w for w in recorded if issubclass(w.category, ERClientAuthWarning)]
 
 
 def _form(data):
