@@ -178,6 +178,16 @@ class _AuthSupport:
         self._auth_warnings_issued = set()
         self._discovery_done_for_token_mode = False
 
+        if self.token and (self.username or self.password):
+            # Warned about rather than refused: callers pass both today, and
+            # the token has always won.
+            message = ('Both token= and username/password were supplied; '
+                       'token= takes precedence and the username/password '
+                       'are ignored.')
+            self.logger.warning(message)
+            # Two frames up is the constructor, three is whoever called it.
+            warnings.warn(message, ERClientAuthWarning, stacklevel=3)
+
     def _warn_if_the_site_does_not_list_the_token(self, mode, *, stacklevel):
         """Warn once per client if the site's document does not list the token.
 
