@@ -188,6 +188,23 @@ class _AuthSupport:
             # Two frames up is the constructor, three is whoever called it.
             warnings.warn(message, ERClientAuthWarning, stacklevel=3)
 
+    @property
+    def last_auth_error(self):
+        """Why the last login was refused, or None if none has been.
+
+        Where a caller reads a reason the return value does not carry: the
+        sync login() and refresh_token() only return a bool, and their async
+        twins raise httpx.HTTPStatusError for a refused password grant, which
+        the request wrappers classify but a direct caller sees raw. Cleared by
+        the next successful token request.
+        """
+        return self._last_auth_error
+
+    @property
+    def protected_resource_metadata(self):
+        """What the most recent discover() found, or None."""
+        return self._protected_resource_metadata
+
     def _warn_if_the_site_does_not_list_the_token(self, mode, *, stacklevel):
         """Warn once per client if the site's document does not list the token.
 

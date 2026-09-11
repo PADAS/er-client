@@ -90,8 +90,8 @@ class TestASiteThatOnlyAcceptsAuth0Tokens:
             client.login()
 
         assert client.auth is None
-        assert client._last_auth_error.error == "credential_site_mismatch"
-        assert client._last_auth_error.grant_type == "password"
+        assert client.last_auth_error.error == "credential_site_mismatch"
+        assert client.last_auth_error.grant_type == "password"
 
 
 class TestATokenTheSiteDoesNotList:
@@ -138,7 +138,7 @@ class TestATokenTheSiteDoesNotList:
             client.auth_headers()
 
         # Nothing was refused, so there is no refusal to report.
-        assert client._last_auth_error is None
+        assert client.last_auth_error is None
 
     def test_it_is_said_once_however_many_requests_follow(
             self, client, server, discovery_url, token_kwargs, publishes):

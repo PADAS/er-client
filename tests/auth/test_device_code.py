@@ -505,7 +505,7 @@ class TestThereIsNoTenantToSignInAgainst:
             client.login()
 
         assert client.auth is None
-        assert client._last_auth_error.error == "interactive_sign_in_unavailable"
+        assert client.last_auth_error.error == "interactive_sign_in_unavailable"
 
 
 class TestThePrompt:

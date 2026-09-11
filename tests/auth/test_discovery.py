@@ -26,13 +26,20 @@ class TestWhatItFetches:
         assert metadata.authorization_servers == (
             f"{service_root}/oauth2", "https://auth-dev.pamdas.org")
 
-    def test_keeps_what_it_found(self, client, server, service_root,
-                                 discovery_url, discovery_document):
+    def test_keeps_what_it_found_where_a_caller_can_read_it(
+            self, client, server, service_root, discovery_url,
+            discovery_document):
         server.respond("GET", discovery_url, json_body=discovery_document)
         client.make(service_root=service_root)
 
         assert client.call(
-            client.discover) is client._protected_resource_metadata
+            client.discover) is client.protected_resource_metadata
+
+    def test_nothing_has_been_found_before_the_first_look(self, client,
+                                                          service_root):
+        client.make(service_root=service_root)
+
+        assert client.protected_resource_metadata is None
 
     def test_a_site_with_no_url_to_ask_is_not_asked(self, client, server):
         client.make()
@@ -87,7 +94,7 @@ class TestWhatItForgives:
 
         assert client.call(client.discover) is not None
         assert client.call(client.discover) is None
-        assert client._protected_resource_metadata is None
+        assert client.protected_resource_metadata is None
 
 
 class TestDiscoveryCanBeTurnedOff:
