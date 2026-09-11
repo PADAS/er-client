@@ -33,7 +33,7 @@ from .device_code import (DEFAULT_SCOPE, DEVICE_CODE_GRANT,
                           select_authorization_server)
 from .discovery import (classify_authorization_servers,
                         credential_site_mismatch, discovery_url, jwt_issuer,
-                        legacy_auth_warning, normalize_issuer,
+                        legacy_auth_warning, looks_like_jwt, normalize_issuer,
                         parse_protected_resource_metadata)
 from .er_errors import (CREDENTIAL_SITE_MISMATCH,
                         INTERACTIVE_SIGN_IN_UNAVAILABLE, AuthError,
@@ -176,8 +176,34 @@ class _AuthSupport:
         self.token = kwargs.get('token')
         self._open_browser = kwargs.get('open_browser', False)
         self._auth_warnings_issued = set()
+        self._discovery_done_for_token_mode = False
 
-    def _warn_if_legacy_auth(self, *, stacklevel):
+    def _warn_if_the_site_does_not_list_the_token(self, mode, *, stacklevel):
+        """Warn once per client if the site's document does not list the token.
+
+        A warning rather than a refusal: the document can lag what the API
+        actually honours, and the server is the authority on its own tokens.
+        The caller gets the explanation before the 401, not instead of it.
+        """
+        self._emit_auth_warning(credential_site_mismatch(
+            metadata=self._protected_resource_metadata,
+            service_root=self.service_root, mode=mode,
+            token_issuer=jwt_issuer(self.token) if mode == 'jwt_token'
+            else None), stacklevel=stacklevel)
+
+    def _emit_auth_warning(self, message, *, stacklevel):
+        """Say it once per client, to the log and to warnings.
+
+        ``stacklevel`` is counted from the caller's caller, so this frame adds
+        its own rather than making every call site know it is here.
+        """
+        if not message or message in self._auth_warnings_issued:
+            return
+        self._auth_warnings_issued.add(message)
+        self.logger.warning(message)
+        warnings.warn(message, ERClientAuthWarning, stacklevel=stacklevel + 1)
+
+    def _warn_if_legacy_auth(self, mode, *, stacklevel):
         """Warn once per client if these credentials are legacy for this site."""
         metadata = self._protected_resource_metadata
         if metadata is None:
@@ -185,13 +211,9 @@ class _AuthSupport:
 
         has_das, has_external = classify_authorization_servers(
             metadata, self.service_root)
-        message = legacy_auth_warning(
+        self._emit_auth_warning(legacy_auth_warning(
             service_root=self.service_root, has_das=has_das,
-            has_external=has_external)
-        if message and message not in self._auth_warnings_issued:
-            self._auth_warnings_issued.add(message)
-            self.logger.warning(message)
-            warnings.warn(message, ERClientAuthWarning, stacklevel=stacklevel)
+            has_external=has_external, mode=mode), stacklevel=stacklevel)
 
     def _uses_device_code(self):
         """Whether this client has to sign a user in to get a token.
@@ -601,7 +623,28 @@ class ERClient(_AuthSupport):
         return self._poll_for_device_code_token(
             server, token_endpoint, authorization)
 
+    def _discover_for_token_mode(self):
+        """Discover once, on the first use of a caller-supplied token.
+
+        A caller who brought their own token never calls login(), so this is
+        the only path left that can tell them it is wrong for the site.
+        """
+        if (not self._discovery_enabled
+                or self._discovery_done_for_token_mode
+                or not self.token):
+            return
+
+        # Marked done after the fetch, not before: a second caller arriving
+        # while the first is still waiting on discovery then repeats the fetch
+        # rather than skipping the check and sending the token anyway.
+        self.discover()
+        self._discovery_done_for_token_mode = True
+        mode = 'jwt_token' if looks_like_jwt(self.token) else 'opaque_token'
+        self._warn_if_the_site_does_not_list_the_token(mode, stacklevel=4)
+        self._warn_if_legacy_auth(mode, stacklevel=4)
+
     def auth_headers(self):
+        self._discover_for_token_mode()
 
         # An implicit sign-in needs someone to read the prompt. Without a
         # terminal, say so before any request rather than printing a code into
@@ -637,7 +680,7 @@ class ERClient(_AuthSupport):
         """
         message = credential_site_mismatch(
             metadata=self._protected_resource_metadata,
-            service_root=self.service_root)
+            service_root=self.service_root, mode='password')
         if not message:
             return False
 
@@ -688,7 +731,7 @@ class ERClient(_AuthSupport):
             self.discover()
             if self._refuse_password_grant():
                 return False
-            self._warn_if_legacy_auth(stacklevel=3)
+            self._warn_if_legacy_auth('password', stacklevel=3)
 
         payload = {'grant_type': 'password',
                    'username': self.username,
@@ -2212,7 +2255,27 @@ class AsyncERClient(_AuthSupport):
         return await self._poll_for_device_code_token(
             server, token_endpoint, authorization)
 
+    async def _discover_for_token_mode(self):
+        """Discover once, on the first use of a caller-supplied token.
+
+        A caller who brought their own token never calls login(), so this is
+        the only path left that can tell them it is wrong for the site.
+        """
+        if (not self._discovery_enabled
+                or self._discovery_done_for_token_mode
+                or not self.token):
+            return
+
+        # Marked done after the fetch, not before, as in the sync client.
+        await self.discover()
+        self._discovery_done_for_token_mode = True
+        mode = 'jwt_token' if looks_like_jwt(self.token) else 'opaque_token'
+        self._warn_if_the_site_does_not_list_the_token(mode, stacklevel=4)
+        self._warn_if_legacy_auth(mode, stacklevel=4)
+
     async def auth_headers(self):
+        await self._discover_for_token_mode()
+
         # An implicit sign-in needs someone to read the prompt. Without a
         # terminal, say so before any request rather than printing a code into
         # a log and polling until it expires.
@@ -2260,7 +2323,7 @@ class AsyncERClient(_AuthSupport):
         """
         message = credential_site_mismatch(
             metadata=self._protected_resource_metadata,
-            service_root=self.service_root)
+            service_root=self.service_root, mode='password')
         if not message:
             return
 
@@ -2278,7 +2341,7 @@ class AsyncERClient(_AuthSupport):
         if self._discovery_enabled:
             await self.discover()
             self._refuse_password_grant()
-            self._warn_if_legacy_auth(stacklevel=3)
+            self._warn_if_legacy_auth('password', stacklevel=3)
 
         return await self._token_request(
             payload={

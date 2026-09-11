@@ -1,6 +1,7 @@
 """Fixtures for the auth tests: one client adapter and one fake server, both
 covering the sync and the async client so a behavior is asserted once."""
 import asyncio
+import base64
 import json
 from collections import namedtuple
 from datetime import datetime, timedelta, timezone
@@ -55,6 +56,17 @@ class Reply:
 
 
 Call = namedtuple("Call", "method url data headers timeout")
+
+
+def jwt_for(issuer):
+    """A JWT-shaped token whose payload really does carry this iss."""
+    def encode(value):
+        return base64.urlsafe_b64encode(
+            json.dumps(value).encode()).decode().rstrip("=")
+
+    return ".".join([encode({"alg": "RS256", "typ": "JWT"}),
+                     encode({"iss": issuer, "sub": "auth0|1"}),
+                     "DUMMY-SIGNATURE"])
 
 
 def auth_warnings(recorded):

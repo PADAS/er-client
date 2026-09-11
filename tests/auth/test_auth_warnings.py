@@ -3,7 +3,7 @@ lists its own token endpoint, so the grant works, but it also lists Auth0."""
 import logging
 
 import pytest
-from tests.auth.conftest import Reply, auth_warnings
+from tests.auth.conftest import Reply, auth_warnings, jwt_for
 
 from erclient import client as client_module
 from erclient.er_errors import ERClientAuthWarning, ERClientBadCredentials
@@ -91,6 +91,47 @@ class TestASiteMidMigration:
         assert len(auth_warnings(record.list)) == 1
 
 
+class TestALegacyTokenAtTheSameSite:
+
+    def test_it_works_and_says_so(self, client, service_root, token_kwargs,
+                                  publishes, das_issuer):
+        publishes(das_issuer, AUTH0_ISSUER)
+        client.make(**token_kwargs)
+
+        with pytest.warns(ERClientAuthWarning) as record:
+            headers = client.auth_headers()
+
+        assert str(record[0].message) == (
+            "The token passed with token= looks like a legacy "
+            f"EarthRanger-issued token. Site {service_root} supports Auth0 "
+            "sign-in, and legacy tokens will stop working when the site "
+            "completes its migration. Use an Auth0-issued access token, or "
+            "construct the client with no credentials and call login() to "
+            "sign in interactively."
+        )
+        assert headers["Authorization"].startswith("Bearer ")
+
+    def test_it_is_said_once_however_many_requests_follow(
+            self, client, token_kwargs, publishes, das_issuer):
+        publishes(das_issuer, AUTH0_ISSUER)
+        client.make(**token_kwargs)
+
+        with pytest.warns(ERClientAuthWarning) as record:
+            for _ in range(3):
+                client.auth_headers()
+
+        assert len(auth_warnings(record.list)) == 1
+
+    def test_an_auth0_token_is_the_destination_not_the_problem(
+            self, client, service_root, publishes, das_issuer, recwarn):
+        publishes(das_issuer, AUTH0_ISSUER)
+        client.make(service_root=service_root, token=jwt_for(AUTH0_ISSUER))
+
+        client.auth_headers()
+
+        assert auth_warnings(recwarn.list) == []
+
+
 class TestWhenThereIsNothingToSay:
 
     def test_a_site_that_lists_only_its_own_issuer(self, logged_in, publishes,
@@ -110,13 +151,30 @@ class TestWhenThereIsNothingToSay:
         assert logged_in.login() is True
         assert auth_warnings(recwarn.list) == []
 
-    def test_a_site_that_has_finished_migrating_is_refused_not_warned(
+    def test_a_password_grant_a_site_can_no_longer_honour_is_refused(
             self, client, server, ropc_kwargs, publishes, recwarn):
         publishes(AUTH0_ISSUER)
         client.make(**ropc_kwargs)
 
         with pytest.raises(ERClientBadCredentials):
             client.auth_headers()
+
+        assert auth_warnings(recwarn.list) == []
+
+    def test_a_legacy_token_while_the_site_lists_only_its_own_issuer(
+            self, client, token_kwargs, publishes, das_issuer, recwarn):
+        publishes(das_issuer)
+        client.make(**token_kwargs)
+
+        client.auth_headers()
+
+        assert auth_warnings(recwarn.list) == []
+
+    def test_a_token_at_a_site_serving_no_document(self, client, token_kwargs,
+                                                   recwarn):
+        client.make(**token_kwargs)
+
+        client.auth_headers()
 
         assert auth_warnings(recwarn.list) == []
 

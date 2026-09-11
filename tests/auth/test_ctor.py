@@ -102,7 +102,7 @@ class TestSuppliedToken:
             "Authorization": f"Bearer {token_kwargs['token']}",
             "Accept-Type": "application/json",
         }
-        assert server.traffic == []
+        assert server.posts == []
 
     def test_it_wins_over_a_username_and_password(self, client, server,
                                                   ropc_kwargs, token_kwargs):
@@ -111,7 +111,7 @@ class TestSuppliedToken:
         headers = client.auth_headers()
 
         assert headers["Authorization"] == f"Bearer {token_kwargs['token']}"
-        assert server.traffic == []
+        assert server.posts == []
         assert client.username == ropc_kwargs["username"]
 
     def test_an_empty_token_is_no_token_at_all(self, client, service_root):

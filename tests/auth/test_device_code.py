@@ -1,11 +1,9 @@
 """Signing a user in with no credentials in hand: RFC 8628 device
 authorization, end to end against a fake site and a fake Auth0 tenant."""
-import base64
-import json
 import logging
 
 import pytest
-from tests.auth.conftest import Reply
+from tests.auth.conftest import Reply, jwt_for
 
 from erclient.device_code import KNOWN_AUTHORIZATION_SERVERS
 from erclient.er_errors import (ERClientBadCredentials, ERClientBadRequest,
@@ -20,17 +18,6 @@ TOKEN_ENDPOINT = f"{ISSUER}/oauth/token"
 USER_CODE = "WDJB-MJHT"
 VERIFICATION_URI = f"{ISSUER}/activate"
 VERIFICATION_URI_COMPLETE = f"{VERIFICATION_URI}?user_code={USER_CODE}"
-
-
-def jwt_for(issuer):
-    """A JWT-shaped token whose payload really does carry this iss."""
-    def encode(value):
-        return base64.urlsafe_b64encode(
-            json.dumps(value).encode()).decode().rstrip("=")
-
-    return ".".join([encode({"alg": "RS256", "typ": "JWT"}),
-                     encode({"iss": issuer, "sub": "auth0|1"}),
-                     "DUMMY-SIGNATURE"])
 
 
 def without_nones(document):
