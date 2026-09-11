@@ -1593,7 +1593,9 @@ class AsyncERClient(object):
             except httpx.RequestError as e:
                 # Network errors, timeouts
                 # ToDo: Check if we want a more granular error handling defining more specific exception classes
-                reason = str(e)
+                # Many httpx transport errors (ReadTimeout, ConnectTimeout, ...) stringify to
+                # an empty string, which made this error arrive with no detail at all.
+                reason = str(e) or type(e).__name__
                 self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
                                                                      url=request_url,
                                                                      status_code=None,
@@ -1854,7 +1856,9 @@ class AsyncERClient(object):
             except httpx.RequestError as e:
                 # Network errors, timeouts
                 # ToDo: Check if we want a more granular error handling defining more specific exception classes
-                reason = str(e)
+                # Many httpx transport errors (ReadTimeout, ConnectTimeout, ...) stringify to
+                # an empty string, which made this error arrive with no detail at all.
+                reason = str(e) or type(e).__name__
                 self.logger.error('Request to ER failed', extra=dict(provider_key=self.provider_key,
                                                                      url=request_url,
                                                                      status_code=None,
