@@ -41,8 +41,8 @@ EarthRanger sites are moving from their own token endpoint to Auth0. There are t
 | You are | Use | Notes |
 |---|---|---|
 | a person at a keyboard, notebook, or shell | no credentials, then `login()` | Signs you in through your browser. The token lasts about two days and is not refreshed; call `login()` again when it expires. |
-| automation holding an Auth0-issued token | `token=` | Used as it is; nothing is fetched from the token endpoint. |
-| an existing integration with a username and password | `username`, `password`, `client_id` | The legacy password grant. Refused once the site accepts only Auth0-issued tokens. |
+| automation holding an Auth0-issued token | `token=` | Used as it is; nothing is fetched from the token endpoint. The client warns if the site does not list the token's issuer. |
+| an existing integration with a username and password | `username`, `password`, `client_id` | The legacy password grant. The client warns while the site still accepts it, and refuses once it does not. |
 
 Sign in as yourself:
 
@@ -90,6 +90,36 @@ The token carries **no refresh token**, so it simply expires after roughly two d
 
 `discovery=False` switches off the metadata fetch. A client with credentials then behaves exactly as it did before this release; a client with none cannot sign in at all, having nowhere to sign in against. `client.discover()` still works either way.
 
+### What the site tells the client
+
+EarthRanger sites publish the authorization servers they accept at `{service_root}/.well-known/oauth-protected-resource`. Both clients fetch it on every `login()`, and once on the first `auth_headers()` when you passed `token=` — never during construction, and never on a refresh. What the site says decides whether the credentials you brought get a warning, a refusal, or nothing at all:
+
+| The site accepts | With `username`/`password` | With a site-issued (legacy) `token=` | With an Auth0-issued `token=` |
+|---|---|---|---|
+| its own token endpoint only | silent | silent | warns: its `iss` is not one the site lists |
+| Auth0 **and** its own | warns: deprecated, still works | warns: deprecated, still works | silent |
+| Auth0 only | refused before any request | warns: the site lists only Auth0 issuers | silent |
+
+One cell refuses: a password grant at a site that has finished migrating, where the client declines to post credentials for a token the API would reject on every call. Sync `login()` returns `False` and `auth_headers()` raises `ERClientBadCredentials`; async `login()` raises it directly.
+
+Every other cell warns and carries on. A token is sent even when the document lists no issuer it could have come from, because that document can lag what the API actually honours, and the server is the authority on its own tokens — so you get the explanation before the 401 rather than instead of it. Each message names the way out: an Auth0-issued token, or no credentials and `login()`.
+
+A token counts as Auth0-issued if it is shaped like a JWT; anything else is assumed to be site-issued. Issuers are compared ignoring the case of scheme and host and a trailing slash, and a JWT whose payload carries no readable `iss` is left alone for the server to judge. Warnings are `ERClientAuthWarning`, raised once per client per distinct message; silence them with:
+
+```python
+import warnings
+
+from erclient import ERClientAuthWarning
+
+warnings.filterwarnings("ignore", category=ERClientAuthWarning)
+```
+
+Each message also goes to the `ERClient` / `AsyncERClient` logger at WARNING. That is a separate channel — `filterwarnings` does not reach it — so quiet it through your logging configuration if you want it gone from there too.
+
+Passing `token=` together with a `username` or `password` warns the same way at construction: the token wins, as it always has, and the credentials are ignored.
+
+Discovery never blocks a caller who brought credentials — a 404, a 5xx, a malformed document or an unreachable endpoint all just mean "no metadata", logged at DEBUG, and no metadata means no warning and no refusal. `discovery=False` switches off the fetches, and with them the warnings and the refusals. `client.protected_resource_metadata` holds whatever the last fetch found.
+
 ### When sign-in fails
 
 Unlike the password grant, a zero-argument `login()` raises on both clients rather than returning `False`.
@@ -105,6 +135,8 @@ Unlike the password grant, a zero-argument `login()` raises on both clients rath
 Any other refusal from a token endpoint is classified by the OAuth `error` code in the body rather than by HTTP status, which token endpoints use inconsistently: `invalid_grant`, `invalid_client`, `unauthorized_client`, `access_denied` and `expired_token` give `ERClientBadCredentials`; `invalid_request`, `unsupported_grant_type` and `invalid_scope` give `ERClientBadRequest`; a body carrying no OAuth error falls back to the status (401, 400, 429, 500, 502/503/504 in that order of specificity); anything else is `ERClientException`. Those carry the message `Login failed.` with `exc.status_code` and `exc.response_body` set, plus `exc.retry_after` in seconds when the endpoint sent a `Retry-After` header.
 
 A network failure while talking to the authorization server propagates as the HTTP library's own exception (`requests.RequestException`, or `httpx.RequestError` on the async client), except on the metadata fetch, which arrives as `ERClientServiceUnreachable`.
+
+For the reason behind a `False`, read `client.last_auth_error` — an `AuthError` carrying `status_code`, `error`, `error_description`, `response_body`, `url`, `grant_type` and `retry_after`. It is `None` until a token request is refused and is cleared by the next successful one. It is also set when the client refuses before sending anything, where `status_code` and `response_body` are `None` because no server was consulted.
 
 ## Sync client (ERClient)
 
