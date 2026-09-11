@@ -31,15 +31,17 @@ from .device_code import (DEFAULT_SCOPE, DEVICE_CODE_GRANT,
                           parse_authorization_server_metadata,
                           parse_device_authorization, parse_token_response,
                           select_authorization_server)
-from .discovery import (credential_site_mismatch, discovery_url, jwt_issuer,
-                        normalize_issuer, parse_protected_resource_metadata)
+from .discovery import (classify_authorization_servers,
+                        credential_site_mismatch, discovery_url, jwt_issuer,
+                        legacy_auth_warning, normalize_issuer,
+                        parse_protected_resource_metadata)
 from .er_errors import (CREDENTIAL_SITE_MISMATCH,
                         INTERACTIVE_SIGN_IN_UNAVAILABLE, AuthError,
-                        ERClientBadCredentials, ERClientBadRequest,
-                        ERClientException, ERClientInternalError,
-                        ERClientNotFound, ERClientPermissionDenied,
-                        ERClientRateLimitExceeded, ERClientServiceUnreachable,
-                        classify_token_error)
+                        ERClientAuthWarning, ERClientBadCredentials,
+                        ERClientBadRequest, ERClientException,
+                        ERClientInternalError, ERClientNotFound,
+                        ERClientPermissionDenied, ERClientRateLimitExceeded,
+                        ERClientServiceUnreachable, classify_token_error)
 from .version import __version__
 
 version_string = __version__
@@ -173,6 +175,23 @@ class _AuthSupport:
         """Read the auth kwargs neither client interprets its own way."""
         self.token = kwargs.get('token')
         self._open_browser = kwargs.get('open_browser', False)
+        self._auth_warnings_issued = set()
+
+    def _warn_if_legacy_auth(self, *, stacklevel):
+        """Warn once per client if these credentials are legacy for this site."""
+        metadata = self._protected_resource_metadata
+        if metadata is None:
+            return
+
+        has_das, has_external = classify_authorization_servers(
+            metadata, self.service_root)
+        message = legacy_auth_warning(
+            service_root=self.service_root, has_das=has_das,
+            has_external=has_external)
+        if message and message not in self._auth_warnings_issued:
+            self._auth_warnings_issued.add(message)
+            self.logger.warning(message)
+            warnings.warn(message, ERClientAuthWarning, stacklevel=stacklevel)
 
     def _uses_device_code(self):
         """Whether this client has to sign a user in to get a token.
@@ -669,6 +688,7 @@ class ERClient(_AuthSupport):
             self.discover()
             if self._refuse_password_grant():
                 return False
+            self._warn_if_legacy_auth(stacklevel=3)
 
         payload = {'grant_type': 'password',
                    'username': self.username,
@@ -2258,6 +2278,7 @@ class AsyncERClient(_AuthSupport):
         if self._discovery_enabled:
             await self.discover()
             self._refuse_password_grant()
+            self._warn_if_legacy_auth(stacklevel=3)
 
         return await self._token_request(
             payload={

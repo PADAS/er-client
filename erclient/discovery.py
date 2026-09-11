@@ -205,3 +205,25 @@ def credential_site_mismatch(*, metadata, service_root):
         "token=, or construct the client with no credentials and call login() "
         "to sign in interactively."
     )
+
+
+def legacy_auth_warning(*, service_root, has_das, has_external):
+    """The warning a password grant deserves at this site, or None.
+
+    Only a site listing both its own issuer and an external one is warned
+    about: the external one is what makes the grant a migration problem rather
+    than the only option, and its own is what makes the grant still work. Once
+    that is gone the grant cannot work at all, which is
+    :func:`credential_site_mismatch`'s business.
+    """
+    if not (has_das and has_external):
+        return None
+
+    return (
+        f"Site {service_root} supports EarthRanger's Auth0 sign-in. "
+        "Username/password login through the site's legacy token endpoint "
+        "still works but is deprecated and will stop working when the site "
+        "completes its migration. Pass an Auth0-issued access token with "
+        "token=, or construct the client with no credentials and call login() "
+        "to sign in interactively."
+    )
