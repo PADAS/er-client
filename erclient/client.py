@@ -21,13 +21,19 @@ from urllib3.util.retry import Retry
 from .api_paths import (DEFAULT_VERSION, VERSION_2_0, event_type_detail_path,
                         event_types_list_path, event_types_patch_path,
                         normalize_version)
-from .er_errors import (ERClientBadCredentials, ERClientBadRequest,
+from .discovery import discovery_url, parse_protected_resource_metadata
+from .er_errors import (AuthError, ERClientBadCredentials, ERClientBadRequest,
                         ERClientException, ERClientInternalError,
                         ERClientNotFound, ERClientPermissionDenied,
-                        ERClientRateLimitExceeded, ERClientServiceUnreachable)
+                        ERClientRateLimitExceeded, ERClientServiceUnreachable,
+                        classify_token_error)
 from .version import __version__
 
 version_string = __version__
+
+# Discovery is advisory, so it gets its own short deadline rather than the
+# client's configured API timeouts.
+DISCOVERY_TIMEOUT_SECONDS = 5
 
 
 def parse_retry_after_header(value):
@@ -84,6 +90,8 @@ class ERClient(object):
 
         :param token: authorization token
 
+        :param discovery: Optional. Whether the client may fetch the site's RFC 9728 protected-resource metadata. Default True. Pass False to keep it off the network except for the calls you make yourself; discover() still works.
+
         If posting to the sensors API, the default provider key
         :param provider_key: provider-key for posting observation data (Ex. xyz_provider)
 
@@ -93,8 +101,12 @@ class ERClient(object):
 
         self.auth = None
         self.auth_expires = pytz.utc.localize(datetime.min)
+        self._last_auth_error = None
         self._http_session = None
         self.max_retries = kwargs.get('max_http_retries', 5)
+
+        self._discovery_enabled = kwargs.get('discovery', True)
+        self._protected_resource_metadata = None
 
         raw_service_root = kwargs.get('service_root') or ""
         # Normalize via urlparse: if path contains /api (e.g. /api or /api/v1.0), keep only scheme+netloc+path before /api.
@@ -129,6 +141,46 @@ class ERClient(object):
         self._http_session.mount("http", HTTPAdapter(max_retries=retries))
         self._http_session.mount("https", HTTPAdapter(max_retries=retries))
 
+    def discover(self):
+        """Fetch and store the site's RFC 9728 protected-resource metadata.
+
+        Returns the metadata, or None if the site does not serve a usable
+        document. Never raises: discovery is advisory, so an unreachable or
+        silent endpoint must not stand between a caller and a login.
+
+        Deliberately not routed through ``self._http_session``, whose retry
+        policy would spend up to twenty seconds backing off a 502 before a
+        login could proceed, for a read we are prepared to do without.
+        """
+        url = discovery_url(self.service_root)
+        if url is None:
+            self._protected_resource_metadata = None
+            return None
+
+        try:
+            response = requests.get(
+                url,
+                headers={'User-Agent': self.user_agent,
+                         'Accept': 'application/json'},
+                timeout=DISCOVERY_TIMEOUT_SECONDS,
+            )
+        except requests.RequestException as e:
+            self.logger.debug('Discovery fetch failed for %s: %s', url, e)
+            self._protected_resource_metadata = None
+            return None
+
+        metadata = None
+        if response.ok:
+            metadata = parse_protected_resource_metadata(
+                response.text, self.service_root)
+        if metadata is None:
+            self.logger.debug(
+                'No usable protected-resource metadata at %s (status %s)',
+                url, response.status_code)
+
+        self._protected_resource_metadata = metadata
+        return metadata
+
     def _auth_is_valid(self):
         return self.auth_expires > datetime.now(tz=timezone.utc)
 
@@ -136,20 +188,34 @@ class ERClient(object):
 
         if self.auth:
             if not self._auth_is_valid():
-                if not self.refresh_token():
+                if not self.auth.get('refresh_token') or not self.refresh_token():
                     if not self.login():
-                        raise ERClientException('Login failed.')
+                        self._raise_login_failed()
         else:
             if not self.login():
-                raise ERClientException('Login failed.')
+                self._raise_login_failed()
 
         return {'Authorization': '{} {}'.format(self.auth['token_type'],
                                                 self.auth['access_token']),
                 'Accept-Type': 'application/json'}
 
+    def _raise_login_failed(self):
+        """Raise the exception class the token endpoint's last refusal implies."""
+        auth_error = self._last_auth_error
+        raise classify_token_error(auth_error)(
+            message='Login failed.',
+            status_code=auth_error.status_code if auth_error else None,
+            response_body=auth_error.response_body if auth_error else None,
+            retry_after=auth_error.retry_after if auth_error else None,
+        )
+
     def refresh_token(self):
+        refresh_token = (self.auth or {}).get('refresh_token')
+        if not refresh_token:
+            return False
+
         payload = {'grant_type': 'refresh_token',
-                   'refresh_token': self.auth['refresh_token'],
+                   'refresh_token': refresh_token,
                    'client_id': self.client_id
                    }
         return self._token_request(payload)
@@ -171,8 +237,19 @@ class ERClient(object):
             expires_in = int(self.auth['expires_in']) - 5 * 60
             self.auth_expires = datetime.now(
                 tz=timezone.utc) + timedelta(seconds=expires_in)
+            self._last_auth_error = None
             return True
 
+        # login() and refresh_token() only return a bool, so keep the reason
+        # for auth_headers(), which classifies it.
+        self._last_auth_error = AuthError.from_token_response(
+            status_code=response.status_code,
+            response_body=response.text,
+            url=self.token_url,
+            grant_type=payload.get('grant_type'),
+            retry_after=parse_retry_after_header(
+                response.headers.get('Retry-After')),
+        )
         self.auth = None
         self.auth_expires = pytz.utc.localize(datetime.min)
         return False
@@ -1150,6 +1227,8 @@ class AsyncERClient(object):
 
         :param token: authorization token
 
+        :param discovery: Optional. Whether the client may fetch the site's RFC 9728 protected-resource metadata. Default True. Pass False to keep it off the network except for the calls you make yourself; discover() still works.
+
         If posting to the sensors API, the default provider key
         :param provider_key: provider-key for posting observation data (Ex. xyz_provider)
 
@@ -1161,9 +1240,13 @@ class AsyncERClient(object):
 
         self.auth = None
         self.auth_expires = pytz.utc.localize(datetime.min)
+        self._last_auth_error = None
         self._http_session = None
         self.max_retries = kwargs.get(
             'max_http_retries', self.DEFAULT_CONNECTION_RETRIES)
+
+        self._discovery_enabled = kwargs.get('discovery', True)
+        self._protected_resource_metadata = None
 
         raw_service_root = kwargs.get('service_root') or ""
         # Normalize via urlparse: if path contains /api (e.g. /api or /api/v1.0), keep only scheme+netloc+path before /api.
@@ -1202,6 +1285,76 @@ class AsyncERClient(object):
             data_timeout, connect=connect_timeout, pool=connect_timeout)
         self._http_session = httpx.AsyncClient(
             transport=transport, timeout=timeout)
+
+    async def discover(self):
+        """Fetch and store the site's RFC 9728 protected-resource metadata.
+
+        Returns the metadata, or None if the site does not serve a usable
+        document. Never raises, as the sync client's does not.
+
+        Given its own short deadline rather than the caller's API timeouts.
+        It stays on the shared session, so the transport's connection retries
+        still apply, each attempt bounded by that deadline.
+        """
+        url = discovery_url(self.service_root)
+        if url is None:
+            self._protected_resource_metadata = None
+            return None
+
+        try:
+            response = await self._http_session.get(
+                url,
+                headers={'User-Agent': self.user_agent,
+                         'Accept': 'application/json'},
+                # httpx does not follow redirects by default; requests does,
+                # and a site may well redirect its .well-known path. A
+                # document that ends up naming a different resource is
+                # discarded when it is parsed.
+                follow_redirects=True,
+                timeout=httpx.Timeout(DISCOVERY_TIMEOUT_SECONDS),
+            )
+        except httpx.HTTPError as e:
+            self.logger.debug('Discovery fetch failed for %s: %s', url, e)
+            self._protected_resource_metadata = None
+            return None
+
+        metadata = None
+        if response.is_success:
+            metadata = parse_protected_resource_metadata(
+                response.text, self.service_root)
+        if metadata is None:
+            self.logger.debug(
+                'No usable protected-resource metadata at %s (status %s)',
+                url, response.status_code)
+
+        self._protected_resource_metadata = metadata
+        return metadata
+
+    def _handle_token_error(self, e):
+        """Raise the exception class the token endpoint's refusal implies.
+
+        Called from the wrappers' ``except httpx.HTTPStatusError`` around
+        ``auth_headers()``, so the block's position is what tells us the
+        failure came from the token endpoint rather than from the API.
+        """
+        auth_error = self._last_auth_error or AuthError.from_token_response(
+            status_code=e.response.status_code,
+            response_body=e.response.text,
+            url=self.token_url,
+            grant_type=None,
+            retry_after=parse_retry_after_header(
+                e.response.headers.get('Retry-After')),
+        )
+        self.logger.exception(
+            f"Login failed at {self.token_url}. "
+            f"Response Body: {e.response.text}"
+        )
+        raise classify_token_error(auth_error)(
+            message='Login failed.',
+            status_code=auth_error.status_code,
+            response_body=auth_error.response_body,
+            retry_after=auth_error.retry_after,
+        )
 
     async def close(self):
         await self._http_session.aclose()
@@ -1513,7 +1666,7 @@ class AsyncERClient(object):
     async def auth_headers(self):
         if self.auth:
             if not self._auth_is_valid():
-                if not await self.refresh_token():
+                if not self.auth.get('refresh_token') or not await self.refresh_token():
                     await self.login()
         else:
             await self.login()
@@ -1524,10 +1677,14 @@ class AsyncERClient(object):
         }
 
     async def refresh_token(self):
+        refresh_token = (self.auth or {}).get('refresh_token')
+        if not refresh_token:
+            return False
+
         return await self._token_request(
             payload={
                 'grant_type': 'refresh_token',
-                'refresh_token': self.auth['refresh_token'],
+                'refresh_token': refresh_token,
                 'client_id': self.client_id
             }
         )
@@ -1549,6 +1706,16 @@ class AsyncERClient(object):
         response = await self._http_session.post(self.token_url, data=payload)
 
         if response.status_code != httpx.codes.OK:
+            # Recorded before raising, so the wrapper that catches the httpx
+            # error can classify it by the OAuth error in the body.
+            self._last_auth_error = AuthError.from_token_response(
+                status_code=response.status_code,
+                response_body=response.text,
+                url=self.token_url,
+                grant_type=payload.get('grant_type'),
+                retry_after=parse_retry_after_header(
+                    response.headers.get('Retry-After')),
+            )
             self.auth = None
             self.auth_expires = pytz.utc.localize(datetime.min)
             response.raise_for_status()
@@ -1557,6 +1724,7 @@ class AsyncERClient(object):
         expires_in = int(self.auth['expires_in']) - 5 * 60
         self.auth_expires = datetime.now(
             tz=timezone.utc) + timedelta(seconds=expires_in)
+        self._last_auth_error = None
         return True
 
     def _api_root(self, version=DEFAULT_VERSION):
@@ -1574,7 +1742,7 @@ class AsyncERClient(object):
         try:
             auth_headers = await self.auth_headers()
         except httpx.HTTPStatusError as e:
-            self._handle_http_status_error(path, "POST", e)
+            self._handle_token_error(e)
         else:
             body = body or {}
             headers = {
@@ -1791,7 +1959,7 @@ class AsyncERClient(object):
         try:
             auth_headers = await self.auth_headers()
         except httpx.HTTPStatusError as e:
-            self._handle_http_status_error(url, "GET", e)
+            self._handle_token_error(e)
         headers = {'User-Agent': self.user_agent, **auth_headers}
         if not url.startswith('http'):
             url = self._er_url(url)
@@ -1832,7 +2000,7 @@ class AsyncERClient(object):
         try:
             auth_headers = await self.auth_headers()
         except httpx.HTTPStatusError as e:
-            self._handle_http_status_error(path, method, e)
+            self._handle_token_error(e)
         else:
             params = params or {}
             headers = {
