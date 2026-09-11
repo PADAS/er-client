@@ -84,7 +84,11 @@ class ERClientException(Exception):
 
 
 class ERClientAuthWarning(UserWarning):
-    """The credentials in hand are legacy for the site they are aimed at.
+    """Something about the credentials in hand is worth a word, not a refusal.
+
+    Three things raise it: credentials that are legacy for the site they are
+    aimed at, a token the site's published issuers do not account for, and a
+    token supplied alongside a username and password. None stops a request.
 
     A UserWarning subclass, so it shows by default and a caller who has made
     their peace with it can silence just this category::

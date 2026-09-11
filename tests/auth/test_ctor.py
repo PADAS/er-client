@@ -1,13 +1,15 @@
 """What both clients do today at construction time and on their lazy auth
 paths. Assertions describe current behavior, warts included."""
+import logging
 from datetime import datetime, timezone
 
 import httpx
 import pytest
 import pytz
-from tests.auth.conftest import Reply
+from tests.auth.conftest import Reply, auth_warnings
 
-from erclient.er_errors import ERClientException
+from erclient import client as client_module
+from erclient.er_errors import ERClientAuthWarning, ERClientException
 from erclient.version import __version__
 
 
@@ -106,7 +108,8 @@ class TestSuppliedToken:
 
     def test_it_wins_over_a_username_and_password(self, client, server,
                                                   ropc_kwargs, token_kwargs):
-        client.make(**{**ropc_kwargs, **token_kwargs})
+        with pytest.warns(ERClientAuthWarning):
+            client.make(**{**ropc_kwargs, **token_kwargs})
 
         headers = client.auth_headers()
 
@@ -118,6 +121,47 @@ class TestSuppliedToken:
         client.make(service_root=service_root, token="")
 
         assert client.auth is None
+
+
+class TestSupplyingBothKindsOfCredential:
+    """Ignoring half of what a caller passed is how they end up debugging the
+    wrong credentials."""
+
+    @pytest.mark.parametrize("credential", ["username", "password"])
+    def test_is_worth_saying_out_loud(self, client, server, token_kwargs,
+                                      credential, caplog):
+        message = ("Both token= and username/password were supplied; token= "
+                   "takes precedence and the username/password are ignored.")
+
+        with caplog.at_level(logging.WARNING):
+            with pytest.warns(ERClientAuthWarning) as record:
+                client.make(**token_kwargs, **{credential: "test-value"})
+
+        assert str(record[0].message) == message
+        assert message in caplog.text
+
+    def test_it_is_not_blamed_on_the_library(self, client, token_kwargs):
+        with pytest.warns(ERClientAuthWarning) as record:
+            client.make(**token_kwargs, username="a-user")
+
+        assert record[0].filename != client_module.__file__
+
+    def test_saying_it_costs_no_http(self, client, server, token_kwargs):
+        with pytest.warns(ERClientAuthWarning):
+            client.make(**token_kwargs, username="a-user")
+
+        assert server.traffic == []
+
+    @pytest.mark.parametrize("kwargs", [
+        {"token": "not-a-real-token"},
+        {"username": "test-user", "password": "test-password"},
+        {"token": "", "username": "test-user", "password": "test-password"},
+    ])
+    def test_one_kind_of_credential_is_unremarkable(self, client, service_root,
+                                                    kwargs, recwarn):
+        client.make(service_root=service_root, **kwargs)
+
+        assert auth_warnings(recwarn.list) == []
 
 
 class TestPasswordGrant:
