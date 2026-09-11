@@ -53,7 +53,7 @@ class Reply:
                               headers=self.headers)
 
 
-Call = namedtuple("Call", "method url data")
+Call = namedtuple("Call", "method url data headers timeout")
 
 
 def _form(data):
@@ -91,8 +91,11 @@ class FakeServer:
     def respond(self, method, url, status_code=200, json_body=None, text=None,
                 headers=None):
         """Answer every such request with this response."""
-        self._routes[(method, url)] = _Route(
-            [Reply(status_code, json_body, text, headers)], repeating=True)
+        self.always(method, url, Reply(status_code, json_body, text, headers))
+
+    def always(self, method, url, reply):
+        """Answer every such request with a reply the caller prepared."""
+        self._routes[(method, url)] = _Route([reply], repeating=True)
 
     def script(self, method, url, *replies):
         """Answer such requests with these responses in turn, then fail."""
@@ -106,8 +109,17 @@ class FakeServer:
     def calls(self):
         return [(call.method, call.url) for call in self.traffic]
 
-    def reply_to(self, method, url, data=None):
-        self.traffic.append(Call(method, url, data))
+    @property
+    def posts(self):
+        """Every POST, in order: the auth traffic without the discovery GETs."""
+        return [call for call in self.traffic if call.method == "POST"]
+
+    def reply_to(self, method, url, data=None, headers=None, timeout=None):
+        # Lowercased, since httpx hands header names back that way and
+        # requests hands back what the client passed.
+        recorded = {key.lower(): value for key,
+                    value in (headers or {}).items()}
+        self.traffic.append(Call(method, url, data, recorded, timeout))
         route = self._routes.get((method, url))
         if route is None:
             raise AssertionError(f"unscripted {method} {url}")
@@ -135,7 +147,8 @@ class _SyncBackend:
     def _handler(self, method):
         def _request(url, **kwargs):
             reply = self._server.reply_to(
-                method, url, _form(kwargs.get("data")))
+                method, url, _form(kwargs.get("data")),
+                kwargs.get("headers"), kwargs.get("timeout"))
             if isinstance(reply, Exception):
                 raise reply
             return reply.as_requests()
@@ -160,10 +173,18 @@ class _AsyncBackend:
     def _request(self, request):
         data = _form(dict(parse_qsl(request.content.decode())))
         reply = self._server.reply_to(
-            request.method, str(request.url), data)
+            request.method, str(request.url), data,
+            dict(request.headers), _timeout(request))
         if isinstance(reply, Exception):
             raise reply
         return reply.as_httpx()
+
+
+def _timeout(request):
+    """The deadline httpx recorded, as the one number the client asked for."""
+    recorded = request.extensions.get("timeout") or {}
+    values = set(recorded.values())
+    return values.pop() if len(values) == 1 else recorded
 
 
 class ClientUnderTest:
@@ -222,6 +243,29 @@ def client(request, server):
             loop.run_until_complete(adapter._client.close())
         loop.close()
     backend.stop()
+
+
+@pytest.fixture(autouse=True)
+def discovery_not_served(server, discovery_url):
+    """Default every test here to a site that serves no discovery document.
+
+    A password grant now discovers before it posts, and a 404 is the answer
+    that leaves the grant exactly as it was. A test about discovery registers
+    its own route over this one.
+    """
+    server.respond("GET", discovery_url, 404, text="")
+
+
+@pytest.fixture
+def tty(monkeypatch):
+    """Pretend a user is watching, so an implicit login may prompt them."""
+    monkeypatch.setattr("erclient.client._stdin_is_tty", lambda: True)
+
+
+@pytest.fixture
+def no_tty(monkeypatch):
+    """Pretend nobody is watching: a cron job, a worker, a piped script."""
+    monkeypatch.setattr("erclient.client._stdin_is_tty", lambda: False)
 
 
 @pytest.fixture
