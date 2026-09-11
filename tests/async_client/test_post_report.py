@@ -174,3 +174,25 @@ async def test_post_report_status_unauthorized(er_client, report, bad_credential
         expected_message = f'ER Unauthorized ON POST {er_client._er_url("activity/events")}. (status_code={httpx.codes.UNAUTHORIZED})'
         assert expected_message in str(exc_info.value)
         assert route.called
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("side_effect,expected", [
+    # Same fallback as the multipart path, for the shared JSON request helper.
+    (httpx.ReadTimeout(""), "Request to ER failed: ReadTimeout"),
+    (httpx.ConnectTimeout(""), "Request to ER failed: ConnectTimeout"),
+    (httpx.ConnectError(""), "Request to ER failed: ConnectError"),
+    (httpx.ConnectError("nodename nor servname provided"),
+     "Request to ER failed: nodename nor servname provided"),
+])
+async def test_post_report_request_error_message(er_client, report, side_effect, expected):
+    async with respx.mock(
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
+    ) as respx_mock:
+        route = respx_mock.post('activity/events')
+        route.side_effect = side_effect
+        with pytest.raises(ERClientException) as exc_info:
+            await er_client.post_report(report)
+        assert route.called
+        assert str(exc_info.value) == expected
+        await er_client.close()

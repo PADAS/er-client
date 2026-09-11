@@ -166,3 +166,30 @@ async def test_post_camera_trap_report_status_not_found(er_client, camera_trap_p
             await er_client.post_camera_trap_report(camera_trap_payload, camera_trap_file)
         assert route.called  # Check that the api endpoint was called
         await er_client.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("side_effect,expected", [
+    # httpx transport errors usually carry no message, which used to produce a
+    # bare "Request to ER failed: " with nothing for the caller to act on.
+    (httpx.ReadTimeout(""), "Request to ER failed: ReadTimeout"),
+    (httpx.ConnectTimeout(""), "Request to ER failed: ConnectTimeout"),
+    (httpx.ConnectError(""), "Request to ER failed: ConnectError"),
+    # A message that is already present must be passed through untouched.
+    (httpx.ConnectError("nodename nor servname provided"),
+     "Request to ER failed: nodename nor servname provided"),
+])
+async def test_post_camera_trap_report_request_error_message(
+    er_client, camera_trap_payload, camera_trap_file, side_effect, expected
+):
+    async with respx.mock(
+            base_url=er_client._api_root("v1.0"), assert_all_called=False
+    ) as respx_mock:
+        route = respx_mock.post(
+            f'sensors/camera-trap/{er_client.provider_key}/status/')
+        route.side_effect = side_effect
+        with pytest.raises(ERClientException) as exc_info:
+            await er_client.post_camera_trap_report(camera_trap_payload, camera_trap_file)
+        assert route.called
+        assert str(exc_info.value) == expected
+        await er_client.close()
