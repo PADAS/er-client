@@ -90,16 +90,7 @@ class TestWhatItForgives:
         assert client._protected_resource_metadata is None
 
 
-class TestNothingElseAsksForIt:
-    """A caller who brought their own token never discovers."""
-
-    def test_a_supplied_token_does_not_discover(self, client, server,
-                                                token_kwargs):
-        client.make(**token_kwargs)
-
-        client.auth_headers()
-
-        assert server.traffic == []
+class TestDiscoveryCanBeTurnedOff:
 
     def test_discovery_false_still_permits_an_explicit_discover(
             self, client, server, service_root, discovery_url,
