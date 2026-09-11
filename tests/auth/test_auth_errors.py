@@ -7,8 +7,10 @@ import httpx
 import pytest
 from tests.auth.conftest import Reply
 
-from erclient.er_errors import (ERClientBadCredentials, ERClientBadRequest,
-                                ERClientException, ERClientInternalError,
+from erclient.client import AsyncERClient, ERClient
+from erclient.er_errors import (AuthError, ERClientBadCredentials,
+                                ERClientBadRequest, ERClientException,
+                                ERClientInternalError,
                                 ERClientRateLimitExceeded,
                                 ERClientServiceUnreachable)
 
@@ -88,7 +90,61 @@ class TestWhatIsNotClassified:
 
         with contextlib.suppress(httpx.HTTPStatusError):
             client.login()
-        assert client._last_auth_error is not None
+        assert client.last_auth_error is not None
 
         assert client.login() is True
-        assert client._last_auth_error is None
+        assert client.last_auth_error is None
+
+
+class TestWhereASyncCallerReadsTheReason:
+    """Sync login() returns a bare False, so the detail has to live somewhere."""
+
+    def test_nothing_has_been_refused_yet(self, client, ropc_kwargs):
+        client.make(**ropc_kwargs)
+
+        assert client.last_auth_error is None
+
+    def test_a_refusal_from_the_token_endpoint(self, client, server,
+                                               ropc_kwargs, default_token_url):
+        server.respond("POST", default_token_url, 400,
+                       json_body={"error": "invalid_grant",
+                                  "error_description": "wrong password"},
+                       headers={"Retry-After": "5"})
+        client.make(**ropc_kwargs)
+
+        with contextlib.suppress(httpx.HTTPStatusError):
+            client.login()
+
+        auth_error = client.last_auth_error
+        assert auth_error.status_code == 400
+        assert auth_error.error == "invalid_grant"
+        assert auth_error.error_description == "wrong password"
+        assert auth_error.url == default_token_url
+        assert auth_error.grant_type == "password"
+        assert auth_error.retry_after == 5
+
+    def test_a_refusal_the_client_made_itself(self, client, server,
+                                              ropc_kwargs, discovery_url,
+                                              service_root):
+        server.respond("GET", discovery_url, json_body={
+            "resource": service_root,
+            "authorization_servers": ["https://auth-dev.pamdas.org"]})
+        client.make(**ropc_kwargs)
+
+        with contextlib.suppress(ERClientBadCredentials):
+            client.login()
+
+        auth_error = client.last_auth_error
+        assert auth_error.error == "credential_site_mismatch"
+        # No server was consulted, so there is no status and no body to show.
+        assert auth_error.status_code is None
+        assert auth_error.response_body is None
+        assert "accepts only Auth0-issued tokens" in auth_error.error_description
+
+    def test_it_is_the_same_property_on_both_clients(self):
+        assert ERClient.last_auth_error is AsyncERClient.last_auth_error
+
+    def test_its_type_can_be_imported_from_the_package(self):
+        import erclient
+
+        assert erclient.AuthError is AuthError

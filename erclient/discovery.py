@@ -182,26 +182,91 @@ def jwt_issuer(token):
     return issuer if isinstance(issuer, str) and issuer else None
 
 
-def credential_site_mismatch(*, metadata, service_root):
-    """Why a username/password grant cannot work at this site, or None.
+def credential_site_mismatch(*, metadata, service_root, mode,
+                             token_issuer=None):
+    """Why these credentials look wrong for this site, or None.
 
-    Only a site that has dropped its own issuer is refused: while it still
-    lists one, legacy credentials can work, and a refusal here would break a
-    caller the site still serves. No metadata means no opinion.
+    ``mode`` is "password", "opaque_token" or "jwt_token". No metadata means
+    no opinion. The password wording is a refusal, since the client declines
+    to post; the token wordings describe what the document says and leave the
+    verdict to the server.
     """
     if metadata is None or not metadata.authorization_servers:
         return None
 
-    has_das, has_external = classify_authorization_servers(
-        metadata, service_root)
-    if not has_external or has_das:
+    if mode in ('password', 'opaque_token'):
+        has_das, has_external = classify_authorization_servers(
+            metadata, service_root)
+        # While the site still lists its own issuer, legacy credentials can
+        # work. That is legacy_auth_warning's business, not this one's.
+        if not has_external or has_das:
+            return None
+        if mode == 'password':
+            return (
+                f"Site {service_root} accepts only Auth0-issued tokens, so "
+                "username/password login against its legacy token endpoint "
+                "cannot work: the token endpoint may still issue a token, but "
+                "every API request would be rejected. Pass an Auth0-issued "
+                "access token with token=, or construct the client with no "
+                "credentials and call login() to sign in interactively."
+            )
+        return (
+            "The token passed with token= looks like a legacy "
+            f"EarthRanger-issued token, but site {service_root} lists only "
+            "Auth0 issuers. Use an Auth0-issued access token, or construct "
+            "the client with no credentials and call login() to sign in "
+            "interactively."
+        )
+
+    if mode == 'jwt_token':
+        # A JWT whose issuer we could not read is not one we can judge; the
+        # server still will.
+        if token_issuer is None:
+            return None
+        accepted = [normalize_issuer(issuer)
+                    for issuer in metadata.authorization_servers]
+        issuer = normalize_issuer(token_issuer)
+        if issuer in accepted:
+            return None
+        return (
+            f"The token passed with token= was issued by {issuer}, which site "
+            f"{service_root} does not list among the issuers it accepts: "
+            f"{', '.join(accepted)}."
+        )
+
+    return None
+
+
+def legacy_auth_warning(*, service_root, has_das, has_external, mode):
+    """The warning a password grant deserves at this site, or None.
+
+    Only a site listing both its own issuer and an external one is warned
+    about: the external one is what makes the grant a migration problem rather
+    than the only option, and its own is what makes the grant still work. Once
+    that is gone the grant cannot work at all, which is
+    :func:`credential_site_mismatch`'s business.
+    """
+    if not (has_das and has_external):
         return None
 
-    return (
-        f"Site {service_root} accepts only Auth0-issued tokens, so "
-        "username/password login against its legacy token endpoint cannot "
-        "work: the token endpoint may still issue a token, but every API "
-        "request would be rejected. Pass an Auth0-issued access token with "
-        "token=, or construct the client with no credentials and call login() "
-        "to sign in interactively."
-    )
+    if mode == 'password':
+        return (
+            f"Site {service_root} supports EarthRanger's Auth0 sign-in. "
+            "Username/password login through the site's legacy token endpoint "
+            "still works but is deprecated and will stop working when the "
+            "site completes its migration. Pass an Auth0-issued access token "
+            "with token=, or construct the client with no credentials and "
+            "call login() to sign in interactively."
+        )
+
+    if mode == 'opaque_token':
+        return (
+            "The token passed with token= looks like a legacy "
+            f"EarthRanger-issued token. Site {service_root} supports Auth0 "
+            "sign-in, and legacy tokens will stop working when the site "
+            "completes its migration. Use an Auth0-issued access token, or "
+            "construct the client with no credentials and call login() to "
+            "sign in interactively."
+        )
+
+    return None
