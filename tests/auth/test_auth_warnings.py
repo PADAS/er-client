@@ -197,3 +197,23 @@ class TestWhenThereIsNothingToSay:
             client.auth_headers()
 
         assert auth_warnings(recwarn.list) == []
+
+
+class TestATokenAnExplicitLoginReplaced:
+    """A client built with both kinds, whose login() swapped the supplied
+    token for a password-grant one. The warnings should follow the wire."""
+
+    def test_the_replaced_token_is_not_warned_about(
+            self, client, server, service_root, default_token_url,
+            token_response, publishes, das_issuer, recwarn):
+        publishes(das_issuer, AUTH0_ISSUER)
+        server.respond("POST", default_token_url, json_body=token_response)
+        client.make(service_root=service_root, token="a-legacy-token",
+                    username="a-user", password="a-password",
+                    client_id="das_web_client")
+        client.login()
+
+        client.auth_headers()
+
+        said = [str(w.message) for w in auth_warnings(recwarn.list)]
+        assert not [w for w in said if "token passed with token=" in w]

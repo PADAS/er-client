@@ -253,6 +253,15 @@ class _AuthSupport:
             service_root=self.service_root, has_das=has_das,
             has_external=has_external, mode=mode), stacklevel=stacklevel)
 
+    def _is_sending_the_supplied_token(self):
+        """Whether token= is still the credential requests actually carry.
+
+        An explicit login() on a client built with both kinds of credential
+        replaces it with a password-grant token. Warning about the one that
+        displaced would name a credential no longer on the wire.
+        """
+        return (self.auth or {}).get('access_token') == self.token
+
     def _uses_device_code(self):
         """Whether this client has to sign a user in to get a token.
 
@@ -673,7 +682,8 @@ class ERClient(_AuthSupport):
         """
         if (not self._discovery_enabled
                 or self._discovery_done_for_token_mode
-                or not self.token):
+                or not self.token
+                or not self._is_sending_the_supplied_token()):
             return
 
         # Claimed before the fetch, so concurrent first uses make one GET
@@ -2306,7 +2316,8 @@ class AsyncERClient(_AuthSupport):
         """
         if (not self._discovery_enabled
                 or self._discovery_done_for_token_mode
-                or not self.token):
+                or not self.token
+                or not self._is_sending_the_supplied_token()):
             return
 
         # Claimed before the fetch, as in the sync client. This is the client
