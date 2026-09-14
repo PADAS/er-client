@@ -184,11 +184,18 @@ class _AuthSupport:
 
         if self.token and (self.username or self.password):
             # Warned about rather than refused: callers pass both today, and
-            # the token has always won.
+            # the token has always won. Not "ignored", though -- an explicit
+            # login() still posts a password grant built from them.
             message = ('Both token= and username/password were supplied; '
-                       'token= takes precedence and the username/password '
-                       'are ignored.')
-            self.logger.warning(message)
+                       'requests are authenticated with token=. The username '
+                       'and password are used only by an explicit login().')
+            # Said to the caller and not to the log, unlike the warnings that
+            # come from what a site publishes. This one is a fact about how
+            # the client was built, true for its whole life and the same on
+            # every instance, so a caller who builds one per request would get
+            # a log line per request that never says anything new. The default
+            # warning filter shows it once per call site instead.
+            #
             # Two frames up is the constructor, three is whoever called it.
             warnings.warn(message, ERClientAuthWarning, stacklevel=3)
 
@@ -475,7 +482,7 @@ class ERClient(_AuthSupport):
 
         :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org). The client assembles the API root as {service_root}/api/{version} (default version v1.0). For backward compatibility, a full API root (Ex. https://sandbox.pamdas.org/api/v1.0) is accepted and normalized to the base.
 
-        :param token: authorization token, ideally Auth0-issued. Nothing is fetched from the token endpoint. Takes precedence over username/password: when both are supplied the token is used and the credentials are ignored.
+        :param token: authorization token, ideally Auth0-issued. Nothing is fetched from the token endpoint. Takes precedence over username/password: when both are supplied, requests are authenticated with the token, and the credentials are used only by an explicit login().
 
         or, the legacy password grant:
 
@@ -1765,7 +1772,7 @@ class AsyncERClient(_AuthSupport):
 
         :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org). The client assembles the API root as {service_root}/api/{version} (default version v1.0). For backward compatibility, a full API root (Ex. https://sandbox.pamdas.org/api/v1.0) is accepted and normalized to the base.
 
-        :param token: authorization token, ideally Auth0-issued. Nothing is fetched from the token endpoint. Takes precedence over username/password: when both are supplied the token is used and the credentials are ignored.
+        :param token: authorization token, ideally Auth0-issued. Nothing is fetched from the token endpoint. Takes precedence over username/password: when both are supplied, requests are authenticated with the token, and the credentials are used only by an explicit login().
 
         or, the legacy password grant:
 

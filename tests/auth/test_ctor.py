@@ -130,15 +130,33 @@ class TestSupplyingBothKindsOfCredential:
     @pytest.mark.parametrize("credential", ["username", "password"])
     def test_is_worth_saying_out_loud(self, client, server, token_kwargs,
                                       credential, caplog):
-        message = ("Both token= and username/password were supplied; token= "
-                   "takes precedence and the username/password are ignored.")
+        message = ("Both token= and username/password were supplied; requests "
+                   "are authenticated with token=. The username and password "
+                   "are used only by an explicit login().")
 
         with caplog.at_level(logging.WARNING):
             with pytest.warns(ERClientAuthWarning) as record:
                 client.make(**token_kwargs, **{credential: "test-value"})
 
         assert str(record[0].message) == message
-        assert message in caplog.text
+        # Said to the caller, not to the log: this is a fact about how the
+        # client was built, fixed for its whole life, and a caller who builds
+        # one per request would otherwise get the line on every one of them.
+        assert caplog.records == []
+
+    def test_an_explicit_login_really_does_use_them(
+            self, client, server, service_root, default_token_url,
+            token_response):
+        """Which is why the warning no longer says they are ignored."""
+        server.respond("POST", default_token_url, json_body=token_response)
+        with pytest.warns(ERClientAuthWarning):
+            client.make(service_root=service_root, token="not-a-real-token",
+                        username="a-user", password="a-password",
+                        client_id="das_web_client", discovery=False)
+
+        client.login()
+
+        assert server.posts[0].data["username"] == "a-user"
 
     def test_it_is_not_blamed_on_the_library(self, client, token_kwargs):
         with pytest.warns(ERClientAuthWarning) as record:

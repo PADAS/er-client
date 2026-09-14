@@ -114,9 +114,9 @@ from erclient import ERClientAuthWarning
 warnings.filterwarnings("ignore", category=ERClientAuthWarning)
 ```
 
-Each message also goes to the `ERClient` / `AsyncERClient` logger at WARNING. That is a separate channel — `filterwarnings` does not reach it — so quiet it through your logging configuration if you want it gone from there too.
+Each of the messages above also goes to the `ERClient` / `AsyncERClient` logger at WARNING. That is a separate channel — `filterwarnings` does not reach it — so quiet it through your logging configuration if you want it gone from there too.
 
-Passing `token=` together with a `username` or `password` warns the same way at construction: the token wins, as it always has, and the credentials are ignored.
+Passing `token=` together with a `username` or `password` warns at construction, to the caller rather than the log: requests are authenticated with the token, as they always have been, and the credentials are used only if you call `login()` yourself.
 
 Discovery never blocks a caller who brought credentials — a 404, a 5xx, a malformed document or an unreachable endpoint all just mean "no metadata", logged at DEBUG, and no metadata means no warning and no refusal. `discovery=False` switches off the fetches, and with them the warnings and the refusals. `client.protected_resource_metadata` holds whatever the last fetch found.
 
@@ -263,7 +263,7 @@ Unrecognised keywords are silently ignored rather than rejected, so a typo such 
 | Argument | Default | Notes |
 |---|---|---|
 | `service_root` | `None` | Base URL, e.g. `https://sandbox.pamdas.org`. A full API root is also accepted: any `/api/...` suffix is stripped, so passing `.../api/v2.0` does **not** select v2.0. |
-| `token` | `None` | Bearer token, ideally Auth0-issued. Nothing is fetched from the token endpoint. Takes precedence over username/password. |
+| `token` | `None` | Bearer token, ideally Auth0-issued. Nothing is fetched from the token endpoint. What requests are authenticated with, in preference to username/password. |
 | `client_id` | `None` | Required for the legacy username/password grant. Its presence selects that grant even without a username or password. |
 | `username`, `password` | `None` | The legacy password grant; use together with `client_id`. |
 | `token_url` | `{service_root}/oauth2/token` | Override only if the site's token endpoint differs. Password grant only. |
