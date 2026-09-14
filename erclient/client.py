@@ -51,6 +51,10 @@ DISCOVERY_TIMEOUT_SECONDS = 5
 # The device-code flow's own requests: short, since a user is watching.
 DEVICE_CODE_TIMEOUT_SECONDS = 10
 
+# RFC 8628 section 3.5: neither answer is a failure, only the flow still
+# running, so the poller keeps going rather than classifying them.
+_STILL_WAITING = ('authorization_pending', 'slow_down')
+
 # What the client says when it cannot sign a user in. Spelled out here rather
 # than where they are raised, so both clients stay identical.
 _DISCOVERY_DISABLED = (
@@ -323,9 +327,8 @@ class _AuthSupport:
     def _device_code_poll_interval(self, response, token_endpoint, interval):
         """What to wait before polling again, or raise if this was the end.
 
-        RFC 8628 section 3.5: a slow_down adds five seconds, or more if the
-        server asked for longer, and neither it nor authorization_pending is a
-        failure to classify.
+        A slow_down adds five seconds for good (RFC 8628 section 3.5), and a
+        Retry-After raises the floor whichever answer carried it.
         """
         auth_error = AuthError.from_token_response(
             status_code=response.status_code,
@@ -335,20 +338,21 @@ class _AuthSupport:
             retry_after=parse_retry_after_header(
                 response.headers.get('Retry-After')),
         )
-        if auth_error.error == 'authorization_pending':
-            return interval
-        if auth_error.error == 'slow_down':
-            interval += SLOW_DOWN_INCREMENT_SECONDS
-            if auth_error.retry_after:
-                interval = max(interval, auth_error.retry_after)
-            return interval
         if auth_error.error == 'expired_token':
             raise self._device_code_expiry(token_endpoint, auth_error)
         if auth_error.error == 'access_denied':
             self._last_auth_error = auth_error
             self._clear_auth()
             raise ERClientBadCredentials(_SIGN_IN_DECLINED)
-        raise self._device_code_refused(response, token_endpoint)
+
+        if auth_error.error not in _STILL_WAITING:
+            raise self._device_code_refused(response, token_endpoint)
+
+        if auth_error.error == 'slow_down':
+            interval += SLOW_DOWN_INCREMENT_SECONDS
+        if auth_error.retry_after:
+            interval = max(interval, auth_error.retry_after)
+        return interval
 
     def _device_code_expiry(self, url, auth_error=None):
         """The refusal for a code that ran out before it was approved.

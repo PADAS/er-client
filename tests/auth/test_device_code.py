@@ -65,8 +65,9 @@ def token_body(issuer=ISSUER, **overrides):
         **overrides})
 
 
-def pending(**overrides):
-    return Reply(400, json_body={"error": "authorization_pending", **overrides})
+def pending(headers=None):
+    return Reply(400, json_body={"error": "authorization_pending"},
+                 headers=headers)
 
 
 @pytest.fixture
@@ -307,6 +308,28 @@ class TestPolling:
         client.login()
 
         assert clock == [5, 30]
+
+    def test_a_retry_after_on_a_pending_answer_is_honoured_too(
+            self, client, service_root, flow, clock):
+        flow(token_replies=[
+            pending(headers={"Retry-After": "20"}),
+            Reply(json_body=token_body())])
+        client.make(service_root=service_root)
+
+        client.login()
+
+        assert clock == [5, 20]
+
+    def test_a_retry_after_shorter_than_the_interval_is_ignored(
+            self, client, service_root, flow, clock):
+        flow(token_replies=[
+            pending(headers={"Retry-After": "2"}),
+            Reply(json_body=token_body())])
+        client.make(service_root=service_root)
+
+        client.login()
+
+        assert clock == [5, 5]
 
     def test_the_code_expiring_at_the_server(self, client, service_root, flow,
                                              clock):
