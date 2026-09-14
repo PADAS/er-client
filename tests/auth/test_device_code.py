@@ -385,6 +385,39 @@ class TestPolling:
 
         assert exc_info.value.retry_after == 9
 
+    def test_a_blip_at_the_tenant_is_waited_out(self, client, service_root,
+                                                flow, clock):
+        flow(token_replies=[Reply(503, text="<html>bad gateway</html>"),
+                            pending(),
+                            Reply(json_body=token_body())])
+        client.make(service_root=service_root)
+
+        assert client.login() is True
+        assert clock == [5, 5, 5]
+
+    def test_a_blip_carrying_a_retry_after_is_waited_out_for_that_long(
+            self, client, service_root, flow, clock):
+        flow(token_replies=[
+            Reply(503, text="", headers={"Retry-After": "15"}),
+            Reply(json_body=token_body())])
+        client.make(service_root=service_root)
+
+        client.login()
+
+        assert clock == [5, 15]
+
+    def test_a_blip_that_never_clears_still_ends_at_the_deadline(
+            self, client, service_root, flow, clock):
+        flow(authorization=Reply(json_body=device_authorization(expires_in=12)),
+             token_replies=[Reply(500, text=""), Reply(500, text=""),
+                            Reply(500, text="")])
+        client.make(service_root=service_root)
+
+        with pytest.raises(ERClientBadCredentials) as exc_info:
+            client.login()
+
+        assert "expired" in str(exc_info.value)
+
 
 class TestTheTenantWillNotStartTheFlow:
 

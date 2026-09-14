@@ -345,7 +345,11 @@ class _AuthSupport:
             self._clear_auth()
             raise ERClientBadCredentials(_SIGN_IN_DECLINED)
 
-        if auth_error.error not in _STILL_WAITING:
+        # A 5xx is the tenant having a moment, not a verdict on a sign-in the
+        # user may already have approved, so it is waited out like a pending
+        # answer. The code's own deadline still bounds how long that lasts.
+        if (auth_error.error not in _STILL_WAITING
+                and response.status_code < 500):
             raise self._device_code_refused(response, token_endpoint)
 
         if auth_error.error == 'slow_down':
