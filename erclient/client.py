@@ -669,11 +669,12 @@ class ERClient(_AuthSupport):
                 or not self.token):
             return
 
-        # Marked done after the fetch, not before: a second caller arriving
-        # while the first is still waiting on discovery then repeats the fetch
-        # rather than skipping the check and sending the token anyway.
-        self.discover()
+        # Claimed before the fetch, so concurrent first uses make one GET
+        # between them rather than one each. What the others skip is a warning
+        # this caller is about to emit anyway; nothing here decides whether
+        # the token is sent, so there is no check for them to miss.
         self._discovery_done_for_token_mode = True
+        self.discover()
         mode = 'jwt_token' if looks_like_jwt(self.token) else 'opaque_token'
         self._warn_if_the_site_does_not_list_the_token(mode, stacklevel=4)
         self._warn_if_legacy_auth(mode, stacklevel=4)
@@ -2301,9 +2302,11 @@ class AsyncERClient(_AuthSupport):
                 or not self.token):
             return
 
-        # Marked done after the fetch, not before, as in the sync client.
-        await self.discover()
+        # Claimed before the fetch, as in the sync client. This is the client
+        # where it bites: gathering several requests on one instance is an
+        # ordinary thing to do, and each would otherwise fetch for itself.
         self._discovery_done_for_token_mode = True
+        await self.discover()
         mode = 'jwt_token' if looks_like_jwt(self.token) else 'opaque_token'
         self._warn_if_the_site_does_not_list_the_token(mode, stacklevel=4)
         self._warn_if_legacy_auth(mode, stacklevel=4)

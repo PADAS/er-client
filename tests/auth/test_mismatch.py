@@ -210,6 +210,21 @@ class TestWhenTokenModeAsksTheSite:
 
         assert server.calls.count(("GET", discovery_url)) == 1
 
+    def test_a_caller_arriving_during_the_fetch_finds_it_already_claimed(
+            self, client, server, token_kwargs, publishes, das_issuer):
+        publishes(das_issuer)
+        client.make(**token_kwargs)
+        claimed = []
+        server.before_reply(
+            lambda method, url: claimed.append(
+                client._discovery_done_for_token_mode))
+
+        client.auth_headers()
+
+        # False here would mean a caller arriving mid-fetch starts a second
+        # one, which is what asyncio.gather over one client does.
+        assert claimed == [True]
+
     def test_not_at_construction(self, client, server, token_kwargs,
                                  publishes):
         publishes(AUTH0_ISSUER)

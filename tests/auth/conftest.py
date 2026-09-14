@@ -105,6 +105,15 @@ class FakeServer:
     def __init__(self):
         self._routes = {}
         self.traffic = []
+        self._before_reply = None
+
+    def before_reply(self, hook):
+        """Run ``hook(method, url)`` as each request arrives, before answering.
+
+        The one place a test can look at the client mid-request, which is
+        where a second caller would find it.
+        """
+        self._before_reply = hook
 
     def respond(self, method, url, status_code=200, json_body=None, text=None,
                 headers=None):
@@ -138,6 +147,8 @@ class FakeServer:
         recorded = {key.lower(): value for key,
                     value in (headers or {}).items()}
         self.traffic.append(Call(method, url, data, recorded, timeout))
+        if self._before_reply is not None:
+            self._before_reply(method, url)
         route = self._routes.get((method, url))
         if route is None:
             raise AssertionError(f"unscripted {method} {url}")
