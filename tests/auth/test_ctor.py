@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 import pytz
-import requests
 from tests.auth.conftest import Reply
 
 from erclient.er_errors import ERClientException
@@ -48,6 +47,7 @@ class TestConstruction:
         assert client.username is None
         assert client.password is None
         assert client.client_id is None
+        assert client.token is None
         assert client.auth is None
 
 
@@ -137,8 +137,8 @@ class TestPasswordGrant:
 
         client.auth_headers()
 
-        assert server.calls == [("POST", default_token_url)]
-        assert server.traffic[0].data == {
+        assert [call.url for call in server.posts] == [default_token_url]
+        assert server.posts[0].data == {
             "grant_type": "password",
             "username": ropc_kwargs["username"],
             "password": ropc_kwargs["password"],
@@ -154,7 +154,7 @@ class TestPasswordGrant:
 
         client.auth_headers()
 
-        assert server.calls == [("POST", custom_token_url)]
+        assert [call.url for call in server.posts] == [custom_token_url]
 
     @pytest.mark.parametrize("expires_in", [3600, "3600"])
     def test_the_whole_response_is_stored_with_a_derived_expiry(
@@ -194,7 +194,7 @@ class TestPasswordGrant:
         client.auth_headers()
         client.auth_headers()
 
-        assert len(server.traffic) == 1
+        assert len(server.posts) == 1
 
     def test_an_expired_token_is_refreshed_without_a_password_grant(
             self, client, server, ropc_kwargs, default_token_url,
@@ -210,7 +210,7 @@ class TestPasswordGrant:
         client._client.auth_expires = pytz.utc.localize(datetime.min)
         headers = client.auth_headers()
 
-        assert server.traffic[1].data == {
+        assert server.posts[1].data == {
             "grant_type": "refresh_token",
             "refresh_token": "refresh-token-1",
             "client_id": ropc_kwargs["client_id"],
@@ -234,7 +234,7 @@ class TestPasswordGrant:
         if client.kind == "sync":
             headers = client.auth_headers()
 
-            assert [call.data["grant_type"] for call in server.traffic] == [
+            assert [call.data["grant_type"] for call in server.posts] == [
                 "password", "refresh_token", "password"]
             assert headers["Authorization"] == "Bearer access-token-3"
         else:
@@ -258,7 +258,7 @@ class TestPasswordGrant:
         client._client.auth_expires = pytz.utc.localize(datetime.min)
         headers = client.auth_headers()
 
-        assert [call.data["grant_type"] for call in server.traffic] == [
+        assert [call.data["grant_type"] for call in server.posts] == [
             "password", "password"]
         assert headers["Authorization"] == "Bearer access-token-2"
 
@@ -271,7 +271,7 @@ class TestPasswordGrant:
         client.login()
 
         assert client.call(client.refresh_token) is False
-        assert len(server.traffic) == 1
+        assert len(server.posts) == 1
         assert client.auth == body
 
     def test_auth_is_valid_tracks_the_recorded_expiry(self, client,
@@ -312,24 +312,15 @@ class TestARefusedLogin:
 
 
 class TestNoCredentials:
-    """Nothing was supplied, so a password grant of nothing is posted."""
 
-    def test_posts_a_password_grant_with_no_credentials_in_it(
+    def test_neither_client_asks_the_site_to_authenticate_nobody(
             self, client, server, service_root, default_token_url):
+        # Both sign the user in instead (test_device_code.py). There is no
+        # terminal here, so both refuse before making a request.
         server.respond("POST", default_token_url, 401, text="nope")
         client.make(service_root=service_root)
 
-        with pytest.raises((ERClientException, httpx.HTTPStatusError)):
+        with pytest.raises(ERClientException):
             client.auth_headers()
 
-        # wart: nothing to authenticate with, and the site is asked anyway.
-        assert server.traffic[0].data == {"grant_type": "password"}
-
-    def test_requests_drops_the_none_valued_fields_the_payload_above_relies_on(
-            self, default_token_url):
-        prepared = requests.Request(
-            "POST", default_token_url,
-            data={"grant_type": "password", "username": None,
-                  "password": None, "client_id": None}).prepare()
-
-        assert prepared.body == "grant_type=password"
+        assert server.traffic == []
