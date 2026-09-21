@@ -31,15 +31,17 @@ from .device_code import (DEFAULT_SCOPE, DEVICE_CODE_GRANT,
                           parse_authorization_server_metadata,
                           parse_device_authorization, parse_token_response,
                           select_authorization_server)
-from .discovery import (credential_site_mismatch, discovery_url, jwt_issuer,
-                        normalize_issuer, parse_protected_resource_metadata)
+from .discovery import (classify_authorization_servers,
+                        credential_site_mismatch, discovery_url, jwt_issuer,
+                        legacy_auth_warning, looks_like_jwt, normalize_issuer,
+                        parse_protected_resource_metadata)
 from .er_errors import (CREDENTIAL_SITE_MISMATCH,
                         INTERACTIVE_SIGN_IN_UNAVAILABLE, AuthError,
-                        ERClientBadCredentials, ERClientBadRequest,
-                        ERClientException, ERClientInternalError,
-                        ERClientNotFound, ERClientPermissionDenied,
-                        ERClientRateLimitExceeded, ERClientServiceUnreachable,
-                        classify_token_error)
+                        ERClientAuthWarning, ERClientBadCredentials,
+                        ERClientBadRequest, ERClientException,
+                        ERClientInternalError, ERClientNotFound,
+                        ERClientPermissionDenied, ERClientRateLimitExceeded,
+                        ERClientServiceUnreachable, classify_token_error)
 from .version import __version__
 
 version_string = __version__
@@ -177,6 +179,88 @@ class _AuthSupport:
         """Read the auth kwargs neither client interprets its own way."""
         self.token = kwargs.get('token')
         self._open_browser = kwargs.get('open_browser', False)
+        self._auth_warnings_issued = set()
+        self._discovery_done_for_token_mode = False
+
+        if self.token and (self.username or self.password):
+            # Warned about rather than refused: callers pass both today, and
+            # the token has always won. Not "ignored", though -- an explicit
+            # login() still posts a password grant built from them.
+            message = ('Both token= and username/password were supplied; '
+                       'requests are authenticated with token=. The username '
+                       'and password are used only by an explicit login().')
+            # Said to the caller and not to the log, unlike the warnings that
+            # come from what a site publishes. This one is a fact about how
+            # the client was built, true for its whole life and the same on
+            # every instance, so a caller who builds one per request would get
+            # a log line per request that never says anything new. The default
+            # warning filter shows it once per call site instead.
+            #
+            # Two frames up is the constructor, three is whoever called it.
+            warnings.warn(message, ERClientAuthWarning, stacklevel=3)
+
+    @property
+    def last_auth_error(self):
+        """Why the last login was refused, or None if none has been.
+
+        Where a caller reads a reason the return value does not carry: the
+        sync login() and refresh_token() only return a bool, and their async
+        twins raise httpx.HTTPStatusError for a refused password grant, which
+        the request wrappers classify but a direct caller sees raw. Cleared by
+        the next successful token request.
+        """
+        return self._last_auth_error
+
+    @property
+    def protected_resource_metadata(self):
+        """What the most recent discover() found, or None."""
+        return self._protected_resource_metadata
+
+    def _warn_if_the_site_does_not_list_the_token(self, mode, *, stacklevel):
+        """Warn once per client if the site's document does not list the token.
+
+        A warning rather than a refusal: the document can lag what the API
+        actually honours, and the server is the authority on its own tokens.
+        The caller gets the explanation before the 401, not instead of it.
+        """
+        self._emit_auth_warning(credential_site_mismatch(
+            metadata=self._protected_resource_metadata,
+            service_root=self.service_root, mode=mode,
+            token_issuer=jwt_issuer(self.token) if mode == 'jwt_token'
+            else None), stacklevel=stacklevel)
+
+    def _emit_auth_warning(self, message, *, stacklevel):
+        """Say it once per client, to the log and to warnings.
+
+        ``stacklevel`` is counted from the caller's caller, so this frame adds
+        its own rather than making every call site know it is here.
+        """
+        if not message or message in self._auth_warnings_issued:
+            return
+        self._auth_warnings_issued.add(message)
+        self.logger.warning(message)
+        warnings.warn(message, ERClientAuthWarning, stacklevel=stacklevel + 1)
+
+    def _warn_if_legacy_auth(self, mode, *, stacklevel):
+        """Warn once per client if these credentials are legacy for this site."""
+        metadata = self._protected_resource_metadata
+        if metadata is None:
+            return
+
+        has_das, has_external = classify_authorization_servers(
+            metadata, self.service_root)
+        self._emit_auth_warning(legacy_auth_warning(
+            service_root=self.service_root, has_das=has_das,
+            has_external=has_external, mode=mode), stacklevel=stacklevel)
+
+    def _is_sending_the_supplied_token(self):
+        """Whether token= is still the credential requests actually carry.
+
+        An explicit login() on a client built with both kinds of credential
+        replaces it with a password-grant token. Warning about the one that
+        displaced would name a credential no longer on the wire.
+        """
+        return (self.auth or {}).get('access_token') == self.token
 
     def _uses_device_code(self):
         """Whether this client has to sign a user in to get a token.
@@ -407,7 +491,7 @@ class ERClient(_AuthSupport):
 
         :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org). The client assembles the API root as {service_root}/api/{version} (default version v1.0). For backward compatibility, a full API root (Ex. https://sandbox.pamdas.org/api/v1.0) is accepted and normalized to the base.
 
-        :param token: authorization token, ideally Auth0-issued. Nothing is fetched from the token endpoint. Takes precedence over username/password: when both are supplied the token is used and the credentials are ignored.
+        :param token: authorization token, ideally Auth0-issued. Nothing is fetched from the token endpoint. Takes precedence over username/password: when both are supplied, requests are authenticated with the token, and the credentials are used only by an explicit login().
 
         or, the legacy password grant:
 
@@ -590,7 +674,30 @@ class ERClient(_AuthSupport):
         return self._poll_for_device_code_token(
             server, token_endpoint, authorization)
 
+    def _discover_for_token_mode(self):
+        """Discover once, on the first use of a caller-supplied token.
+
+        A caller who brought their own token never calls login(), so this is
+        the only path left that can tell them it is wrong for the site.
+        """
+        if (not self._discovery_enabled
+                or self._discovery_done_for_token_mode
+                or not self.token
+                or not self._is_sending_the_supplied_token()):
+            return
+
+        # Claimed before the fetch, so concurrent first uses make one GET
+        # between them rather than one each. What the others skip is a warning
+        # this caller is about to emit anyway; nothing here decides whether
+        # the token is sent, so there is no check for them to miss.
+        self._discovery_done_for_token_mode = True
+        self.discover()
+        mode = 'jwt_token' if looks_like_jwt(self.token) else 'opaque_token'
+        self._warn_if_the_site_does_not_list_the_token(mode, stacklevel=4)
+        self._warn_if_legacy_auth(mode, stacklevel=4)
+
     def auth_headers(self):
+        self._discover_for_token_mode()
 
         # An implicit sign-in needs someone to read the prompt. Without a
         # terminal, say so before any request rather than printing a code into
@@ -626,7 +733,7 @@ class ERClient(_AuthSupport):
         """
         message = credential_site_mismatch(
             metadata=self._protected_resource_metadata,
-            service_root=self.service_root)
+            service_root=self.service_root, mode='password')
         if not message:
             return False
 
@@ -677,6 +784,7 @@ class ERClient(_AuthSupport):
             self.discover()
             if self._refuse_password_grant():
                 return False
+            self._warn_if_legacy_auth('password', stacklevel=3)
 
         payload = {'grant_type': 'password',
                    'username': self.username,
@@ -1674,7 +1782,7 @@ class AsyncERClient(_AuthSupport):
 
         :param service_root: Base URL of the ER server (Ex. https://sandbox.pamdas.org). The client assembles the API root as {service_root}/api/{version} (default version v1.0). For backward compatibility, a full API root (Ex. https://sandbox.pamdas.org/api/v1.0) is accepted and normalized to the base.
 
-        :param token: authorization token, ideally Auth0-issued. Nothing is fetched from the token endpoint. Takes precedence over username/password: when both are supplied the token is used and the credentials are ignored.
+        :param token: authorization token, ideally Auth0-issued. Nothing is fetched from the token endpoint. Takes precedence over username/password: when both are supplied, requests are authenticated with the token, and the credentials are used only by an explicit login().
 
         or, the legacy password grant:
 
@@ -2200,7 +2308,30 @@ class AsyncERClient(_AuthSupport):
         return await self._poll_for_device_code_token(
             server, token_endpoint, authorization)
 
+    async def _discover_for_token_mode(self):
+        """Discover once, on the first use of a caller-supplied token.
+
+        A caller who brought their own token never calls login(), so this is
+        the only path left that can tell them it is wrong for the site.
+        """
+        if (not self._discovery_enabled
+                or self._discovery_done_for_token_mode
+                or not self.token
+                or not self._is_sending_the_supplied_token()):
+            return
+
+        # Claimed before the fetch, as in the sync client. This is the client
+        # where it bites: gathering several requests on one instance is an
+        # ordinary thing to do, and each would otherwise fetch for itself.
+        self._discovery_done_for_token_mode = True
+        await self.discover()
+        mode = 'jwt_token' if looks_like_jwt(self.token) else 'opaque_token'
+        self._warn_if_the_site_does_not_list_the_token(mode, stacklevel=4)
+        self._warn_if_legacy_auth(mode, stacklevel=4)
+
     async def auth_headers(self):
+        await self._discover_for_token_mode()
+
         # An implicit sign-in needs someone to read the prompt. Without a
         # terminal, say so before any request rather than printing a code into
         # a log and polling until it expires.
@@ -2248,7 +2379,7 @@ class AsyncERClient(_AuthSupport):
         """
         message = credential_site_mismatch(
             metadata=self._protected_resource_metadata,
-            service_root=self.service_root)
+            service_root=self.service_root, mode='password')
         if not message:
             return
 
@@ -2266,6 +2397,7 @@ class AsyncERClient(_AuthSupport):
         if self._discovery_enabled:
             await self.discover()
             self._refuse_password_grant()
+            self._warn_if_legacy_auth('password', stacklevel=3)
 
         return await self._token_request(
             payload={

@@ -4,6 +4,12 @@ Find [er-client source](https://github.com/PADAS/er-client) here in github.
 ## Developer setup
 We use uv for managing the setup and builds
 1. install uv [link to docs](https://docs.astral.sh/uv/getting-started/installation/#pypi)
+
+   `uv.toml` names the exact uv version everyone builds with, and `uv` refuses
+   to run on any other — newer as well as older. If it tells you your version
+   does not match, move to the one it names rather than to the latest:
+   `uv self update <version>`. The pin is kept in step with the
+   `uv-pre-commit` hook.
 2. setup a venv for development using uv venv. Here we are developing under python 3.10. Do this in the root directory of the er-client
    ```
    uv venv --python 3.10
